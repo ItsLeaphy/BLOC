@@ -27,7 +27,6 @@ document.currentScript.after(link);
 </script>
 </head>
 <body>
-
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -302,6 +301,8 @@ document.currentScript.after(link);
 .btn-ripple{position:relative;overflow:hidden}
 .btn-ripple::after{content:'';position:absolute;inset:0;background:radial-gradient(circle, rgba(255,255,255,.3) 0%, transparent 70%);transform:scale(0);border-radius:inherit;pointer-events:none}
 .btn-ripple:active::after{animation:ripple .4s ease}
+body{margin:0;background:#0a0a0a}
+#app{min-height:100dvh;border-radius:0;border:none;max-width:100%}
 </style>
 
 <div id="app">
@@ -1223,7 +1224,4 @@ function render(){
 
 applyAppearance();
 render();
-/* PWA fullscreen fixes */
-body { margin: 0; background: #0a0a0a; }
-#app { min-height: 100dvh; border-radius: 0; border: none; max-width: 100%; }
 </script>
