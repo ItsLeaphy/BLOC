@@ -1,3 +1,4 @@
+
 <style>
 *{box-sizing:border-box;margin:0;padding:0}
 :root{
@@ -381,6 +382,7 @@ let appearance=ld('bv2_appearance',{
   font:'helvetica',
   borderRadius:10,
   compactMode:false,
+  animSpeed:'normal',
 });
 
 let page='hoje';
@@ -458,12 +460,12 @@ function saveLog(dk){
   const today=new Date().toLocaleDateString('pt-BR');
   history=history.filter(h=>!(h.dayKey===dk&&h.date===today));
   const entry={date:today,dayKey:dk,day:DAYFULL[DAYS.indexOf(dk)],entries:[]};
-  (blocks[dk]||[]).forEach(b=>{
+  (blocks[dk]||[]).forEach((b,bi)=>{
     const exArr=b.exercises.map(e=>{
-      const wEl=document.getElementById('w-'+dk+b.label+e.name);
-      const rEl=document.getElementById('r-'+dk+b.label+e.name);
-      const sEl=document.getElementById('s-'+dk+b.label+e.name);
-      const tEl=document.getElementById('t-'+dk+b.label+e.name);
+      const wEl=document.getElementById('w-'+dk+bi+e.name);
+      const rEl=document.getElementById('r-'+dk+bi+e.name);
+      const sEl=document.getElementById('s-'+dk+bi+e.name);
+      const tEl=document.getElementById('t-'+dk+bi+e.name);
       return{name:e.name,sets:sEl?parseInt(sEl.value)||e.sets:e.sets,reps:rEl?parseInt(rEl.value)||0:e.reps||0,weight:wEl?parseFloat(wEl.value)||0:e.weight||0,time:tEl?parseInt(tEl.value)||0:e.time||0};
     });
     entry.entries.push({label:b.label,type:b.type,exercises:exArr});
@@ -1143,7 +1145,6 @@ function importData(input){
 }
 
 // ===== 2-STEP DANGER ZONE =====
-let dangerConfirmStep={};
 
 function initDangerAction(action){
   dangerConfirmStep[action]=true;
