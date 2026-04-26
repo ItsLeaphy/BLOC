@@ -1,0 +1,1196 @@
+<style>
+*{box-sizing:border-box;margin:0;padding:0}
+:root{
+--bg:#0a0a0a;--s1:#111;--s2:#161616;--s3:#1c1c1c;--s4:#222;
+--tc:#e8e8e8;--t2:#888;--t3:#444;--t4:#2a2a2a;
+--ac:#fff;--ac2:rgba(255,255,255,0.06);
+--br:10px;--br2:7px;
+--green:#22c55e;--red:#ef4444;--yellow:#f59e0b;--blue:#3b82f6;
+--accent-color:#fff;
+--font-family:'Helvetica Neue',Helvetica,Arial,sans-serif;
+--radius-global:10px;
+--anim-speed:0.32s;
+}
+#app{font-family:var(--font-family);background:var(--bg);color:var(--tc);min-height:800px;max-width:430px;margin:0 auto;display:flex;flex-direction:column;border-radius:20px;overflow:hidden;border:1px solid #1e1e1e;position:relative}
+#hdr{padding:14px 16px 10px;background:var(--s1);border-bottom:1px solid #1a1a1a;display:flex;align-items:center;justify-content:space-between;gap:10px}
+.logo{font-size:15px;font-weight:700;letter-spacing:3px;color:var(--ac);text-transform:uppercase;flex-shrink:0}
+.hdr-center{display:flex;align-items:center;gap:8px;flex:1;justify-content:center}
+.date-pill{font-size:11px;color:var(--t2);background:var(--s3);padding:4px 10px;border-radius:20px;border:1px solid #1e1e1e;letter-spacing:0.3px}
+.cfg-gear-btn{width:30px;height:30px;border-radius:8px;background:var(--s3);border:1px solid #1e1e1e;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .2s;color:var(--t2)}
+.cfg-gear-btn:hover{border-color:#333;color:var(--tc)}
+.cfg-gear-btn.active{border-color:#333;color:var(--ac);background:var(--s4)}
+.cfg-gear-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5}
+#nav{position:absolute;bottom:0;left:0;right:0;background:var(--s1);border-top:1px solid #1a1a1a;display:flex;padding:8px 0 14px}
+.sec{font-size:10px;font-weight:600;color:var(--t3);letter-spacing:2px;text-transform:uppercase;margin:18px 0 10px}
+.sec:first-child{margin-top:0}
+.ex-inputs-row{display:flex;gap:6px;padding:10px 12px;border-bottom:1px solid #1a1a1a}
+.inp-g{display:flex;flex-direction:column;align-items:center;gap:3px}
+.inp-g input{width:54px;background:var(--s3);border:1px solid #232323;border-radius:5px;padding:6px 4px;font-size:12px;color:var(--tc);text-align:center;outline:none;font-family:inherit}
+.inp-g input:focus{border-color:#444}
+.inp-lbl{font-size:9px;color:var(--t3);letter-spacing:0.5px}
+.ex-media{padding:10px 12px}
+.media-title{font-size:10px;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px}
+.media-inp{display:flex;gap:6px}
+.media-inp input{flex:1;background:var(--s3);border:1px solid #232323;border-radius:5px;padding:6px 10px;font-size:11px;color:var(--t2);outline:none;font-family:inherit}
+.media-inp input:focus{border-color:#333;color:var(--tc)}
+.media-inp input::placeholder{color:#333}
+.media-add{background:var(--s3);border:1px solid #232323;border-radius:5px;padding:6px 10px;font-size:11px;color:var(--t2);cursor:pointer;font-family:inherit;white-space:nowrap}
+.media-add:hover{border-color:#444;color:var(--tc)}
+.media-item{display:flex;align-items:center;gap:8px;margin-top:6px;background:var(--s1);border-radius:5px;padding:6px 10px;border:1px solid #1a1a1a}
+.media-type{font-size:9px;color:var(--t3);text-transform:uppercase;letter-spacing:1px;width:30px;flex-shrink:0}
+.media-url{font-size:11px;color:var(--blue);flex:1;overflow:hidden;text-overflow:ellipsis;white-space:nowrap;cursor:pointer}
+.media-del{font-size:10px;color:var(--t3);cursor:pointer;padding:2px 4px}
+.media-del:hover{color:var(--red)}
+.media-yt{width:100%;border-radius:6px;margin-top:6px;aspect-ratio:16/9;border:none;background:#111}
+.trnd{display:inline-flex;align-items:center;gap:3px;font-size:10px;padding:2px 7px;border-radius:4px;font-weight:600}
+.trnd.up{color:var(--green);background:rgba(34,197,94,.08);border:1px solid rgba(34,197,94,.15)}
+.trnd.dn{color:var(--red);background:rgba(239,68,68,.08);border:1px solid rgba(239,68,68,.15)}
+.trnd.eq{color:var(--t2);background:var(--s3);border:1px solid #1e1e1e}
+.done-dot{width:6px;height:6px;border-radius:50%;background:var(--green);flex-shrink:0}
+.wk-grid{display:grid;grid-template-columns:1fr 1fr;gap:8px}
+.dc-day{font-size:10px;font-weight:700;color:var(--t2);letter-spacing:2px;text-transform:uppercase;display:flex;align-items:center;gap:6px}
+.dc-blocks{font-size:11px;color:var(--t3);margin-top:7px;line-height:1.8}
+.dc-dot{display:inline-block;width:5px;height:5px;border-radius:50%;background:#333;margin-right:5px;vertical-align:middle}
+.dc.today .dc-dot{background:#555}
+.blk-opt{display:flex;align-items:center;gap:10px;padding:10px 12px;border-radius:7px;cursor:pointer;transition:background .15s}
+.blk-opt:hover{background:var(--s3)}
+.blk-opt-icon{width:32px;height:32px;border-radius:7px;display:flex;align-items:center;justify-content:center;font-size:15px;background:var(--s3);border:1px solid #222;flex-shrink:0}
+.blk-opt-name{font-size:13px;font-weight:600;color:var(--tc)}
+.blk-opt-desc{font-size:10px;color:var(--t3);margin-top:1px}
+.empty{text-align:center;color:var(--t3);font-size:12px;padding:36px 16px;line-height:2;letter-spacing:0.3px}
+.cfg-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #141414}
+.cfg-row:last-child{border-bottom:none}
+.cfg-row-label{font-size:13px;color:var(--tc)}
+.cfg-row-sub{font-size:10px;color:var(--t3);margin-top:2px}
+.cfg-del{font-size:11px;color:var(--red);cursor:pointer;padding:4px 8px;border-radius:4px;border:1px solid rgba(239,68,68,.2);background:rgba(239,68,68,.05);font-family:inherit;transition:all .15s}
+.cfg-del:hover{background:rgba(239,68,68,.12)}
+.sep{height:1px;background:#141414;margin:14px 0}
+/* Structural block classes */
+.bh{display:flex;align-items:center;justify-content:space-between;padding:13px 14px;cursor:pointer;user-select:none;transition:background .15s}
+.bh:hover{background:rgba(255,255,255,.02)}
+.bl-icon{width:28px;height:28px;border-radius:6px;display:flex;align-items:center;justify-content:center;font-size:13px;flex-shrink:0;background:var(--s3);border:1px solid #222;transition:transform .2s}
+.bh:hover .bl-icon{transform:scale(1.08)}
+.bn{font-size:13px;font-weight:600;color:var(--tc)}
+.bs{font-size:10px;color:var(--t3);margin-top:2px}
+.ex-row{padding:10px 0;border-bottom:1px solid #141414}
+.ex-row:last-of-type{border-bottom:none}
+.ex-top{display:flex;align-items:center;justify-content:space-between;gap:8px;cursor:pointer;transition:opacity .15s}
+.ex-top:hover{opacity:0.85}
+.ex-name{font-size:13px;color:var(--tc);flex:1}
+.ex-meta{display:flex;gap:6px;align-items:center}
+.ex-tag{font-size:10px;color:var(--t2);background:var(--s3);padding:2px 7px;border-radius:4px;border:1px solid #1e1e1e;white-space:nowrap}
+.hist-c{background:var(--s1);border:1px solid #1a1a1a;border-radius:8px;margin-bottom:8px;overflow:hidden}
+.hist-h{display:flex;align-items:center;justify-content:space-between;padding:11px 13px;cursor:pointer;transition:background .15s}
+.hist-h:hover{background:var(--s2)}
+.hist-date{font-size:11px;color:var(--t2);letter-spacing:0.3px}
+.hist-day{font-size:12px;font-weight:600;color:var(--tc)}
+.h-ex-row{display:flex;align-items:center;justify-content:space-between;padding:6px 0;border-bottom:1px solid #141414;font-size:12px}
+.h-ex-row:last-child{border-bottom:none}
+.h-ex-name{color:var(--t2);flex:1}
+.h-ex-val{color:var(--tc);font-weight:500}
+.prog-c{background:var(--s1);border:1px solid #1a1a1a;border-radius:8px;padding:12px 14px;margin-bottom:8px}
+.prog-n{font-size:13px;font-weight:600;color:var(--tc);margin-bottom:2px}
+.prog-sub{font-size:10px;color:var(--t3);margin-bottom:10px}
+.prog-bar-bg{background:var(--s3);border-radius:3px;height:3px;overflow:hidden;margin-bottom:8px}
+.prog-vals{display:flex;justify-content:space-between;font-size:10px;color:var(--t3)}
+.goal-c{background:var(--s1);border:1px solid #1a1a1a;border-radius:8px;padding:13px 14px;margin-bottom:8px}
+.goal-h{display:flex;align-items:center;justify-content:space-between;margin-bottom:10px}
+.goal-n{font-size:13px;font-weight:600;color:var(--tc)}
+.goal-pct{font-size:18px;font-weight:700;color:var(--ac)}
+.goal-bar-bg{background:var(--s3);border-radius:3px;height:3px;overflow:hidden;margin-bottom:10px}
+.goal-btns{display:flex;gap:6px}
+.modal h3{font-size:14px;font-weight:600;color:var(--tc);margin-bottom:16px;letter-spacing:0.3px}
+.modal input,.modal select,.modal textarea{width:100%;background:var(--s2);border:1px solid #222;border-radius:6px;padding:9px 12px;font-size:13px;color:var(--tc);outline:none;margin-bottom:10px;font-family:inherit}
+.modal input:focus,.modal select:focus,.modal textarea:focus{border-color:#444}
+.modal textarea{resize:vertical;min-height:70px}
+.modal select option{background:var(--s1)}
+.m-btns{display:flex;gap:8px;margin-top:6px}
+.m-cancel{flex:1;padding:9px;background:transparent;border:1px solid #222;border-radius:6px;color:var(--t2);cursor:pointer;font-family:inherit;font-size:12px;transition:all .15s}
+.m-cancel:hover{border-color:#333;color:var(--tc)}
+.ind-card{background:var(--s1);border:1px solid #1a1a1a;border-radius:8px;padding:14px;margin-bottom:8px}
+.ind-ex{font-size:13px;font-weight:600;color:var(--tc);margin-bottom:12px}
+.ind-cmp{display:flex;align-items:center;gap:12px}
+.ind-val{text-align:center}
+.ind-num{font-size:20px;font-weight:700;color:var(--tc)}
+.ind-lbl{font-size:9px;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-top:2px}
+.ind-arr{font-size:20px;color:var(--t3)}
+.ind-arr.up{color:var(--green)}
+.ind-arr.dn{color:var(--red)}
+.ind-arr.eq{color:var(--t3)}
+
+/* CONFIG TABS */
+.cfg-tabs{display:flex;gap:4px;margin-bottom:14px;background:var(--s2);border-radius:8px;padding:3px;border:1px solid #1a1a1a}
+.cfg-tab{flex:1;padding:7px 4px;background:transparent;border:none;border-radius:6px;color:var(--t3);font-size:10px;letter-spacing:0.5px;cursor:pointer;font-family:inherit;transition:all .2s;text-align:center}
+.cfg-tab.active{background:var(--s3);color:var(--tc);border:1px solid #222}
+.cfg-tab:hover:not(.active){color:var(--t2)}
+
+/* APARÊNCIA */
+.ap-section{margin-bottom:18px}
+.ap-title{font-size:10px;font-weight:600;color:var(--t3);letter-spacing:2px;text-transform:uppercase;margin-bottom:10px}
+.ap-row{display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:1px solid #141414}
+.ap-row:last-child{border-bottom:none}
+.ap-label{font-size:13px;color:var(--tc)}
+.ap-sub{font-size:10px;color:var(--t3);margin-top:2px}
+.ap-control{display:flex;align-items:center;gap:6px}
+.color-swatch{width:26px;height:26px;border-radius:6px;border:2px solid #333;cursor:pointer;overflow:hidden}
+.color-swatch input[type=color]{width:140%;height:140%;margin:-20%;border:none;cursor:pointer;background:none;opacity:0;position:absolute}
+.color-swatch-wrap{position:relative;width:26px;height:26px;border-radius:6px;border:2px solid #333;overflow:hidden}
+.ap-select{background:var(--s3);border:1px solid #232323;border-radius:5px;padding:5px 8px;font-size:11px;color:var(--tc);outline:none;font-family:inherit;cursor:pointer}
+.ap-select option{background:var(--s1)}
+.ap-slider{width:90px;accent-color:var(--ac);cursor:pointer}
+.preset-grid{display:grid;grid-template-columns:repeat(4,1fr);gap:6px;margin-bottom:8px}
+.preset-btn{padding:8px 6px;border-radius:6px;border:1px solid #222;background:var(--s2);cursor:pointer;font-size:10px;color:var(--t2);font-family:inherit;text-align:center;transition:all .15s}
+.preset-btn:hover{border-color:#333;color:var(--tc)}
+.preset-btn.active-preset{border-color:var(--ac);color:var(--ac)}
+.font-preview{font-size:11px;color:var(--t2);margin-top:4px;font-style:italic}
+
+/* TOGGLE SWITCH */
+.toggle{position:relative;width:36px;height:20px;flex-shrink:0}
+.toggle input{opacity:0;width:0;height:0}
+.toggle-slider{position:absolute;cursor:pointer;inset:0;background:#2a2a2a;border-radius:20px;transition:.2s;border:1px solid #333}
+.toggle-slider:before{position:absolute;content:"";height:14px;width:14px;left:2px;bottom:2px;background:#555;border-radius:50%;transition:.2s}
+.toggle input:checked+.toggle-slider{background:rgba(255,255,255,0.15);border-color:#555}
+.toggle input:checked+.toggle-slider:before{transform:translateX(16px);background:var(--ac)}
+
+/* IMPORTAR/EXPORTAR */
+.data-btn{width:100%;padding:9px;background:transparent;border:1px solid #2a2a2a;border-radius:6px;color:var(--tc);font-size:12px;cursor:pointer;font-family:inherit;transition:all .2s;letter-spacing:0.5px;margin-bottom:8px;text-align:left}
+.data-btn:hover{background:var(--s3);border-color:#444}
+
+/* SEMANA edit-ex badge */
+.ex-base-badge{font-size:9px;color:var(--blue);background:rgba(59,130,246,.08);border:1px solid rgba(59,130,246,.2);padding:1px 5px;border-radius:3px;margin-left:4px;letter-spacing:0.3px}
+
+/* ===== ANIMATIONS ===== */
+@keyframes slideDown{from{opacity:0;transform:translateY(-8px);max-height:0}to{opacity:1;transform:translateY(0);max-height:800px}}
+@keyframes slideUp{from{opacity:1;transform:translateY(0);max-height:800px}to{opacity:0;transform:translateY(-8px);max-height:0}}
+@keyframes fadeIn{from{opacity:0;transform:translateY(4px)}to{opacity:1;transform:translateY(0)}}
+@keyframes popIn{from{opacity:0;transform:scale(0.92)}to{opacity:1;transform:scale(1)}}
+@keyframes expandImg{from{opacity:0;transform:scale(0.95)}to{opacity:1;transform:scale(1)}}
+@keyframes modalIn{from{opacity:0;transform:translateY(20px) scale(0.96)}to{opacity:1;transform:translateY(0) scale(1)}}
+@keyframes toastIn{from{opacity:0;transform:translateX(-50%) translateY(10px)}to{opacity:1;transform:translateX(-50%) translateY(0)}}
+@keyframes shimmer{0%{background-position:-200px 0}100%{background-position:200px 0}}
+@keyframes pulse{0%,100%{opacity:1}50%{opacity:0.5}}
+
+.bbody{border-top:1px solid #181818;padding:0 14px 12px;animation:slideDown var(--anim-speed) cubic-bezier(0.4,0,0.2,1)}
+.ex-detail{margin-top:10px;background:var(--s2);border-radius:8px;border:1px solid #1e1e1e;overflow:hidden;animation:slideDown 0.22s cubic-bezier(0.4,0,0.2,1)}
+.hist-body{padding:0 13px 12px;border-top:1px solid #161616;animation:slideDown 0.22s cubic-bezier(0.4,0,0.2,1)}
+.modal-ov{position:absolute;inset:0;background:rgba(0,0,0,.8);display:flex;align-items:flex-end;justify-content:center;z-index:100;padding:0;backdrop-filter:blur(3px);animation:fadeIn 0.18s ease}
+.modal{background:var(--s1);border:1px solid #222;border-radius:var(--br) var(--br) 0 0;padding:20px;width:100%;max-height:82%;overflow-y:auto;animation:modalIn 0.28s cubic-bezier(0.34,1.56,0.64,1)}
+.bc{background:var(--s1);border:1px solid #1a1a1a;border-radius:var(--br);margin-bottom:8px;overflow:hidden;transition:border-color .2s,box-shadow .2s}
+.bc:hover{border-color:#282828;box-shadow:0 2px 12px rgba(0,0,0,.3)}
+.bc.open{border-color:#2d2d2d}
+.bchev{color:var(--t3);font-size:10px;transition:transform 0.3s cubic-bezier(0.34,1.56,0.64,1);display:inline-block}
+.bchev.o{transform:rotate(180deg)}
+.ex-expand-btn{width:18px;height:18px;border-radius:4px;background:var(--s3);border:1px solid #222;display:flex;align-items:center;justify-content:center;font-size:9px;color:var(--t3);cursor:pointer;flex-shrink:0;transition:all .2s,transform .25s cubic-bezier(0.34,1.56,0.64,1)}
+.ex-expand-btn:hover{background:var(--s4);color:var(--tc);transform:scale(1.15)}
+.ex-expand-btn.open-btn{transform:rotate(180deg) scale(1.1)}
+.toast{position:absolute;bottom:82px;left:50%;transform:translateX(-50%);background:var(--s3);color:var(--tc);padding:7px 16px;border-radius:20px;font-size:11px;z-index:200;opacity:0;transition:opacity .3s;pointer-events:none;white-space:nowrap;border:1px solid #2a2a2a;letter-spacing:0.3px}
+.toast.show{opacity:1;animation:toastIn .3s cubic-bezier(0.34,1.56,0.64,1)}
+.nb{flex:1;display:flex;flex-direction:column;align-items:center;gap:3px;cursor:pointer;padding:4px;border:none;background:transparent;color:var(--t3);font-size:9px;letter-spacing:1px;text-transform:uppercase;transition:color .2s;font-family:inherit}
+.nb svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5;transition:transform .2s cubic-bezier(0.34,1.56,0.64,1)}
+.nb.active{color:var(--ac)}
+.nb.active svg{transform:scale(1.15)}
+.nb:hover svg{transform:scale(1.1)}
+.cfg-gear-btn{width:30px;height:30px;border-radius:8px;background:var(--s3);border:1px solid #1e1e1e;display:flex;align-items:center;justify-content:center;cursor:pointer;flex-shrink:0;transition:all .2s;color:var(--t2)}
+.cfg-gear-btn:hover{border-color:#333;color:var(--tc);transform:rotate(30deg)}
+.cfg-gear-btn.active{border-color:#333;color:var(--ac);background:var(--s4);transform:rotate(60deg)}
+.cfg-gear-btn svg{width:15px;height:15px;stroke:currentColor;fill:none;stroke-width:1.5}
+.dc{background:var(--s1);border:1px solid #1a1a1a;border-radius:var(--br);padding:12px;cursor:pointer;transition:border-color .2s,transform .15s,box-shadow .2s}
+.dc:hover{border-color:#2a2a2a;transform:translateY(-2px);box-shadow:0 4px 16px rgba(0,0,0,.3)}
+.dc.today{border-color:#333}
+.goal-bar-f{height:100%;background:var(--ac);border-radius:3px;transition:width .5s cubic-bezier(0.4,0,0.2,1)}
+.prog-bar-f{height:100%;background:var(--ac);border-radius:3px;transition:width .5s cubic-bezier(0.4,0,0.2,1)}
+.goal-btn{flex:1;padding:6px;background:transparent;border:1px solid #222;border-radius:5px;color:var(--t2);font-size:11px;cursor:pointer;font-family:inherit;transition:all .15s,transform .15s}
+.goal-btn:hover{background:var(--s3);color:var(--tc);border-color:#333;transform:scale(1.05)}
+.goal-btn:active{transform:scale(0.95)}
+.sreg{width:100%;margin-top:12px;padding:9px;background:transparent;border:1px solid #2a2a2a;border-radius:6px;color:var(--tc);font-size:12px;cursor:pointer;font-family:inherit;transition:all .2s,transform .15s;letter-spacing:0.5px}
+.sreg:hover{background:var(--s3);border-color:#444;transform:translateY(-1px)}
+.sreg:active{transform:scale(0.98)}
+.sreg.done{border-color:#2a3a2a;color:var(--green);background:rgba(34,197,94,.04)}
+.add-b{display:flex;align-items:center;gap:8px;background:transparent;border:1px dashed #1e1e1e;border-radius:7px;padding:10px 14px;cursor:pointer;color:var(--t3);font-size:12px;font-family:inherit;width:100%;margin-top:8px;transition:all .2s,transform .15s}
+.add-b:hover{border-color:#333;color:var(--t2);transform:translateX(3px)}
+.m-ok{flex:1;padding:9px;background:var(--tc);border:none;border-radius:6px;color:#000;cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;transition:opacity .15s,transform .15s}
+.m-ok:hover{opacity:0.85;transform:translateY(-1px)}
+.m-ok:active{transform:scale(0.97)}
+
+/* ===== IMAGE EXPAND ===== */
+.media-img-wrap{position:relative;margin-top:6px}
+.media-img{width:100%;border-radius:6px;max-height:140px;object-fit:cover;border:1px solid #1e1e1e;cursor:zoom-in;transition:opacity .2s,transform .2s;display:block}
+.media-img:hover{opacity:0.9;transform:scale(1.01)}
+.img-expand-btn{position:absolute;bottom:6px;right:6px;width:24px;height:24px;border-radius:5px;background:rgba(0,0,0,.65);border:1px solid rgba(255,255,255,.15);display:flex;align-items:center;justify-content:center;cursor:pointer;color:rgba(255,255,255,.8);font-size:11px;transition:all .2s;backdrop-filter:blur(4px)}
+.img-expand-btn:hover{background:rgba(0,0,0,.85);color:#fff}
+.img-lightbox{position:fixed;inset:0;background:rgba(0,0,0,.92);z-index:1000;display:flex;align-items:center;justify-content:center;padding:20px;animation:fadeIn .2s ease;cursor:zoom-out}
+.img-lightbox img{max-width:100%;max-height:90vh;border-radius:10px;animation:expandImg .25s cubic-bezier(0.34,1.56,0.64,1);box-shadow:0 20px 60px rgba(0,0,0,.8)}
+.img-lightbox-close{position:absolute;top:16px;right:16px;width:32px;height:32px;border-radius:50%;background:rgba(255,255,255,.1);border:1px solid rgba(255,255,255,.2);display:flex;align-items:center;justify-content:center;cursor:pointer;color:#fff;font-size:14px;transition:all .2s}
+.img-lightbox-close:hover{background:rgba(255,255,255,.2)}
+
+/* ===== 2FA DANGER ZONE ===== */
+.danger-confirm{background:rgba(239,68,68,.06);border:1px solid rgba(239,68,68,.2);border-radius:8px;padding:14px;margin-top:10px;animation:slideDown 0.22s cubic-bezier(0.4,0,0.2,1)}
+.danger-confirm-title{font-size:12px;font-weight:700;color:var(--red);margin-bottom:6px;letter-spacing:0.3px}
+.danger-confirm-msg{font-size:11px;color:var(--t2);margin-bottom:12px;line-height:1.5}
+.danger-confirm-input{width:100%;background:var(--s2);border:1px solid rgba(239,68,68,.25);border-radius:6px;padding:8px 12px;font-size:13px;color:var(--tc);outline:none;font-family:inherit;margin-bottom:10px;letter-spacing:2px;text-align:center}
+.danger-confirm-input:focus{border-color:rgba(239,68,68,.5)}
+.danger-btns{display:flex;gap:8px}
+.danger-cancel{flex:1;padding:8px;background:transparent;border:1px solid #333;border-radius:6px;color:var(--t2);cursor:pointer;font-family:inherit;font-size:12px;transition:all .15s}
+.danger-cancel:hover{border-color:#444;color:var(--tc)}
+.danger-ok{flex:1;padding:8px;background:rgba(239,68,68,.15);border:1px solid rgba(239,68,68,.3);border-radius:6px;color:var(--red);cursor:pointer;font-family:inherit;font-size:12px;font-weight:700;transition:all .15s}
+.danger-ok:hover{background:rgba(239,68,68,.25)}
+
+/* ===== BLOCK CUSTOMIZATION ===== */
+.blk-color-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:8px}
+.blk-color-dot{width:22px;height:22px;border-radius:50%;cursor:pointer;border:2px solid transparent;transition:all .2s,transform .15s;flex-shrink:0}
+.blk-color-dot:hover{transform:scale(1.2)}
+.blk-color-dot.selected{border-color:#fff;transform:scale(1.15)}
+.blk-icon-row{display:flex;gap:6px;flex-wrap:wrap;margin-top:6px}
+.blk-icon-opt{width:30px;height:30px;border-radius:6px;background:var(--s3);border:1px solid #222;display:flex;align-items:center;justify-content:center;font-size:14px;cursor:pointer;transition:all .2s,transform .15s}
+.blk-icon-opt:hover{border-color:#444;transform:scale(1.1)}
+.blk-icon-opt.selected{border-color:var(--ac);background:var(--s4)}
+
+/* ===== HISTORY DAY IMAGES ===== */
+.hist-media-row{display:flex;gap:6px;overflow-x:auto;padding:6px 0;scrollbar-width:none}
+.hist-media-row::-webkit-scrollbar{display:none}
+.hist-thumb{width:60px;height:60px;border-radius:6px;object-fit:cover;border:1px solid #1e1e1e;flex-shrink:0;cursor:zoom-in;transition:transform .2s,opacity .2s}
+.hist-thumb:hover{transform:scale(1.05);opacity:0.9}
+
+/* ===== PAGE TRANSITION ===== */
+#content{flex:1;overflow-y:auto;padding:14px;padding-bottom:80px;scroll-behavior:smooth}
+#content::-webkit-scrollbar{width:2px}
+#content::-webkit-scrollbar-thumb{background:#222;border-radius:1px}
+.page-anim{animation:fadeIn 0.22s ease}
+
+/* ===== BLOCK ACCENT COLORS ===== */
+.bc[data-color="pink"]{border-left:2px solid #f472b6}
+.bc[data-color="blue"]{border-left:2px solid #60a5fa}
+.bc[data-color="green"]{border-left:2px solid #4ade80}
+.bc[data-color="orange"]{border-left:2px solid #fb923c}
+.bc[data-color="purple"]{border-left:2px solid #a78bfa}
+.bc[data-color="yellow"]{border-left:2px solid #fbbf24}
+.bc[data-color="red"]{border-left:2px solid #f87171}
+.bc[data-color="teal"]{border-left:2px solid #2dd4bf}
+
+/* ===== CONFIRMATION RIPPLE ===== */
+@keyframes ripple{0%{transform:scale(0);opacity:.4}100%{transform:scale(2.5);opacity:0}}
+.btn-ripple{position:relative;overflow:hidden}
+.btn-ripple::after{content:'';position:absolute;inset:0;background:radial-gradient(circle, rgba(255,255,255,.3) 0%, transparent 70%);transform:scale(0);border-radius:inherit;pointer-events:none}
+.btn-ripple:active::after{animation:ripple .4s ease}
+</style>
+
+<div id="app">
+<div id="hdr">
+  <div class="logo">BLOC</div>
+  <div class="hdr-center">
+    <div class="date-pill" id="dpill"></div>
+  </div>
+  <div class="cfg-gear-btn" id="gear-btn" onclick="toggleConfig()" title="Configurações">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-4 0v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 010-4h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 012.83-2.83l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 014 0v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 010 4h-.09a1.65 1.65 0 00-1.51 1z"/></svg>
+  </div>
+</div>
+<div id="content"></div>
+<nav id="nav">
+  <button class="nb active" onclick="nav('hoje')" id="nb-hoje">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="3"/><path d="M12 2v3M12 19v3M2 12h3M19 12h3"/></svg>hoje
+  </button>
+  <button class="nb" onclick="nav('semana')" id="nb-semana">
+    <svg viewBox="0 0 24 24"><rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/><rect x="14" y="14" width="7" height="7" rx="1"/></svg>semana
+  </button>
+  <button class="nb" onclick="nav('historico')" id="nb-historico">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><polyline points="12 7 12 12 15 15"/></svg>histórico
+  </button>
+  <button class="nb" onclick="nav('metas')" id="nb-metas">
+    <svg viewBox="0 0 24 24"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><circle cx="12" cy="12" r="1" fill="currentColor"/></svg>metas
+  </button>
+</nav>
+<div class="toast" id="toast"></div>
+</div>
+
+<script>
+const DAYS=['DOM','SEG','TER','QUA','QUI','SEX','SAB'];
+const DAYFULL=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+const BTYPES={
+  academia:{l:'Academia',i:'⊞',d:'Força e hipertrofia'},
+  calistenia:{l:'Calistenia',i:'◎',d:'Peso corporal'},
+  skill:{l:'Skill',i:'◈',d:'Técnica e controle'},
+  core:{l:'Core',i:'⊕',d:'Leve / técnico / pesado'},
+  mobilidade:{l:'Mobilidade',i:'≋',d:'Alongamento e recuperação'},
+  neck:{l:'Neck',i:'⊗',d:'Pescoço (2-3x/sem)'},
+  cardio:{l:'Cardio',i:'◷',d:'Resistência aeróbica'},
+  custom:{l:'Personalizado',i:'◻',d:'Bloco livre'},
+};
+
+const FONT_OPTIONS=[
+  {id:'helvetica',name:'Helvetica',val:"'Helvetica Neue',Helvetica,Arial,sans-serif"},
+  {id:'mono',name:'Mono',val:"'Courier New',Courier,monospace"},
+  {id:'serif',name:'Serif',val:"Georgia,'Times New Roman',serif"},
+  {id:'rounded',name:'Rounded',val:"system-ui,-apple-system,sans-serif"},
+];
+
+const THEMES={
+  dark:{bg:'#0a0a0a',s1:'#111',s2:'#161616',s3:'#1c1c1c',s4:'#222',tc:'#e8e8e8',t2:'#888',t3:'#444',ac:'#ffffff'},
+  obsidian:{bg:'#050508',s1:'#0d0d14',s2:'#12121c',s3:'#181825',s4:'#1e1e2d',tc:'#d4d4f0',t2:'#6666aa',t3:'#333355',ac:'#a0a0ff'},
+  forest:{bg:'#060d09',s1:'#0c160f',s2:'#111d14',s3:'#162419',s4:'#1c2d20',tc:'#c8e8d0',t2:'#5a8a6a',t3:'#2a4a35',ac:'#4ade80'},
+  ember:{bg:'#0d0805',s1:'#170f08',s2:'#1e150a',s3:'#261b0d',s4:'#2e2010',tc:'#f0ddc8',t2:'#8a6a50',t3:'#4a3525',ac:'#fb923c'},
+  steel:{bg:'#080a0e',s1:'#0f1218',s2:'#141820',s3:'#1a2028',s4:'#202830',tc:'#d0dce8',t2:'#607080',t3:'#303d48',ac:'#60a5fa'},
+  rosa:{bg:'#1a0f13',s1:'#231318',s2:'#2a1820',s3:'#311d27',s4:'#3a222d',tc:'#f5dce8',t2:'#c47a99',t3:'#7a3d55',ac:'#f472b6'},
+};
+
+const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
+const sv=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+
+let blocks=ld('bv2_blocks',{
+  SEG:[
+    {type:'academia',label:'Academia — Push',notes:'',exercises:[{name:'Supino reto',sets:4,reps:10,weight:0,media:[]},{name:'Desenvolvimento',sets:3,reps:12,weight:0,media:[]},{name:'Crossover',sets:3,reps:15,weight:0,media:[]}]},
+    {type:'skill',label:'Skill',notes:'',exercises:[{name:'Handstand',sets:3,reps:0,time:30,media:[]}]},
+    {type:'core',label:'Core leve',notes:'',exercises:[{name:'Prancha',sets:3,reps:0,time:45,media:[]},{name:'Hollow body',sets:3,reps:0,time:30,media:[]}]}
+  ],
+  TER:[
+    {type:'academia',label:'Academia — Pull',notes:'',exercises:[{name:'Barra fixa',sets:4,reps:8,weight:0,media:[]},{name:'Remada curvada',sets:3,reps:10,weight:0,media:[]}]},
+    {type:'calistenia',label:'Calistenia',notes:'',exercises:[{name:'Muscle-up negativo',sets:3,reps:5,weight:0,media:[]}]},
+    {type:'core',label:'Core leve',notes:'',exercises:[{name:'Ab wheel',sets:3,reps:10,weight:0,media:[]}]}
+  ],
+  QUA:[
+    {type:'academia',label:'Academia — Perna',notes:'',exercises:[{name:'Agachamento',sets:4,reps:10,weight:0,media:[]},{name:'Leg press',sets:3,reps:12,weight:0,media:[]},{name:'Panturrilha',sets:4,reps:15,weight:0,media:[]}]},
+    {type:'core',label:'Core pesado',notes:'',exercises:[{name:'Dragon flag',sets:3,reps:6,weight:0,media:[]},{name:'Levantamento de pernas',sets:3,reps:12,weight:0,media:[]}]}
+  ],
+  QUI:[
+    {type:'academia',label:'Academia — Ombro',notes:'',exercises:[{name:'Desenvolvimento militar',sets:4,reps:10,weight:0,media:[]},{name:'Elevação lateral',sets:3,reps:15,weight:0,media:[]}]},
+    {type:'skill',label:'Skill',notes:'',exercises:[{name:'L-sit',sets:4,reps:0,time:20,media:[]}]},
+    {type:'neck',label:'Neck',notes:'',exercises:[{name:'Flexão cervical',sets:2,reps:15,weight:0,media:[]}]}
+  ],
+  SEX:[
+    {type:'academia',label:'Academia — Braço',notes:'',exercises:[{name:'Rosca direta',sets:3,reps:12,weight:0,media:[]},{name:'Tríceps corda',sets:3,reps:12,weight:0,media:[]},{name:'Martelo',sets:3,reps:10,weight:0,media:[]}]},
+    {type:'core',label:'Core técnico',notes:'',exercises:[{name:'Dead bug',sets:3,reps:10,weight:0,media:[]},{name:'Pallof press',sets:3,reps:12,weight:0,media:[]}]}
+  ],
+  SAB:[
+    {type:'calistenia',label:'Calistenia full',notes:'',exercises:[{name:'Barra fixa',sets:5,reps:8,weight:0,media:[]},{name:'Dips',sets:4,reps:10,weight:0,media:[]},{name:'Flexões',sets:3,reps:20,weight:0,media:[]}]},
+    {type:'core',label:'Core moderado',notes:'',exercises:[{name:'Prancha lateral',sets:3,reps:0,time:30,media:[]}]}
+  ],
+  DOM:[{type:'mobilidade',label:'Recuperação',notes:'',exercises:[{name:'Alongamento full body',sets:1,reps:0,time:600,media:[]}]}],
+});
+
+let history=ld('bv2_history',[]);
+let goals=ld('bv2_goals',[
+  {name:'Shape em V',progress:20,note:'Foco em ombro e lat'},
+  {name:'Handstand 10s',progress:35,note:'Praticar equilíbrio'},
+  {name:'Muscle-up',progress:15,note:'Força de barra'},
+  {name:'Core definido',progress:40,note:'Core técnico'},
+]);
+
+// Appearance settings
+let appearance=ld('bv2_appearance',{
+  theme:'dark',
+  accentColor:'#ffffff',
+  font:'helvetica',
+  borderRadius:10,
+  compactMode:false,
+});
+
+let page='hoje';
+let configOpen=false;
+let configTab='blocos'; // blocos | aparencia | dados
+let openBlk={};
+let openEx={};
+let openHist={};
+let modal=null;
+let dangerConfirmStep={};
+
+const todayI=new Date().getDay();
+const todayKey=DAYS[todayI];
+
+document.getElementById('dpill').textContent=DAYFULL[todayI]+' · '+new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'short'});
+
+function applyAppearance(){
+  const a=appearance;
+  const root=document.documentElement;
+  // Apply theme
+  const t=THEMES[a.theme]||THEMES.dark;
+  root.style.setProperty('--bg',t.bg);
+  root.style.setProperty('--s1',t.s1);
+  root.style.setProperty('--s2',t.s2);
+  root.style.setProperty('--s3',t.s3);
+  root.style.setProperty('--s4',t.s4);
+  root.style.setProperty('--tc',t.tc);
+  root.style.setProperty('--t2',t.t2);
+  root.style.setProperty('--t3',t.t3);
+  // Accent
+  root.style.setProperty('--ac',a.accentColor);
+  // Font
+  const f=FONT_OPTIONS.find(x=>x.id===a.font)||FONT_OPTIONS[0];
+  root.style.setProperty('--font-family',f.val);
+  document.getElementById('app').style.fontFamily=f.val;
+  // Border radius
+  root.style.setProperty('--radius-global',a.borderRadius+'px');
+  root.style.setProperty('--br',a.borderRadius+'px');
+  // Compact
+  document.getElementById('content').style.padding=a.compactMode?'10px':'14px';
+  // Animation speed
+  const speeds={fast:'0.15s',normal:'0.32s',slow:'0.55s'};
+  root.style.setProperty('--anim-speed',speeds[a.animSpeed||'normal']||'0.32s');
+}
+
+function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
+function ytId(url){const m=url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/);return m?m[1]:null}
+function isImg(url){return/\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(url)||url.startsWith('data:image')}
+function openLink(u){window.open(u,'_blank')}
+
+function trend(curr,prev){
+  if(prev===0||curr===0)return{cls:'eq',sym:'→',txt:'—'};
+  const d=curr-prev;
+  const p=Math.round(Math.abs(d/prev)*100);
+  if(d>0)return{cls:'up',sym:'↑',txt:'+'+p+'%'};
+  if(d<0)return{cls:'dn',sym:'↓',txt:'-'+p+'%'};
+  return{cls:'eq',sym:'→',txt:'='};
+}
+
+function getExHistory(exName){
+  const vals=[];
+  history.forEach(h=>{
+    h.entries.forEach(b=>{
+      b.exercises.forEach(e=>{
+        if(e.name===exName&&(e.weight>0||e.reps>0)){
+          vals.push({date:h.date,w:e.weight||0,r:e.reps||0,t:e.time||0});
+        }
+      });
+    });
+  });
+  return vals;
+}
+
+function saveLog(dk){
+  const today=new Date().toLocaleDateString('pt-BR');
+  history=history.filter(h=>!(h.dayKey===dk&&h.date===today));
+  const entry={date:today,dayKey:dk,day:DAYFULL[DAYS.indexOf(dk)],entries:[]};
+  (blocks[dk]||[]).forEach(b=>{
+    const exArr=b.exercises.map(e=>{
+      const wEl=document.getElementById('w-'+dk+b.label+e.name);
+      const rEl=document.getElementById('r-'+dk+b.label+e.name);
+      const sEl=document.getElementById('s-'+dk+b.label+e.name);
+      const tEl=document.getElementById('t-'+dk+b.label+e.name);
+      return{name:e.name,sets:sEl?parseInt(sEl.value)||e.sets:e.sets,reps:rEl?parseInt(rEl.value)||0:e.reps||0,weight:wEl?parseFloat(wEl.value)||0:e.weight||0,time:tEl?parseInt(tEl.value)||0:e.time||0};
+    });
+    entry.entries.push({label:b.label,type:b.type,exercises:exArr});
+  });
+  history.unshift(entry);
+  if(history.length>90)history=history.slice(0,90);
+  sv('bv2_history',history);
+  sv('bv2_blocks',blocks);
+  toast('Treino registrado');
+  render();
+}
+
+function updEx(dk,bi,en,field,val){
+  const ex=blocks[dk][bi].exercises.find(e=>e.name===en);
+  if(ex){ex[field]=parseFloat(val)||0;sv('bv2_blocks',blocks);}
+}
+
+function addMedia(dk,bi,ei){
+  const inp=document.getElementById('mi-'+dk+bi+ei);
+  if(!inp)return;
+  const url=inp.value.trim();
+  if(!url)return;
+  if(!blocks[dk][bi].exercises[ei].media)blocks[dk][bi].exercises[ei].media=[];
+  blocks[dk][bi].exercises[ei].media.push(url);
+  sv('bv2_blocks',blocks);
+  inp.value='';
+  render();
+}
+
+function delMedia(dk,bi,ei,mi){
+  blocks[dk][bi].exercises[ei].media.splice(mi,1);
+  sv('bv2_blocks',blocks);
+  render();
+}
+
+function renderMediaSection(e,dk,bi,ei){
+  const mid='mi-'+dk+bi+ei;
+  let h=`<div class="ex-media"><div class="media-title">Mídia de execução</div>`;
+  (e.media||[]).forEach((url,mi)=>{
+    const ytid=ytId(url);
+    h+=`<div class="media-item"><span class="media-type">${ytid?'YT':isImg(url)?'IMG':'URL'}</span>`;
+    if(ytid)h+=`<span class="media-url" onclick="openLink('https://youtu.be/${ytid}')">${url.length>40?url.slice(0,37)+'...':url}</span>`;
+    else h+=`<span class="media-url" onclick="openLink('${url}')">${url.length>40?url.slice(0,37)+'...':url}</span>`;
+    h+=`<span class="media-del" onclick="delMedia('${dk}',${bi},${ei},${mi})">✕</span></div>`;
+    if(ytid)h+=`<iframe class="media-yt" src="https://www.youtube.com/embed/${ytid}" allowfullscreen loading="lazy"></iframe>`;
+    else if(isImg(url))h+=`<div class="media-img-wrap"><img class="media-img" src="${url}" onclick="openLightbox('${url}')" onerror="this.parentElement.style.display='none'" loading="lazy"><div class="img-expand-btn" onclick="openLightbox('${url}')">⤢</div></div>`;
+  });
+  h+=`<div class="media-inp"><input type="text" id="${mid}" placeholder="URL de imagem ou vídeo do YouTube..."><button class="media-add" onclick="addMedia('${dk}',${bi},${ei})">+ Add</button></div></div>`;
+  return h;
+}
+
+function renderExRow(e,dk,bi,ei,fromSemana){
+  const xkey=dk+bi+ei;
+  const isOpen=openEx[xkey];
+  const hasTime=e.time>0&&e.reps===0;
+  const hasW=blocks[dk][bi].type==='academia'||blocks[dk][bi].type==='calistenia';
+  const hist=getExHistory(e.name);
+  let trndHtml='';
+  if(hist.length>=2){
+    const last=hist[0];const prev=hist[1];
+    const val=hasW?{c:last.w,p:prev.w}:{c:last.r||last.t,p:prev.r||prev.t};
+    const t=trend(val.c,val.p);
+    trndHtml=`<span class="trnd ${t.cls}">${t.sym} ${t.txt}</span>`;
+  }
+  let exD='';
+  if(isOpen){
+    exD+=`<div class="ex-inputs-row">
+      <div class="inp-g"><input id="s-${dk+bi+e.name}" type="number" value="${e.sets}" min="1" onchange="updEx('${dk}',${bi},'${e.name}','sets',this.value)"><div class="inp-lbl">séries</div></div>
+      ${hasTime?`<div class="inp-g"><input id="t-${dk+bi+e.name}" type="number" value="${e.time}" min="5" onchange="updEx('${dk}',${bi},'${e.name}','time',this.value)"><div class="inp-lbl">seg</div></div>`
+      :`<div class="inp-g"><input id="r-${dk+bi+e.name}" type="number" value="${e.reps}" min="0" onchange="updEx('${dk}',${bi},'${e.name}','reps',this.value)"><div class="inp-lbl">reps</div></div>`}
+      ${hasW?`<div class="inp-g"><input id="w-${dk+bi+e.name}" type="number" value="${e.weight||0}" min="0" step="2.5" onchange="updEx('${dk}',${bi},'${e.name}','weight',this.value)"><div class="inp-lbl">kg</div></div>`:''}
+    </div>`;
+    exD+=renderMediaSection(e,dk,bi,ei);
+  }
+  return `<div class="ex-row">
+    <div class="ex-top" onclick="toggleEx('${xkey}')">
+      <div class="ex-name">${e.name}</div>
+      <div class="ex-meta">
+        ${trndHtml}
+        <span class="ex-tag">${e.sets}×${hasTime?(e.time+'s'):e.reps}</span>
+        ${hasW&&e.weight?`<span class="ex-tag">${e.weight}kg</span>`:''}
+        <div class="ex-expand-btn${isOpen?' open-btn':''}">${isOpen?'▲':'▼'}</div>
+      </div>
+    </div>
+    ${isOpen?`<div class="ex-detail">${exD}</div>`:''}
+  </div>`;
+}
+
+function toggleEx(k){openEx[k]=!openEx[k];render()}
+function toggleBlk(k){openBlk[k]=!openBlk[k];render()}
+function toggleHist(k){openHist[k]=!openHist[k];render()}
+
+function renderBlockCard(b,dk,bi,prefix){
+  const bt=BTYPES[b.type]||BTYPES.custom;
+  const key=(prefix||dk)+bi;
+  const isOpen=openBlk[key];
+  const today=new Date().toLocaleDateString('pt-BR');
+  const hasDone=history.some(h=>h.dayKey===dk&&h.date===today);
+  let body='';
+  if(isOpen){
+    b.exercises.forEach((e,ei)=>{body+=renderExRow(e,dk,bi,ei);});
+    body+=`<button class="add-b" onclick="openModal({t:'addEx',dk:'${dk}',bi:${bi}})">+ exercício</button>`;
+    body+=`<button class="sreg${hasDone?' done':''}" onclick="saveLog('${dk}')">${hasDone?'✓ Registrado hoje — atualizar':'Registrar treino'}</button>`;
+  }
+  const colorAttr=b.accentColor?` data-color="${b.accentColor}"`:'';
+  const icon=b.customIcon||bt.i;
+  return `<div class="bc${isOpen?' open':''}${colorAttr}">
+    <div class="bh" onclick="toggleBlk('${key}')">
+      <div style="display:flex;align-items:center;gap:10px">
+        <div class="bl-icon">${icon}</div>
+        <div><div class="bn">${b.label}</div><div class="bs">${b.exercises.length} exercício${b.exercises.length!==1?'s':''}</div></div>
+      </div>
+      <div style="display:flex;align-items:center;gap:6px">
+        ${hasDone?'<div class="done-dot"></div>':''}
+        <span class="bchev${isOpen?' o':''}">▾</span>
+      </div>
+    </div>
+    ${isOpen?`<div class="bbody">${body}</div>`:''}
+  </div>`;
+}
+
+function openModal(m){modal=m;render()}
+function closeModal(){modal=null;render()}
+
+function renderModal(){
+  if(!modal)return'';
+  const m=modal;
+  if(m.t==='addEx'){
+    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
+      <h3>Novo exercício</h3>
+      <input type="text" id="m-en" placeholder="Nome do exercício">
+      <select id="m-et"><option value="reps">Séries + Reps</option><option value="time">Séries + Tempo</option></select>
+      <input type="number" id="m-es" placeholder="Séries" value="3" min="1">
+      <input type="number" id="m-ev" placeholder="Reps / Segundos" value="10" min="1">
+      <div class="m-btns"><button class="m-cancel" onclick="closeModal()">Cancelar</button><button class="m-ok" onclick="confAddEx()">Adicionar</button></div>
+    </div></div>`;
+  }
+  if(m.t==='addBlock'){
+    const opts=Object.entries(BTYPES).map(([k,v])=>`<div class="blk-opt" onclick="confAddBlock('${m.dk}','${k}')"><div class="blk-opt-icon">${v.i}</div><div><div class="blk-opt-name">${v.l}</div><div class="blk-opt-desc">${v.d}</div></div></div>`).join('');
+    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
+      <h3>Tipo de bloco — ${m.dk}</h3>${opts}
+      <div class="m-btns" style="margin-top:14px"><button class="m-cancel" onclick="closeModal()">Cancelar</button></div>
+    </div></div>`;
+  }
+  if(m.t==='editBlock'){
+    const b=blocks[m.dk][m.bi];
+    const BLOCK_COLORS=['','pink','blue','green','orange','purple','yellow','red','teal'];
+    const COLOR_HEX={pink:'#f472b6',blue:'#60a5fa',green:'#4ade80',orange:'#fb923c',purple:'#a78bfa',yellow:'#fbbf24',red:'#f87171',teal:'#2dd4bf'};
+    const ICONS=['⊞','◎','◈','⊕','≋','⊗','◷','◻','🔥','💪','⚡','🎯','🏃','🧘','🥊','🏋'];
+    const colorBtns=BLOCK_COLORS.map(c=>
+      `<div class="blk-color-dot${b.accentColor===c?' selected':''}" style="background:${c?COLOR_HEX[c]:'#333'};${!c?'border:1px dashed #555':''}" onclick="setBlockColor('${m.dk}',${m.bi},'${c}')" title="${c||'padrão'}"></div>`
+    ).join('');
+    const iconBtns=ICONS.map(ic=>
+      `<div class="blk-icon-opt${b.customIcon===ic?' selected':''}" onclick="setBlockIcon('${m.dk}',${m.bi},'${ic}')">${ic}</div>`
+    ).join('');
+    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
+      <h3>Editar bloco</h3>
+      <input type="text" id="m-bl" value="${b.label}" placeholder="Nome do bloco">
+      <textarea id="m-bn" placeholder="Notas do bloco (opcional)">${b.notes||''}</textarea>
+      <div style="font-size:10px;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Cor do bloco</div>
+      <div class="blk-color-row">${colorBtns}</div>
+      <div style="font-size:10px;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin:12px 0 8px">Ícone</div>
+      <div class="blk-icon-row">${iconBtns}</div>
+      <div class="sep"></div>
+      <div style="font-size:10px;color:var(--t3);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Exercícios</div>
+      ${b.exercises.map((e,ei)=>`<div class="cfg-row"><div><div class="cfg-row-label">${e.name}</div><div class="cfg-row-sub">${e.sets}× ${e.time>0&&e.reps===0?e.time+'s':e.reps+' reps'}${e.weight?' · '+e.weight+'kg':''}</div></div><button class="cfg-del" onclick="delEx('${m.dk}',${m.bi},${ei})">remover</button></div>`).join('')}
+      <div class="sep"></div>
+      <button class="cfg-del" style="width:100%;margin-bottom:10px;font-family:inherit" onclick="delBlock('${m.dk}',${m.bi})">Excluir bloco</button>
+      <div class="m-btns"><button class="m-cancel" onclick="closeModal()">Fechar</button><button class="m-ok" onclick="confEditBlock()">Salvar</button></div>
+    </div></div>`;
+  }
+  if(m.t==='addGoal'){
+    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
+      <h3>Nova meta</h3>
+      <input type="text" id="m-gn" placeholder="Nome da meta">
+      <input type="text" id="m-gs" placeholder="Descrição (opcional)">
+      <div class="m-btns"><button class="m-cancel" onclick="closeModal()">Cancelar</button><button class="m-ok" onclick="confAddGoal()">Criar</button></div>
+    </div></div>`;
+  }
+  return'';
+}
+
+function confAddEx(){
+  const n=document.getElementById('m-en').value.trim();
+  if(!n)return;
+  const tp=document.getElementById('m-et').value;
+  const s=parseInt(document.getElementById('m-es').value)||3;
+  const v=parseInt(document.getElementById('m-ev').value)||10;
+  const ex={name:n,sets:s,reps:tp==='reps'?v:0,weight:0,media:[]};
+  if(tp==='time')ex.time=v;
+  blocks[modal.dk][modal.bi].exercises.push(ex);
+  sv('bv2_blocks',blocks);closeModal();
+}
+
+function confAddBlock(dk,type){
+  const bt=BTYPES[type];
+  if(!blocks[dk])blocks[dk]=[];
+  blocks[dk].push({type,label:bt.l,notes:'',exercises:[]});
+  sv('bv2_blocks',blocks);closeModal();toast('Bloco criado');
+}
+
+function confEditBlock(){
+  const b=blocks[modal.dk][modal.bi];
+  b.label=document.getElementById('m-bl').value.trim()||b.label;
+  b.notes=document.getElementById('m-bn').value.trim();
+  sv('bv2_blocks',blocks);closeModal();toast('Bloco atualizado');
+}
+
+function setBlockColor(dk,bi,color){
+  blocks[dk][bi].accentColor=color;
+  sv('bv2_blocks',blocks);
+  // Re-render modal in place
+  modal={t:'editBlock',dk,bi};render();
+}
+
+function setBlockIcon(dk,bi,icon){
+  blocks[dk][bi].customIcon=icon;
+  sv('bv2_blocks',blocks);
+  modal={t:'editBlock',dk,bi};render();
+}
+
+// ===== LIGHTBOX =====
+function openLightbox(url){
+  const lb=document.createElement('div');
+  lb.className='img-lightbox';
+  lb.innerHTML=`<img src="${url}" alt=""><div class="img-lightbox-close" onclick="this.parentElement.remove()">✕</div>`;
+  lb.onclick=function(e){if(e.target===lb)lb.remove();};
+  document.getElementById('app').appendChild(lb);
+}
+
+function delEx(dk,bi,ei){
+  blocks[dk][bi].exercises.splice(ei,1);
+  sv('bv2_blocks',blocks);render();
+}
+
+function delBlock(dk,bi){
+  blocks[dk].splice(bi,1);
+  sv('bv2_blocks',blocks);closeModal();toast('Bloco removido');
+}
+
+function confAddGoal(){
+  const n=document.getElementById('m-gn').value.trim();
+  if(!n)return;
+  const s=document.getElementById('m-gs').value.trim();
+  goals.push({name:n,progress:0,note:s});
+  sv('bv2_goals',goals);closeModal();
+}
+
+function nav(p){
+  page=p;
+  configOpen=false;
+  document.getElementById('gear-btn').classList.remove('active');
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
+  document.getElementById('nb-'+p).classList.add('active');
+  render();
+}
+
+function toggleConfig(){
+  configOpen=!configOpen;
+  document.getElementById('gear-btn').classList.toggle('active',configOpen);
+  render();
+}
+
+function renderHoje(){
+  const db=blocks[todayKey]||[];
+  let h=`<div class="sec">${DAYFULL[todayI]} — hoje</div>`;
+  if(!db.length)h+=`<div class="empty">Nenhum bloco configurado para hoje.<br>Vá em Semana para montar.</div>`;
+  db.forEach((b,i)=>h+=renderBlockCard(b,todayKey,i,'hoje'));
+  h+=`<button class="add-b" onclick="openModal({t:'addBlock',dk:'${todayKey}'})">+ bloco</button>`;
+  return h;
+}
+
+function renderSemana(){
+  let h=`<div class="sec">semana</div><div class="wk-grid">`;
+  DAYS.forEach((d,i)=>{
+    const db=blocks[d]||[];
+    const isT=i===todayI;
+    const blist=db.length?db.map(b=>`<span class="dc-dot"></span>${b.label}`).join('<br>'):`<span style="color:var(--t3)">—</span>`;
+    h+=`<div class="dc${isT?' today':''}" onclick="openDayDetail('${d}')"><div class="dc-day">${d}${isT?' ·':''}</div><div class="dc-blocks">${blist}</div></div>`;
+  });
+  h+=`</div><div id="dd"></div>`;
+  return h;
+}
+
+function openDayDetail(dk){
+  const db=blocks[dk]||[];
+  const i=DAYS.indexOf(dk);
+  let h=`<div class="sep"></div><div class="sec">${DAYFULL[i]}</div>`;
+  db.forEach((b,bi)=>{
+    const key='sem'+dk+bi;
+    const isOpen=openBlk[key];
+    const bt=BTYPES[b.type]||BTYPES.custom;
+    let body='';
+    if(isOpen){
+      // Render exercises with save-to-base functionality
+      b.exercises.forEach((e,ei)=>{body+=renderExRowSemana(e,dk,bi,ei);});
+      body+=`<button class="add-b" onclick="openModal({t:'addEx',dk:'${dk}',bi:${bi}});setTimeout(()=>reopenDay('${dk}'),10)">+ exercício</button>`;
+      body+=`<button class="sreg" onclick="openModal({t:'editBlock',dk:'${dk}',bi:${bi}})">Editar bloco</button>`;
+    }
+    h+=`<div class="bc">
+      <div class="bh" onclick="toggleBlkSem('${key}','${dk}')">
+        <div style="display:flex;align-items:center;gap:10px">
+          <div class="bl-icon">${bt.i}</div>
+          <div><div class="bn">${b.label}</div><div class="bs">${b.exercises.length} exercício${b.exercises.length!==1?'s':''}</div></div>
+        </div>
+        <span class="bchev${isOpen?' o':''}">▾</span>
+      </div>
+      ${isOpen?`<div class="bbody">${body}</div>`:''}
+    </div>`;
+  });
+  h+=`<button class="add-b" onclick="openModal({t:'addBlock',dk:'${dk}'})">+ bloco</button>`;
+  const dd=document.getElementById('dd');
+  if(dd)dd.innerHTML=h;
+  window._lastDayDetail=dk;
+}
+
+// Render exercise row for Semana tab - inputs update base blocks directly
+function renderExRowSemana(e,dk,bi,ei){
+  const xkey='sem'+dk+bi+ei;
+  const isOpen=openEx[xkey];
+  const hasTime=e.time>0&&e.reps===0;
+  const hasW=blocks[dk][bi].type==='academia'||blocks[dk][bi].type==='calistenia';
+  const hist=getExHistory(e.name);
+  let trndHtml='';
+  if(hist.length>=2){
+    const last=hist[0];const prev=hist[1];
+    const val=hasW?{c:last.w,p:prev.w}:{c:last.r||last.t,p:prev.r||prev.t};
+    const t=trend(val.c,val.p);
+    trndHtml=`<span class="trnd ${t.cls}">${t.sym} ${t.txt}</span>`;
+  }
+  let exD='';
+  if(isOpen){
+    exD+=`<div class="ex-inputs-row">
+      <div class="inp-g"><input id="sb-${dk+bi+e.name}" type="number" value="${e.sets}" min="1" onchange="updExBase('${dk}',${bi},'${e.name}','sets',this.value)"><div class="inp-lbl">séries</div></div>
+      ${hasTime?`<div class="inp-g"><input id="tb-${dk+bi+e.name}" type="number" value="${e.time}" min="5" onchange="updExBase('${dk}',${bi},'${e.name}','time',this.value)"><div class="inp-lbl">seg</div></div>`
+      :`<div class="inp-g"><input id="rb-${dk+bi+e.name}" type="number" value="${e.reps}" min="0" onchange="updExBase('${dk}',${bi},'${e.name}','reps',this.value)"><div class="inp-lbl">reps</div></div>`}
+      ${hasW?`<div class="inp-g"><input id="wb-${dk+bi+e.name}" type="number" value="${e.weight||0}" min="0" step="2.5" onchange="updExBase('${dk}',${bi},'${e.name}','weight',this.value)"><div class="inp-lbl">kg</div></div>`:''}
+    </div>`;
+    exD+=`<div style="padding:8px 12px;font-size:10px;color:var(--blue);border-top:1px solid #1a1a1a;letter-spacing:0.3px">✦ Alterações salvas como padrão do dia</div>`;
+    exD+=renderMediaSection(e,dk,bi,ei);
+  }
+  return `<div class="ex-row">
+    <div class="ex-top" onclick="toggleExSem('${xkey}','${dk}')">
+      <div class="ex-name">${e.name}</div>
+      <div class="ex-meta">
+        ${trndHtml}
+        <span class="ex-tag">${e.sets}×${hasTime?(e.time+'s'):e.reps}</span>
+        ${hasW&&e.weight?`<span class="ex-tag">${e.weight}kg</span>`:''}
+        <div class="ex-expand-btn">${isOpen?'▲':'▼'}</div>
+      </div>
+    </div>
+    ${isOpen?`<div class="ex-detail">${exD}</div>`:''}
+  </div>`;
+}
+
+// Update exercise base (semana tab) - persists to blocks
+function updExBase(dk,bi,en,field,val){
+  const ex=blocks[dk][bi].exercises.find(e=>e.name===en);
+  if(ex){
+    ex[field]=parseFloat(val)||0;
+    sv('bv2_blocks',blocks);
+    toast('Base atualizada');
+  }
+}
+
+function toggleExSem(k,dk){
+  openEx[k]=!openEx[k];
+  // Re-render only the day detail
+  if(window._lastDayDetail)openDayDetail(window._lastDayDetail);
+}
+
+function toggleBlkSem(k,dk){
+  openBlk[k]=!openBlk[k];
+  openDayDetail(dk);
+}
+
+function reopenDay(dk){
+  if(window._lastDayDetail)openDayDetail(window._lastDayDetail);
+}
+
+function renderHistorico(){
+  let h=`<div class="sec">histórico de treinos</div>`;
+  if(!history.length)h+=`<div class="empty">Nenhum treino registrado.<br>Registre o de hoje para começar.</div>`;
+  history.slice(0,30).forEach((entry,hi)=>{
+    const isOpen=openHist[hi];
+    // Collect all images from day blocks
+    const dayImages=[];
+    (blocks[entry.dayKey]||[]).forEach(b=>{
+      b.exercises.forEach(e=>{
+        (e.media||[]).forEach(url=>{if(isImg(url))dayImages.push(url);});
+      });
+    });
+    let body='';
+    if(isOpen){
+      entry.entries.forEach(b=>{
+        b.exercises.forEach(e=>{
+          const val=e.weight?`${e.weight}kg`:e.time?`${e.time}s`:`${e.reps} reps`;
+          body+=`<div class="h-ex-row"><span class="h-ex-name">${e.name}</span><span class="h-ex-val">${e.sets}×${val}</span></div>`;
+        });
+      });
+      if(dayImages.length){
+        body+=`<div class="media-title" style="margin-top:10px">Fotos do treino</div>`;
+        body+=`<div class="hist-media-row">`;
+        dayImages.forEach(url=>{
+          body+=`<img class="hist-thumb" src="${url}" onclick="openLightbox('${url}')" onerror="this.style.display='none'" loading="lazy">`;
+        });
+        body+=`</div>`;
+      }
+    }
+    h+=`<div class="hist-c">
+      <div class="hist-h" onclick="toggleHist(${hi})">
+        <div><div class="hist-day">${entry.day}</div><div class="hist-date">${entry.date}${dayImages.length?` · <span style="color:var(--t3)">📷 ${dayImages.length}</span>`:''}</div></div>
+        <span class="bchev${isOpen?' o':''}">▾</span>
+      </div>
+      ${isOpen?`<div class="hist-body">${body}</div>`:''}
+    </div>`;
+  });
+  h+=`<div class="sep"></div><div class="sec">indicador de melhora</div>`;
+  const exMap={};
+  history.forEach(en=>{
+    en.entries.forEach(b=>{
+      b.exercises.forEach(e=>{
+        if(!exMap[e.name])exMap[e.name]=[];
+        exMap[e.name].push({w:e.weight||0,r:e.reps||0,t:e.time||0,d:en.date});
+      });
+    });
+  });
+  const tracked=Object.entries(exMap).filter(([,v])=>v.length>=2);
+  if(!tracked.length){
+    h+=`<div class="empty">Registre ao menos 2 treinos<br>para ver sua evolução.</div>`;
+  } else {
+    tracked.forEach(([name,vals])=>{
+      const curr=vals[0];const prev=vals[vals.length>4?vals.length-4:vals.length-1];
+      const useW=curr.w>0;
+      const cv=useW?curr.w:(curr.r||curr.t);
+      const pv=useW?prev.w:(prev.r||prev.t);
+      if(!cv&&!pv)return;
+      const t=trend(cv,pv);
+      h+=`<div class="ind-card">
+        <div class="ind-ex">${name}</div>
+        <div class="ind-cmp">
+          <div class="ind-val"><div class="ind-num" style="color:var(--t2)">${pv}${useW?'kg':curr.t?'s':'rep'}</div><div class="ind-lbl">anterior</div></div>
+          <div class="ind-arr ${t.cls}">${t.sym}</div>
+          <div class="ind-val"><div class="ind-num">${cv}${useW?'kg':curr.t?'s':'rep'}</div><div class="ind-lbl">recente</div></div>
+          <div style="flex:1;text-align:right"><span class="trnd ${t.cls}">${t.txt}</span></div>
+        </div>
+      </div>`;
+    });
+  }
+  return h;
+}
+
+function renderMetas(){
+  let h=`<div class="sec">metas</div>`;
+  goals.forEach((g,i)=>{
+    h+=`<div class="goal-c">
+      <div class="goal-h"><div><div class="goal-n">${g.name}</div>${g.note?`<div style="font-size:10px;color:var(--t3);margin-top:2px">${g.note}</div>`:''}</div><div class="goal-pct">${g.progress}%</div></div>
+      <div class="goal-bar-bg"><div class="goal-bar-f" style="width:${g.progress}%"></div></div>
+      <div class="goal-btns">
+        <button class="goal-btn" onclick="updGoal(${i},-10)">−10</button>
+        <button class="goal-btn" onclick="updGoal(${i},-5)">−5</button>
+        <button class="goal-btn" onclick="updGoal(${i},5)">+5</button>
+        <button class="goal-btn" onclick="updGoal(${i},10)">+10</button>
+        <button class="goal-btn" style="color:var(--red)" onclick="delGoal(${i})">×</button>
+      </div>
+    </div>`;
+  });
+  h+=`<button class="add-b" onclick="openModal({t:'addGoal'})">+ meta</button>`;
+  return h;
+}
+
+function updGoal(i,d){goals[i].progress=Math.max(0,Math.min(100,goals[i].progress+d));sv('bv2_goals',goals);render()}
+function delGoal(i){goals.splice(i,1);sv('bv2_goals',goals);render()}
+
+// ======== CONFIG PANEL ========
+function renderConfig(){
+  const tabs=[
+    {id:'blocos',label:'Blocos'},
+    {id:'aparencia',label:'Aparência'},
+    {id:'dados',label:'Dados'},
+  ];
+  let h=`<div class="sec">configurações</div>`;
+  h+=`<div class="cfg-tabs">`;
+  tabs.forEach(tab=>{
+    h+=`<button class="cfg-tab${configTab===tab.id?' active':''}" onclick="setConfigTab('${tab.id}')">${tab.label}</button>`;
+  });
+  h+=`</div>`;
+
+  if(configTab==='blocos'){
+    h+=renderConfigBlocos();
+  } else if(configTab==='aparencia'){
+    h+=renderConfigAparencia();
+  } else if(configTab==='dados'){
+    h+=renderConfigDados();
+  }
+  return h;
+}
+
+function setConfigTab(t){configTab=t;render()}
+
+function renderConfigBlocos(){
+  let h='';
+  DAYS.forEach(dk=>{
+    const db=blocks[dk]||[];
+    h+=`<div class="prog-c">
+      <div class="prog-n">${dk}</div>
+      <div class="prog-sub">${db.length?db.map(b=>b.label).join(' · '):'Sem blocos'}</div>
+      <div style="margin-top:8px">
+        ${db.map((b,bi)=>`<div class="cfg-row">
+          <div><div class="cfg-row-label">${b.label}</div><div class="cfg-row-sub">${BTYPES[b.type]?.l||'Custom'} · ${b.exercises.length} ex.</div></div>
+          <button class="cfg-del" onclick="openModal({t:'editBlock',dk:'${dk}',bi:${bi}})">editar</button>
+        </div>`).join('')}
+        <button class="add-b" style="margin-top:6px" onclick="openModal({t:'addBlock',dk:'${dk}'})">+ bloco em ${dk}</button>
+      </div>
+    </div>`;
+  });
+  return h;
+}
+
+function renderConfigAparencia(){
+  const a=appearance;
+  let h=`<div class="ap-section">`;
+  
+  // Themes
+  h+=`<div class="ap-title">Tema</div>`;
+  h+=`<div class="preset-grid">`;
+  Object.entries(THEMES).forEach(([id,t])=>{
+    const active=a.theme===id;
+    h+=`<button class="preset-btn${active?' active-preset':''}" onclick="setTheme('${id}')" style="background:${t.bg};color:${t.tc};border-color:${active?t.ac:'#333'}">${id.charAt(0).toUpperCase()+id.slice(1)}</button>`;
+  });
+  h+=`</div>`;
+
+  // Accent color
+  h+=`<div class="ap-row">
+    <div><div class="ap-label">Cor de destaque</div><div class="ap-sub">Barras, botões principais</div></div>
+    <div class="ap-control">
+      <div class="color-swatch-wrap" style="background:${a.accentColor}">
+        <input type="color" value="${a.accentColor}" oninput="setAccentColor(this.value)" onchange="setAccentColor(this.value)">
+      </div>
+    </div>
+  </div>`;
+
+  // Font
+  h+=`<div class="ap-row">
+    <div><div class="ap-label">Fonte</div></div>
+    <div class="ap-control">
+      <select class="ap-select" onchange="setFont(this.value)">
+        ${FONT_OPTIONS.map(f=>`<option value="${f.id}"${a.font===f.id?' selected':''}>${f.name}</option>`).join('')}
+      </select>
+    </div>
+  </div>`;
+
+  // Border radius
+  h+=`<div class="ap-row">
+    <div><div class="ap-label">Bordas arredondadas</div><div class="ap-sub">${a.borderRadius}px</div></div>
+    <div class="ap-control">
+      <input type="range" class="ap-slider" min="0" max="20" value="${a.borderRadius}" oninput="setBorderRadius(this.value)">
+    </div>
+  </div>`;
+
+  // Animation speed
+  h+=`<div class="ap-row">
+    <div><div class="ap-label">Velocidade das animações</div><div class="ap-sub">${a.animSpeed||'normal'}</div></div>
+    <div class="ap-control">
+      <select class="ap-select" onchange="setAnimSpeed(this.value)">
+        <option value="fast"${(a.animSpeed||'normal')==='fast'?' selected':''}>Rápida</option>
+        <option value="normal"${(a.animSpeed||'normal')==='normal'?' selected':''}>Normal</option>
+        <option value="slow"${(a.animSpeed||'normal')==='slow'?' selected':''}>Suave</option>
+      </select>
+    </div>
+  </div>`;
+
+  // Compact mode
+  h+=`<div class="ap-row">
+    <div><div class="ap-label">Modo compacto</div><div class="ap-sub">Menos espaçamento</div></div>
+    <div class="ap-control">
+      <label class="toggle"><input type="checkbox"${a.compactMode?' checked':''} onchange="setCompact(this.checked)"><span class="toggle-slider"></span></label>
+    </div>
+  </div>`;
+
+  h+=`</div>`;
+
+  // Reset
+  h+=`<button class="data-btn" onclick="resetAppearance()" style="color:var(--red);border-color:rgba(239,68,68,.2)">↺ Resetar aparência</button>`;
+  return h;
+}
+
+function renderConfigDados(){
+  let h=``;
+  h+=`<div class="prog-c">
+    <div class="prog-n">Exportar dados</div>
+    <div class="prog-sub">${history.length} treinos · ${Object.values(blocks).flat().length} blocos · ${goals.length} metas</div>
+    <button class="data-btn" style="margin-top:10px" onclick="exportData()">⬇ Baixar JSON</button>
+  </div>`;
+  
+  h+=`<div class="prog-c">
+    <div class="prog-n">Importar dados</div>
+    <div class="prog-sub">Carregue um arquivo JSON exportado anteriormente</div>
+    <div style="margin-top:10px">
+      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)">
+      <button class="data-btn" onclick="document.getElementById('import-file').click()">⬆ Carregar JSON</button>
+    </div>
+  </div>`;
+
+  h+=`<div class="prog-c" style="border-color:rgba(239,68,68,.15)">
+    <div class="prog-n" style="color:var(--red)">Zona de perigo</div>
+    <div class="prog-sub">Ações irreversíveis — confirmação obrigatória</div>
+    
+    <button class="data-btn" style="margin-top:10px;color:var(--red);border-color:rgba(239,68,68,.2)" onclick="initDangerAction('history')">🗑 Limpar histórico de treinos</button>
+    ${dangerConfirmStep['history']?`<div class="danger-confirm" id="danger-confirm-history">
+      <div class="danger-confirm-title">⚠ Confirmação necessária</div>
+      <div class="danger-confirm-msg">Esta ação vai apagar todos os ${history.length} treinos registrados. Isso é irreversível.<br><br>Digite <strong>APAGAR</strong> para confirmar:</div>
+      <input class="danger-confirm-input" id="danger-input-history" placeholder="APAGAR" maxlength="6" autocomplete="off">
+      <div class="danger-btns">
+        <button class="danger-cancel" onclick="cancelDanger('history')">Cancelar</button>
+        <button class="danger-ok" onclick="confirmDanger('history')">Confirmar</button>
+      </div>
+    </div>`:''}
+
+    <button class="data-btn" style="color:var(--red);border-color:rgba(239,68,68,.2)" onclick="initDangerAction('reset')">💀 Resetar tudo</button>
+    ${dangerConfirmStep['reset']?`<div class="danger-confirm" id="danger-confirm-reset">
+      <div class="danger-confirm-title">⚠⚠ Atenção máxima</div>
+      <div class="danger-confirm-msg">Esta ação vai apagar TODOS os seus dados: treinos, histórico, metas e configurações. Impossível desfazer.<br><br>Digite <strong>RESETAR</strong> para confirmar:</div>
+      <input class="danger-confirm-input" id="danger-input-reset" placeholder="RESETAR" maxlength="7" autocomplete="off">
+      <div class="danger-btns">
+        <button class="danger-cancel" onclick="cancelDanger('reset')">Cancelar</button>
+        <button class="danger-ok" onclick="confirmDanger('reset')">Confirmar</button>
+      </div>
+    </div>`:''}
+  </div>`;
+  return h;
+}
+
+// Appearance setters
+function setTheme(id){appearance.theme=id;sv('bv2_appearance',appearance);applyAppearance();render()}
+function setAccentColor(v){appearance.accentColor=v;sv('bv2_appearance',appearance);applyAppearance()}
+function setFont(id){appearance.font=id;sv('bv2_appearance',appearance);applyAppearance();render()}
+function setBorderRadius(v){appearance.borderRadius=parseInt(v);sv('bv2_appearance',appearance);applyAppearance();render()}
+function setCompact(v){appearance.compactMode=v;sv('bv2_appearance',appearance);applyAppearance()}
+function setAnimSpeed(v){
+  appearance.animSpeed=v;
+  sv('bv2_appearance',appearance);
+  const speeds={fast:'0.15s',normal:'0.32s',slow:'0.55s'};
+  document.documentElement.style.setProperty('--anim-speed',speeds[v]||'0.32s');
+  render();
+}
+function resetAppearance(){appearance={theme:'dark',accentColor:'#ffffff',font:'helvetica',borderRadius:10,compactMode:false,animSpeed:'normal'};sv('bv2_appearance',appearance);applyAppearance();render();toast('Aparência resetada')}
+
+function exportData(){
+  const d=JSON.stringify({blocks,history,goals},null,2);
+  const b=new Blob([d],{type:'application/json'});
+  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='bloc-data.json';a.click();
+  toast('Exportado');
+}
+
+function importData(input){
+  const file=input.files[0];
+  if(!file)return;
+  const reader=new FileReader();
+  reader.onload=(e)=>{
+    try{
+      const data=JSON.parse(e.target.result);
+      if(data.blocks)blocks=data.blocks;
+      if(data.history)history=data.history;
+      if(data.goals)goals=data.goals;
+      sv('bv2_blocks',blocks);
+      sv('bv2_history',history);
+      sv('bv2_goals',goals);
+      toast('Dados importados!');
+      render();
+    }catch(err){
+      toast('Erro ao importar arquivo');
+    }
+  };
+  reader.readAsText(file);
+  input.value='';
+}
+
+// ===== 2-STEP DANGER ZONE =====
+let dangerConfirmStep={};
+
+function initDangerAction(action){
+  dangerConfirmStep[action]=true;
+  render();
+  // Scroll to danger zone
+  setTimeout(()=>{
+    const el=document.getElementById('danger-confirm-'+action);
+    if(el)el.scrollIntoView({behavior:'smooth',block:'center'});
+  },100);
+}
+
+function cancelDanger(action){
+  delete dangerConfirmStep[action];
+  render();
+}
+
+function confirmDanger(action){
+  const inp=document.getElementById('danger-input-'+action);
+  if(!inp)return;
+  const val=inp.value.trim().toUpperCase();
+  if(action==='history'&&val!=='APAGAR'){toast('Digite APAGAR para confirmar');return;}
+  if(action==='reset'&&val!=='RESETAR'){toast('Digite RESETAR para confirmar');return;}
+  delete dangerConfirmStep[action];
+  if(action==='history'){history=[];sv('bv2_history',history);toast('Histórico apagado');render();}
+  if(action==='reset'){localStorage.clear();location.reload();}
+}
+
+function clearHistory(){initDangerAction('history')}
+function resetAll(){initDangerAction('reset')}
+
+function render(){
+  let h='';
+  if(configOpen){
+    h=renderConfig();
+  } else if(page==='hoje'){
+    h=renderHoje();
+  } else if(page==='semana'){
+    h=renderSemana();
+  } else if(page==='historico'){
+    h=renderHistorico();
+  } else if(page==='metas'){
+    h=renderMetas();
+  }
+  const content=document.getElementById('content');
+  content.innerHTML=`<div class="page-anim">${h}</div>`+renderModal();
+}
+
+applyAppearance();
+render();
+</script>
