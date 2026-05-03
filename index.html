@@ -1606,7 +1606,7 @@ body{
 }
 .reorder-btn:hover { border-color: var(--b2); color: var(--tc); background: var(--s3); }
 .reorder-btn:active { transform: scale(0.98); }
-.reorder-btn svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; stroke-linecap: round; stroke-linejoin: round; flex-shrink: 0; }
+.reorder-btn svg { width: 14px; height: 14px; flex-shrink: 0; }
 
 /* Faixa de modo de edição — aparece no topo da lista de blocos */
 .reorder-banner {
@@ -1655,81 +1655,59 @@ body{
 
 /* Bloco arrastável em modo reorder */
 .bc-reorder {
-  /* Sobrepõe .bc para modo de reorganização */
-  touch-action: none; /* Fundamental: impede scroll durante o drag em touch */
+  touch-action: none;
   user-select: none;
   -webkit-user-select: none;
   cursor: grab;
-  transition: transform var(--dur-base) var(--ease-spring),
-              box-shadow var(--dur-base) var(--ease-out),
-              border-color var(--dur-base) var(--ease-sharp),
-              opacity var(--dur-base) var(--ease-sharp);
+  transition: opacity var(--dur-base) var(--ease-sharp),
+              border-color var(--dur-base) var(--ease-sharp);
+  position: relative;
 }
-.bc-reorder:active { cursor: grabbing; }
 
-/* Handle de drag — ícone de grip à esquerda */
+/* Handle de drag */
 .drag-handle {
   display: flex;
   align-items: center;
   justify-content: center;
-  width: 36px;
-  height: 100%;
-  padding: 14px 8px 14px 16px;
-  color: var(--t3);
+  width: 40px;
   flex-shrink: 0;
   cursor: grab;
+  color: var(--t3);
+  padding: 14px 8px 14px 14px;
   transition: color var(--dur-fast);
+  touch-action: none;
 }
-.drag-handle:active { cursor: grabbing; }
-.drag-handle svg { width: 14px; height: 14px; stroke: currentColor; fill: none; stroke-width: 1.5; }
+.drag-handle svg { width: 14px; height: 14px; fill: currentColor; stroke: none; display: block; }
 .bc-reorder:hover .drag-handle { color: var(--t2); }
 
-/* Estado: bloco sendo arrastado (floating) */
-.bc-dragging {
-  opacity: 0.5;
-  border-color: var(--b2) !important;
-  background: var(--s2) !important;
-  transform: scale(0.98);
-  box-shadow: none !important;
+/* Placeholder: espaço vazio onde o bloco vai cair */
+.bc-placeholder {
+  border: 1.5px dashed var(--b2);
+  border-radius: var(--r-lg);
+  margin-bottom: var(--sp-8);
+  background: rgba(255,255,255,0.02);
+  box-sizing: border-box;
 }
 
-/* Clone visual que segue o cursor/dedo */
+/* Ghost: clone visual que flutua — usa transform, nao left/top */
 .bc-drag-ghost {
   position: fixed;
-  z-index: 999;
+  top: 0;
+  left: 0;
+  z-index: 9999;
   pointer-events: none;
-  opacity: 0.96;
+  will-change: transform;
   border-radius: var(--r-lg);
   background: var(--s2);
   border: 1px solid var(--b2);
-  box-shadow: 0 20px 60px rgba(0,0,0,0.55), 0 4px 16px rgba(0,0,0,0.4);
-  transform-origin: top left;
-  will-change: transform;
-  /* Sem transition aqui — precisa seguir o dedo em tempo real */
+  box-shadow: 0 16px 48px rgba(0,0,0,0.5), 0 4px 12px rgba(0,0,0,0.35);
+  opacity: 0.97;
 }
 
-/* Indicador de posição de drop — linha azul entre blocos */
-.drop-indicator {
-  height: 2px;
-  background: var(--ac);
-  border-radius: 1px;
-  margin: 2px 0;
-  opacity: 0;
-  transition: opacity var(--dur-fast) var(--ease-sharp);
+/* Item sendo arrastado: invisivel mas ocupa espaco (placeholder substitui visualmente) */
+.bc-dragging {
+  opacity: 0 !important;
   pointer-events: none;
-}
-.drop-indicator.active {
-  opacity: 0.8;
-}
-
-/* Bloco sendo "deslocado" — sobe ou desce suavemente */
-.bc-shift-up {
-  transform: translateY(-8px);
-  transition: transform var(--dur-base) var(--ease-spring) !important;
-}
-.bc-shift-down {
-  transform: translateY(8px);
-  transition: transform var(--dur-base) var(--ease-spring) !important;
 }
 
 /* ============================================================
@@ -2694,9 +2672,8 @@ function openDayDetail(dk){
     /* Botão de reorganizar — só aparece quando há mais de 1 bloco */
     if(db.length>1){
       h+=`<button class="reorder-btn" onclick="enterReorderMode('${dk}')">
-        <svg viewBox="0 0 14 14">
-          <path d="M2 4h10M2 7h10M2 10h10"/>
-          <path d="M11 2l2 2-2 2M3 10l-2 2 2 2" stroke-width="1.4"/>
+        <svg viewBox="0 0 16 16" style="stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round">
+          <path d="M2 5h12M2 8h12M2 11h12"/>
         </svg>
         Reorganizar blocos
       </button>`;
@@ -2721,21 +2698,21 @@ function openDayDetail(dk){
 
 /* ── Renderiza um item arrastável no modo reorder ── */
 function renderReorderItem(b,bi,dk){
-  /* Ícone grip — 6 pontos verticais (padrão de UX para drag) */
-  const gripSvg=`<svg viewBox="0 0 14 14" width="14" height="14">
-    <circle cx="5" cy="4" r="1.1" fill="currentColor" stroke="none"/>
-    <circle cx="9" cy="4" r="1.1" fill="currentColor" stroke="none"/>
-    <circle cx="5" cy="7" r="1.1" fill="currentColor" stroke="none"/>
-    <circle cx="9" cy="7" r="1.1" fill="currentColor" stroke="none"/>
-    <circle cx="5" cy="10" r="1.1" fill="currentColor" stroke="none"/>
-    <circle cx="9" cy="10" r="1.1" fill="currentColor" stroke="none"/>
+  /* Grip: 6 pontos 2×3, preenchidos (fill), sem stroke */
+  const gripSvg=`<svg viewBox="0 0 10 16" width="10" height="16">
+    <circle cx="3" cy="3"  r="1.4" fill="currentColor"/>
+    <circle cx="7" cy="3"  r="1.4" fill="currentColor"/>
+    <circle cx="3" cy="8"  r="1.4" fill="currentColor"/>
+    <circle cx="7" cy="8"  r="1.4" fill="currentColor"/>
+    <circle cx="3" cy="13" r="1.4" fill="currentColor"/>
+    <circle cx="7" cy="13" r="1.4" fill="currentColor"/>
   </svg>`;
 
   return`<div class="bc bc-reorder" data-bi="${bi}" data-dk="${dk}">
-    <div class="bh" style="padding-left:0;cursor:inherit">
+    <div class="bh" style="padding-left:0;cursor:inherit;gap:10px">
       <div class="drag-handle">${gripSvg}</div>
       <div class="bl-icon">${blockIcon(b)}</div>
-      <div class="bh-info" style="margin-left:10px">
+      <div class="bh-info">
         <div class="bn">${b.label}</div>
         <div class="bs">${b.exercises.length} exercício${b.exercises.length!==1?'s':''}</div>
       </div>
@@ -2744,250 +2721,265 @@ function renderReorderItem(b,bi,dk){
 }
 
 /* ═══════════════════════════════════════════════════════════════════
-   SISTEMA DE DRAG-AND-DROP — Reorder Engine
-   Suporta mouse e touch, sem bibliotecas externas.
-   Estratégia: clone visual flutua, original fica com opacity baixa,
-   reordenação acontece em tempo real nos dados (blocks[dk]).
+   REORDER ENGINE v2 — Drag-and-drop correto
+   
+   Estratégia: placeholder (não altera dados durante drag)
+   ─────────────────────────────────────────────────────────────────
+   BUGS CORRIGIDOS vs v1:
+   1. Ghost "solto": usava left/top absolutos que ignoravam scroll e
+      max-width do #app. Agora usa transform:translate (coordenadas
+      relativas ao viewport, sem dependência de offset pai).
+   2. Reordenação bugada: v1 alterava blocks[dk] em tempo real e
+      recriava o DOM no meio do drag, perdendo referências. Agora
+      usa um placeholder estático no DOM — dados só mudam no drop.
+   3. Índice errado: v1 acumulava fromIndex a cada frame. Agora
+      fromIndex é fixo (índice inicial), toIndex é calculado puro
+      comparando posição do cursor com cada item do DOM.
+   4. Conflito scroll/drag no iOS: touch-action:none no CSS +
+      preventDefault no touchstart/touchmove resolve o conflito.
    ═══════════════════════════════════════════════════════════════════ */
 
-/* Estado interno do drag ativo (reset a cada início de drag) */
-let _drag = {
-  el: null,        /* elemento DOM original sendo arrastado */
-  ghost: null,     /* clone visual que flutua */
-  fromIndex: -1,   /* índice original */
-  toIndex: -1,     /* índice de destino atual */
-  startY: 0,       /* Y inicial do toque/clique */
-  startX: 0,
-  offsetX: 0,      /* offset entre ponto de toque e borda do elemento */
-  offsetY: 0,
-  containerRect: null, /* rect do container para limitar movimento */
-  itemHeight: 0,
-  pointerDown: false,
-  scrollEl: null,  /* container de scroll (para auto-scroll) */
-  scrollTimer: null,
+/* Estado interno — resetado a cada drag */
+const _drag = {
+  active: false,
+  el: null,          /* elemento original (some durante drag) */
+  ghost: null,       /* clone visual flutuante */
+  placeholder: null, /* div que marca o slot de destino */
+  dk: null,          /* dia sendo reorganizado */
+  fromIndex: -1,     /* índice de origem (fixo durante o drag) */
+  toIndex: -1,       /* índice de destino atual */
+  offsetX: 0,        /* distância do ponto de toque à borda esquerda do card */
+  offsetY: 0,        /* distância do ponto de toque à borda superior do card */
+  ghostW: 0,         /* largura do ghost */
+  scrollEl: null,
+  scrollRaf: null,   /* requestAnimationFrame do auto-scroll */
+  clientY: 0,        /* última posição Y conhecida do ponteiro */
 };
 
+/* ── Entrada/saída do modo de reorganização ── */
 function enterReorderMode(dk){
-  if(reorderState.active&&reorderState.dk===dk){
-    exitReorderMode();return;
-  }
   reorderState.active=true;
   reorderState.dk=dk;
-  /* Fecha qualquer bloco aberto para evitar conflito visual */
   Object.keys(openBlk).forEach(k=>{if(k.startsWith('sem'+dk))openBlk[k]=false;});
   openDayDetail(dk);
-  toast('Modo reorganização ativo');
+  toast('Segure e arraste para reorganizar');
 }
 
 function exitReorderMode(){
+  /* Garante que qualquer drag em andamento é cancelado */
+  if(_drag.active)_dragCancel();
   reorderState.active=false;
   reorderState.dk=null;
   saveStore();
-  /* Re-renderiza sem modo reorder */
   if(window._lastDayDetail)openDayDetail(window._lastDayDetail);
   toast('Ordem salva');
 }
 
-/* Anexa todos os event listeners de drag ao container atual */
+/* ── Anexa listeners ao container renderizado ── */
 function attachReorderListeners(dk){
   const list=document.getElementById('reorder-list-'+dk);
   if(!list)return;
-
-  const items=list.querySelectorAll('.bc-reorder');
-  items.forEach(item=>{
-    /* Mouse */
-    item.addEventListener('mousedown',onDragStart,{passive:false});
-    /* Touch — passive:false para poder chamar preventDefault() */
-    item.addEventListener('touchstart',onDragStart,{passive:false});
+  list.querySelectorAll('.bc-reorder').forEach(item=>{
+    item.addEventListener('mousedown', _onStart, {passive:false});
+    item.addEventListener('touchstart', _onStart, {passive:false});
   });
 }
 
 /* ── Início do drag ── */
-function onDragStart(e){
-  /* Só inicia se clicar no handle ou no card inteiro (mas não em botões) */
-  if(e.target.closest('button'))return;
+function _onStart(e){
+  if(e.target.closest('button'))return; /* não inicia em botões */
+  e.preventDefault();
 
-  e.preventDefault(); /* previne scroll acidental e seleção de texto */
+  const el = e.currentTarget;
+  const isTouchEvt = e.type === 'touchstart';
+  const pt = isTouchEvt ? e.touches[0] : e;
+  const rect = el.getBoundingClientRect();
 
-  const el=e.currentTarget;
-  const isTouchEvt=e.type==='touchstart';
-  const pt=isTouchEvt?e.touches[0]:e;
+  /* Cria placeholder com mesma altura do card */
+  const ph = document.createElement('div');
+  ph.className = 'bc-placeholder';
+  ph.style.height = rect.height + 'px';
+  el.parentNode.insertBefore(ph, el.nextSibling); /* insere após o original */
 
-  const rect=el.getBoundingClientRect();
-  const list=el.closest('[id^="reorder-list-"]');
-  const listRect=list.getBoundingClientRect();
-
-  _drag.el=el;
-  _drag.fromIndex=parseInt(el.dataset.bi);
-  _drag.toIndex=_drag.fromIndex;
-  _drag.startY=pt.clientY;
-  _drag.startX=pt.clientX;
-  _drag.offsetX=pt.clientX-rect.left;
-  _drag.offsetY=pt.clientY-rect.top;
-  _drag.containerRect=listRect;
-  _drag.itemHeight=rect.height;
-  _drag.pointerDown=true;
-  _drag.scrollEl=document.getElementById('content');
-  _drag.dk=el.dataset.dk;
-
-  /* Cria o clone visual (ghost) */
-  const ghost=el.cloneNode(true);
-  ghost.classList.add('bc-drag-ghost');
-  ghost.classList.remove('bc-reorder');
-  ghost.style.width=rect.width+'px';
-  ghost.style.left=rect.left+'px';
-  ghost.style.top=rect.top+'px';
-  ghost.style.transition='box-shadow 0.15s ease';
-  /* Anima a elevação: haptic feedback visual */
-  requestAnimationFrame(()=>{
-    ghost.style.boxShadow='0 24px 70px rgba(0,0,0,0.6),0 6px 20px rgba(0,0,0,0.45)';
-    ghost.style.transform='scale(1.025)';
-    ghost.style.transition='box-shadow 0.15s ease,transform 0.15s var(--ease-spring)';
-  });
+  /* Cria ghost (clone visual) posicionado via transform */
+  const ghost = el.cloneNode(true);
+  ghost.className = 'bc bc-drag-ghost';
+  ghost.style.width = rect.width + 'px';
+  ghost.style.transform = `translate(${rect.left}px, ${rect.top}px)`;
+  /* Anima entrada: escala leve para feedback tátil */
+  ghost.style.transition = 'transform 0.12s var(--ease-spring), box-shadow 0.12s ease';
   document.getElementById('app').appendChild(ghost);
-  _drag.ghost=ghost;
+  requestAnimationFrame(()=>{
+    ghost.style.boxShadow = '0 20px 50px rgba(0,0,0,0.55), 0 4px 14px rgba(0,0,0,0.4)';
+    ghost.style.transition = 'box-shadow 0.12s ease'; /* remove transform transition após entrada */
+  });
 
-  /* Marca o original como "sendo arrastado" */
+  /* Esconde o original */
   el.classList.add('bc-dragging');
 
-  /* Listeners de movimento e fim */
+  /* Inicializa estado */
+  _drag.active      = true;
+  _drag.el          = el;
+  _drag.ghost       = ghost;
+  _drag.placeholder = ph;
+  _drag.dk          = el.dataset.dk;
+  _drag.fromIndex   = parseInt(el.dataset.bi);
+  _drag.toIndex     = _drag.fromIndex;
+  _drag.offsetX     = pt.clientX - rect.left;
+  _drag.offsetY     = pt.clientY - rect.top;
+  _drag.ghostW      = rect.width;
+  _drag.scrollEl    = document.getElementById('content');
+  _drag.clientY     = pt.clientY;
+
   if(isTouchEvt){
-    document.addEventListener('touchmove',onDragMove,{passive:false});
-    document.addEventListener('touchend',onDragEnd,{passive:false});
-    document.addEventListener('touchcancel',onDragEnd,{passive:false});
+    document.addEventListener('touchmove',  _onMove,  {passive:false});
+    document.addEventListener('touchend',   _onEnd,   {passive:false});
+    document.addEventListener('touchcancel',_dragCancel,{passive:false});
   } else {
-    document.addEventListener('mousemove',onDragMove);
-    document.addEventListener('mouseup',onDragEnd);
+    document.addEventListener('mousemove', _onMove);
+    document.addEventListener('mouseup',   _onEnd);
   }
 }
 
-/* ── Movimento do drag ── */
-function onDragMove(e){
-  if(!_drag.pointerDown)return;
+/* ── Movimento ── */
+function _onMove(e){
+  if(!_drag.active)return;
   e.preventDefault();
 
-  const isTouchEvt=e.type==='touchmove';
-  const pt=isTouchEvt?e.touches[0]:e;
-  const clientY=pt.clientY;
-  const clientX=pt.clientX;
+  const isTouchEvt = e.type === 'touchmove';
+  const pt = isTouchEvt ? e.touches[0] : e;
+  const cx = pt.clientX;
+  const cy = pt.clientY;
+  _drag.clientY = cy;
 
-  /* Move o ghost com o dedo/cursor */
+  /* Move o ghost usando transform — correto independente de scroll ou max-width */
   if(_drag.ghost){
-    _drag.ghost.style.left=(clientX-_drag.offsetX)+'px';
-    _drag.ghost.style.top=(clientY-_drag.offsetY)+'px';
+    _drag.ghost.style.transition = 'none'; /* sem transition durante movimento */
+    _drag.ghost.style.transform = `translate(${cx - _drag.offsetX}px, ${cy - _drag.offsetY}px)`;
   }
 
-  /* Auto-scroll: se chegar perto das bordas do container de scroll */
-  _autoScroll(clientY);
+  /* Auto-scroll */
+  _startAutoScroll();
 
-  /* Calcula nova posição de destino */
-  const list=document.getElementById('reorder-list-'+_drag.dk);
-  if(!list)return;
-  const items=[...list.querySelectorAll('.bc-reorder:not(.bc-dragging)')];
-  let newIndex=_drag.fromIndex;
-
-  for(let i=0;i<items.length;i++){
-    const r=items[i].getBoundingClientRect();
-    const mid=r.top+r.height/2;
-    const originalIndex=parseInt(items[i].dataset.bi);
-    if(clientY<mid){
-      /* Cursor acima do meio deste item — inserir antes */
-      newIndex=originalIndex<=_drag.fromIndex?originalIndex:Math.max(0,originalIndex-1);
-      break;
-    }
-    if(i===items.length-1){
-      /* Cursor abaixo de todos os itens — vai para o final */
-      newIndex=originalIndex>=_drag.fromIndex?originalIndex:originalIndex+1;
-    }
-  }
-
-  if(newIndex!==_drag.toIndex){
-    _drag.toIndex=newIndex;
-    /* Atualiza a ordem nos dados em tempo real para preview visual */
-    _reorderPreview(_drag.dk,_drag.fromIndex,newIndex);
-    /* Atualiza fromIndex para a nova posição (para próximo movimento) */
-    _drag.fromIndex=newIndex;
-    /* Re-renderiza apenas a lista (não o fullrender — preserva performance) */
-    _refreshReorderList(_drag.dk);
-  }
+  /* Calcula novo índice de destino olhando os itens visiveis no DOM */
+  _calcDropIndex(cy);
 }
 
 /* ── Fim do drag ── */
-function onDragEnd(e){
-  if(!_drag.pointerDown)return;
-  _drag.pointerDown=false;
+function _onEnd(e){
+  if(!_drag.active)return;
+  e.preventDefault();
 
-  /* Para o auto-scroll */
-  if(_drag.scrollTimer){clearInterval(_drag.scrollTimer);_drag.scrollTimer=null;}
-
-  /* Remove o ghost com animação de aterrizagem */
-  if(_drag.ghost){
-    _drag.ghost.style.transition='opacity 0.18s ease,transform 0.18s var(--ease-out)';
-    _drag.ghost.style.opacity='0';
-    _drag.ghost.style.transform='scale(0.97)';
-    setTimeout(()=>{if(_drag.ghost)_drag.ghost.remove();_drag.ghost=null;},200);
-  }
-
-  /* Remove marker de "sendo arrastado" */
-  if(_drag.el)_drag.el.classList.remove('bc-dragging');
+  _drag.active = false;
+  _stopAutoScroll();
 
   /* Remove listeners globais */
-  document.removeEventListener('touchmove',onDragMove);
-  document.removeEventListener('touchend',onDragEnd);
-  document.removeEventListener('touchcancel',onDragEnd);
-  document.removeEventListener('mousemove',onDragMove);
-  document.removeEventListener('mouseup',onDragEnd);
+  document.removeEventListener('touchmove',   _onMove);
+  document.removeEventListener('touchend',    _onEnd);
+  document.removeEventListener('touchcancel', _dragCancel);
+  document.removeEventListener('mousemove',   _onMove);
+  document.removeEventListener('mouseup',     _onEnd);
 
-  /* Salva a nova ordem no localStorage */
-  saveStore();
+  /* Aplica a reordenação nos dados (só agora, no drop) */
+  const from = _drag.fromIndex;
+  const to   = _drag.toIndex;
+  if(from !== to && blocks[_drag.dk]){
+    const arr = blocks[_drag.dk];
+    const item = arr.splice(from, 1)[0];
+    arr.splice(to, 0, item);
+    saveStore();
+  }
 
-  /* Re-renderiza a lista completa com novos índices */
+  /* Remove ghost e placeholder e re-renderiza a lista */
+  if(_drag.ghost){ _drag.ghost.remove(); _drag.ghost=null; }
+  if(_drag.placeholder){ _drag.placeholder.remove(); _drag.placeholder=null; }
+  if(_drag.el){ _drag.el.classList.remove('bc-dragging'); _drag.el=null; }
+
+  /* Re-renderiza apenas o detail do dia (não full render) */
   if(window._lastDayDetail)openDayDetail(window._lastDayDetail);
 }
 
-/* ── Move o bloco nos dados (preview em tempo real) ── */
-function _reorderPreview(dk,from,to){
-  if(from===to)return;
-  const arr=blocks[dk];
-  if(!arr||from<0||to<0||from>=arr.length||to>=arr.length)return;
-  const item=arr.splice(from,1)[0];
-  arr.splice(to,0,item);
+/* ── Cancela drag (touchcancel ou saída de emergência) ── */
+function _dragCancel(){
+  if(!_drag.active)return;
+  _drag.active = false;
+  _stopAutoScroll();
+  document.removeEventListener('touchmove',   _onMove);
+  document.removeEventListener('touchend',    _onEnd);
+  document.removeEventListener('touchcancel', _dragCancel);
+  document.removeEventListener('mousemove',   _onMove);
+  document.removeEventListener('mouseup',     _onEnd);
+  if(_drag.ghost){ _drag.ghost.remove(); _drag.ghost=null; }
+  if(_drag.placeholder){ _drag.placeholder.remove(); _drag.placeholder=null; }
+  if(_drag.el){ _drag.el.classList.remove('bc-dragging'); _drag.el=null; }
+  /* Cancela sem salvar — ordem original permanece */
+  if(window._lastDayDetail)openDayDetail(window._lastDayDetail);
 }
 
-/* ── Re-renderiza apenas a lista de itens reorder (sem full render) ── */
-function _refreshReorderList(dk){
-  const list=document.getElementById('reorder-list-'+dk);
-  if(!list)return;
-  const db=blocks[dk]||[];
-  list.innerHTML=db.map((b,bi)=>renderReorderItem(b,bi,dk)).join('');
-  /* Reagrupa os listeners nos novos elementos */
-  const items=list.querySelectorAll('.bc-reorder');
-  items.forEach(item=>{
-    item.addEventListener('mousedown',onDragStart,{passive:false});
-    item.addEventListener('touchstart',onDragStart,{passive:false});
-  });
-  /* Restaura visual "sendo arrastado" no item atual */
-  const dragEl=list.querySelector(`[data-bi="${_drag.fromIndex}"]`);
-  if(dragEl){dragEl.classList.add('bc-dragging');_drag.el=dragEl;}
-}
+/* ── Calcula onde o placeholder deve ficar e move-o ── */
+function _calcDropIndex(clientY){
+  const list = document.getElementById('reorder-list-'+_drag.dk);
+  if(!list||!_drag.placeholder)return;
 
-/* ── Auto-scroll quando o drag chega perto das bordas ── */
-function _autoScroll(clientY){
-  const ct=_drag.scrollEl;
-  if(!ct)return;
-  const cr=ct.getBoundingClientRect();
-  const zone=60; /* px de zona de auto-scroll */
-  const speed=8; /* px por frame */
+  /* Coleta itens reais (exclui o original invisível e o placeholder) */
+  const items = [...list.querySelectorAll('.bc-reorder:not(.bc-dragging)')];
+  if(!items.length)return;
 
-  if(_drag.scrollTimer){clearInterval(_drag.scrollTimer);_drag.scrollTimer=null;}
+  let newTo = _drag.fromIndex;
+  let insertBefore = null; /* referência DOM de onde inserir o placeholder */
 
-  if(clientY<cr.top+zone){
-    /* Scroll para cima */
-    _drag.scrollTimer=setInterval(()=>{ct.scrollTop-=speed;},16);
-  } else if(clientY>cr.bottom-zone){
-    /* Scroll para baixo */
-    _drag.scrollTimer=setInterval(()=>{ct.scrollTop+=speed;},16);
+  let placed = false;
+  for(let i=0;i<items.length;i++){
+    const r = items[i].getBoundingClientRect();
+    if(clientY < r.top + r.height * 0.5){
+      /* Cursor está na metade superior deste item → placeholder fica antes dele */
+      newTo = parseInt(items[i].dataset.bi);
+      /* Se o item vem depois do from, ajusta para compensar a remoção */
+      if(newTo > _drag.fromIndex) newTo = newTo - 1;
+      insertBefore = items[i];
+      placed = true;
+      break;
+    }
   }
+  if(!placed){
+    /* Cursor abaixo de todos → vai para o final */
+    const last = items[items.length-1];
+    newTo = parseInt(last.dataset.bi);
+    if(newTo < _drag.fromIndex) newTo = newTo + 1;
+    /* Insere depois do último */
+    insertBefore = last.nextSibling;
+  }
+
+  /* Move o placeholder no DOM só se a posição mudou */
+  if(newTo !== _drag.toIndex){
+    _drag.toIndex = newTo;
+  }
+  /* Sempre move o placeholder para refletir posição visual correta */
+  list.insertBefore(_drag.placeholder, insertBefore || null);
+}
+
+/* ── Auto-scroll suave usando rAF ── */
+function _startAutoScroll(){
+  _stopAutoScroll();
+  function _frame(){
+    if(!_drag.active)return;
+    const ct = _drag.scrollEl;
+    if(ct){
+      const cr = ct.getBoundingClientRect();
+      const zone = 72, speed = 10;
+      const cy = _drag.clientY;
+      if(cy < cr.top + zone){
+        ct.scrollTop -= speed * (1 - (cy - cr.top) / zone);
+      } else if(cy > cr.bottom - zone){
+        ct.scrollTop += speed * (1 - (cr.bottom - cy) / zone);
+      }
+    }
+    _drag.scrollRaf = requestAnimationFrame(_frame);
+  }
+  _drag.scrollRaf = requestAnimationFrame(_frame);
+}
+function _stopAutoScroll(){
+  if(_drag.scrollRaf){ cancelAnimationFrame(_drag.scrollRaf); _drag.scrollRaf=null; }
 }
 
 function reopenDay(dk){if(window._lastDayDetail)openDayDetail(window._lastDayDetail)}

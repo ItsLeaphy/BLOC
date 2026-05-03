@@ -1,0 +1,513 @@
+{
+  "_comentario": "BLOC — Arquivo de backup completo (modelo de referência). Gerado via Configurações → Dados → Exportar dados. Compatível com importação direta pelo botão 'Carregar JSON'.",
+  "_schema_doc": {
+    "version": "Número inteiro. Identifica a versão do schema. Usado pelo sistema de migrações para atualizar dados antigos automaticamente. Atual: 1.",
+    "blocks": "Objeto com chaves = dias da semana (DOM, SEG, TER, QUA, QUI, SEX, SAB). Cada valor é um array de blocos de treino, em ordem de exibição.",
+    "history": "Array de registros de treino. Máximo 180 entradas. Mais recente primeiro (índice 0).",
+    "goals": "Array de metas com progresso de 0 a 100.",
+    "appearance": "Preferências visuais do app (tema, fonte, radius, animação)."
+  },
+
+  "version": 1,
+
+  "blocks": {
+    "_comentario": "Dias disponíveis: DOM, SEG, TER, QUA, QUI, SEX, SAB. Cada dia é um array ordenado de blocos. A ordem aqui reflete a ordem de exibição no app (incluindo reorganizações manuais).",
+
+    "SEG": [
+      {
+        "_comentario_bloco": "Bloco tipo aquecimento. Campo 'type' define o ícone. 'label' é o nome exibido. 'notes' aparece dentro do bloco aberto. 'accentColor' define a borda lateral colorida.",
+        "type": "aquecimento",
+        "label": "Aquecimento",
+        "notes": "Focar na mobilidade de ombro antes do push",
+        "accentColor": "blue",
+        "exercises": [
+          {
+            "_comentario_exercicio": "Exercício por séries + reps. 'weight' em kg. 'time' em segundos (0 = não usa tempo). 'media' é array de URLs (imagem ou YouTube).",
+            "name": "Mobilização de ombro",
+            "sets": 2,
+            "reps": 10,
+            "weight": 0,
+            "time": 0,
+            "media": []
+          },
+          {
+            "name": "Band pull-apart",
+            "sets": 2,
+            "reps": 15,
+            "weight": 0,
+            "time": 0,
+            "media": []
+          },
+          {
+            "name": "Rotação torácica",
+            "sets": 2,
+            "reps": 10,
+            "weight": 0,
+            "time": 0,
+            "media": []
+          }
+        ]
+      },
+      {
+        "type": "ativacao",
+        "label": "Ativação",
+        "notes": "",
+        "accentColor": "",
+        "exercises": [
+          {
+            "name": "Face pull leve",
+            "sets": 2,
+            "reps": 15,
+            "weight": 0,
+            "time": 0,
+            "media": []
+          },
+          {
+            "name": "Serrátil anterior",
+            "sets": 2,
+            "reps": 12,
+            "weight": 0,
+            "time": 0,
+            "media": []
+          }
+        ]
+      },
+      {
+        "type": "academia",
+        "label": "Academia — Push",
+        "notes": "Supino: foco em conexão com peito. Não jogar cotovelo para fora.",
+        "accentColor": "pink",
+        "exercises": [
+          {
+            "_comentario_com_peso": "Exercício com carga. 'weight' em kg. O sistema detecta PR automaticamente ao registrar.",
+            "name": "Supino reto",
+            "sets": 4,
+            "reps": 10,
+            "weight": 80,
+            "time": 0,
+            "media": [
+              "https://www.youtube.com/watch?v=exemplo_supino"
+            ]
+          },
+          {
+            "name": "Desenvolvimento",
+            "sets": 3,
+            "reps": 12,
+            "weight": 50,
+            "time": 0,
+            "media": []
+          },
+          {
+            "name": "Crossover",
+            "sets": 3,
+            "reps": 15,
+            "weight": 15,
+            "time": 0,
+            "media": [
+              "https://i.imgur.com/exemplo_crossover.jpg"
+            ]
+          }
+        ]
+      },
+      {
+        "type": "skill",
+        "label": "Skill",
+        "notes": "Handstand: encaixar escápula, não arquear lombar",
+        "accentColor": "purple",
+        "customIcon": "🤸",
+        "_comentario_customIcon": "'customIcon' sobrepõe o ícone padrão do tipo. Aceita emoji (máx 2 caracteres).",
+        "exercises": [
+          {
+            "_comentario_tempo": "Exercício por tempo: 'reps' deve ser 0 e 'time' em segundos > 0. O app renderiza como 'Nx30s' em vez de 'Nx0 reps'.",
+            "name": "Handstand",
+            "sets": 3,
+            "reps": 0,
+            "weight": 0,
+            "time": 30,
+            "media": []
+          }
+        ]
+      },
+      {
+        "type": "core",
+        "label": "Core leve",
+        "notes": "",
+        "accentColor": "",
+        "exercises": [
+          {
+            "name": "Prancha",
+            "sets": 3,
+            "reps": 0,
+            "weight": 0,
+            "time": 45,
+            "media": []
+          },
+          {
+            "name": "Hollow body",
+            "sets": 3,
+            "reps": 0,
+            "weight": 0,
+            "time": 30,
+            "media": []
+          }
+        ]
+      }
+    ],
+
+    "TER": [
+      {
+        "type": "aquecimento",
+        "label": "Aquecimento",
+        "notes": "",
+        "accentColor": "",
+        "exercises": [
+          { "name": "Mobilização de escápula", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+          { "name": "Dislocates com bastão",   "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] }
+        ]
+      },
+      {
+        "type": "academia",
+        "label": "Academia — Pull",
+        "notes": "",
+        "accentColor": "green",
+        "exercises": [
+          { "name": "Barra fixa",       "sets": 4, "reps": 8,  "weight": 10, "time": 0, "media": [] },
+          { "name": "Remada curvada",   "sets": 3, "reps": 10, "weight": 60, "time": 0, "media": [] }
+        ]
+      },
+      {
+        "type": "calistenia",
+        "label": "Calistenia",
+        "notes": "",
+        "accentColor": "",
+        "exercises": [
+          { "name": "Muscle-up negativo", "sets": 3, "reps": 5, "weight": 0, "time": 0, "media": [] }
+        ]
+      },
+      {
+        "type": "core",
+        "label": "Core leve",
+        "notes": "",
+        "accentColor": "",
+        "exercises": [
+          { "name": "Ab wheel", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] }
+        ]
+      },
+      {
+        "type": "grip",
+        "label": "Grip / Antebraço",
+        "notes": "",
+        "accentColor": "orange",
+        "exercises": [
+          { "name": "Dead hang",          "sets": 3, "reps": 0, "weight": 0, "time": 30, "media": [] },
+          { "name": "Rosca punho",        "sets": 3, "reps": 15, "weight": 10, "time": 0, "media": [] },
+          { "name": "Farmer carry",       "sets": 3, "reps": 0, "weight": 32, "time": 20, "media": [] }
+        ]
+      },
+      {
+        "type": "recovery",
+        "label": "Recovery",
+        "notes": "",
+        "accentColor": "",
+        "exercises": [
+          { "name": "Liberação miofascial costas",      "sets": 1, "reps": 0, "weight": 0, "time": 120, "media": [] },
+          { "name": "Alongamento bíceps e antebraço",   "sets": 2, "reps": 0, "weight": 0, "time": 30,  "media": [] }
+        ]
+      }
+    ],
+
+    "QUA": [
+      {
+        "type": "aquecimento", "label": "Aquecimento", "notes": "", "accentColor": "",
+        "exercises": [
+          { "name": "Mobilização de quadril", "sets": 2, "reps": 10, "weight": 0, "time": 0,  "media": [] },
+          { "name": "Glute bridge",           "sets": 2, "reps": 15, "weight": 0, "time": 0,  "media": [] },
+          { "name": "Polichinelo",            "sets": 1, "reps": 0,  "weight": 0, "time": 60, "media": [] }
+        ]
+      },
+      {
+        "type": "ativacao", "label": "Ativação", "notes": "", "accentColor": "",
+        "exercises": [
+          { "name": "Ativação de glúteo", "sets": 3, "reps": 15, "weight": 0, "time": 0, "media": [] },
+          { "name": "Clamshell",          "sets": 2, "reps": 12, "weight": 0, "time": 0, "media": [] }
+        ]
+      },
+      {
+        "type": "academia", "label": "Academia — Perna", "notes": "", "accentColor": "yellow",
+        "exercises": [
+          { "name": "Agachamento", "sets": 4, "reps": 10, "weight": 100, "time": 0, "media": [] },
+          { "name": "Leg press",   "sets": 3, "reps": 12, "weight": 180, "time": 0, "media": [] },
+          { "name": "Panturrilha", "sets": 4, "reps": 15, "weight": 60,  "time": 0, "media": [] }
+        ]
+      },
+      {
+        "type": "core", "label": "Core pesado", "notes": "", "accentColor": "",
+        "exercises": [
+          { "name": "Dragon flag",            "sets": 3, "reps": 6,  "weight": 0, "time": 0, "media": [] },
+          { "name": "Levantamento de pernas", "sets": 3, "reps": 12, "weight": 0, "time": 0, "media": [] }
+        ]
+      }
+    ],
+
+    "QUI": [
+      {
+        "type": "aquecimento", "label": "Aquecimento", "notes": "", "accentColor": "",
+        "exercises": [
+          { "name": "Rotação de manguito", "sets": 2, "reps": 15, "weight": 0, "time": 0, "media": [] },
+          { "name": "Shoulder CARs",       "sets": 2, "reps": 5,  "weight": 0, "time": 0, "media": [] }
+        ]
+      },
+      {
+        "type": "ativacao", "label": "Ativação", "notes": "", "accentColor": "",
+        "exercises": [
+          { "name": "Band pull-apart",  "sets": 3, "reps": 15, "weight": 0, "time": 0, "media": [] },
+          { "name": "YTW com elástico", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] }
+        ]
+      },
+      {
+        "type": "academia", "label": "Academia — Ombro", "notes": "", "accentColor": "teal",
+        "exercises": [
+          { "name": "Desenvolvimento militar", "sets": 4, "reps": 10, "weight": 60, "time": 0, "media": [] },
+          { "name": "Elevação lateral",        "sets": 3, "reps": 15, "weight": 12, "time": 0, "media": [] }
+        ]
+      },
+      {
+        "type": "skill", "label": "Skill", "notes": "", "accentColor": "",
+        "exercises": [
+          { "name": "L-sit", "sets": 4, "reps": 0, "weight": 0, "time": 20, "media": [] }
+        ]
+      },
+      {
+        "type": "neck", "label": "Neck", "notes": "", "accentColor": "",
+        "exercises": [
+          { "name": "Flexão cervical", "sets": 2, "reps": 15, "weight": 0, "time": 0, "media": [] }
+        ]
+      }
+    ],
+
+    "SEX": [
+      {
+        "type": "aquecimento", "label": "Aquecimento", "notes": "", "accentColor": "",
+        "exercises": [
+          { "name": "Mobilização de cotovelo", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+          { "name": "Band pull-apart",         "sets": 2, "reps": 15, "weight": 0, "time": 0, "media": [] }
+        ]
+      },
+      {
+        "type": "academia", "label": "Academia — Braço", "notes": "", "accentColor": "red",
+        "exercises": [
+          { "name": "Rosca direta",   "sets": 3, "reps": 12, "weight": 20, "time": 0, "media": [] },
+          { "name": "Tríceps corda",  "sets": 3, "reps": 12, "weight": 25, "time": 0, "media": [] },
+          { "name": "Martelo",        "sets": 3, "reps": 10, "weight": 18, "time": 0, "media": [] }
+        ]
+      },
+      {
+        "type": "core", "label": "Core técnico", "notes": "", "accentColor": "",
+        "exercises": [
+          { "name": "Dead bug",     "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+          { "name": "Pallof press", "sets": 3, "reps": 12, "weight": 0, "time": 0, "media": [] }
+        ]
+      },
+      {
+        "type": "grip", "label": "Grip / Antebraço", "notes": "", "accentColor": "",
+        "exercises": [
+          { "name": "Pinch grip",           "sets": 3, "reps": 0,  "weight": 0, "time": 20, "media": [] },
+          { "name": "Extensão de punho",    "sets": 3, "reps": 15, "weight": 5, "time": 0,  "media": [] },
+          { "name": "Pronação e supinação", "sets": 2, "reps": 12, "weight": 0, "time": 0,  "media": [] }
+        ]
+      }
+    ],
+
+    "SAB": [
+      {
+        "type": "aquecimento", "label": "Aquecimento", "notes": "", "accentColor": "",
+        "exercises": [
+          { "name": "Mobilização geral",              "sets": 2, "reps": 10, "weight": 0, "time": 0,   "media": [] },
+          { "name": "Corda ou polichinelo",           "sets": 1, "reps": 0,  "weight": 0, "time": 120, "media": [] },
+          { "name": "Rotação de quadril e ombro",     "sets": 2, "reps": 8,  "weight": 0, "time": 0,   "media": [] }
+        ]
+      },
+      {
+        "type": "ativacao", "label": "Ativação", "notes": "", "accentColor": "",
+        "exercises": [
+          { "name": "Serrátil e trapézio baixo", "sets": 2, "reps": 12, "weight": 0, "time": 0,  "media": [] },
+          { "name": "Ring support hold",         "sets": 3, "reps": 0,  "weight": 0, "time": 15, "media": [] }
+        ]
+      },
+      {
+        "type": "calistenia", "label": "Calistenia full", "notes": "", "accentColor": "purple",
+        "exercises": [
+          { "name": "Barra fixa", "sets": 5, "reps": 8,  "weight": 10, "time": 0, "media": [] },
+          { "name": "Dips",       "sets": 4, "reps": 10, "weight": 10, "time": 0, "media": [] },
+          { "name": "Flexões",    "sets": 3, "reps": 20, "weight": 0,  "time": 0, "media": [] }
+        ]
+      },
+      {
+        "type": "core", "label": "Core moderado", "notes": "", "accentColor": "",
+        "exercises": [
+          { "name": "Prancha lateral", "sets": 3, "reps": 0, "weight": 0, "time": 30, "media": [] }
+        ]
+      },
+      {
+        "type": "grip", "label": "Grip / Antebraço", "notes": "", "accentColor": "",
+        "exercises": [
+          { "name": "Dead hang",         "sets": 4, "reps": 0, "weight": 0, "time": 30, "media": [] },
+          { "name": "Towel pull-up hold","sets": 3, "reps": 0, "weight": 0, "time": 15, "media": [] }
+        ]
+      }
+    ],
+
+    "DOM": [
+      {
+        "type": "recovery", "label": "Recovery", "notes": "Domingo é sagrado. Sem pressa.", "accentColor": "",
+        "exercises": [
+          { "name": "Foam roller full body",         "sets": 1, "reps": 0, "weight": 0, "time": 300, "media": [] },
+          { "name": "Respiração diafragmática",      "sets": 3, "reps": 0, "weight": 0, "time": 60,  "media": [] },
+          { "name": "Banho frio ou contraste",       "sets": 1, "reps": 0, "weight": 0, "time": 120, "media": [] }
+        ]
+      },
+      {
+        "type": "mobilidade", "label": "Mobilidade", "notes": "", "accentColor": "",
+        "exercises": [
+          { "name": "Alongamento full body",              "sets": 1, "reps": 0,  "weight": 0, "time": 600, "media": [] },
+          { "name": "Hip 90/90",                         "sets": 2, "reps": 0,  "weight": 0, "time": 60,  "media": [] },
+          { "name": "Rotação torácica com bastão",        "sets": 2, "reps": 10, "weight": 0, "time": 0,   "media": [] }
+        ]
+      }
+    ]
+  },
+
+  "history": [
+    {
+      "_comentario": "Cada entrada é um treino registrado. 'dayKey' = chave do dia. 'date' = data no formato dd/mm/aaaa (pt-BR). 'exercises' = snapshot dos valores no momento do registro (não é referência ao bloco atual).",
+      "date": "02/05/2026",
+      "dayKey": "SAB",
+      "day": "Sábado",
+      "blockLabel": "Calistenia full",
+      "blockType": "calistenia",
+      "exercises": [
+        {
+          "_comentario": "Snapshot dos valores registrados. 'weight' e 'reps' = o que foi digitado na sessão. Independente dos valores base do bloco.",
+          "name": "Barra fixa",
+          "sets": 5,
+          "reps": 8,
+          "weight": 12,
+          "time": 0
+        },
+        {
+          "name": "Dips",
+          "sets": 4,
+          "reps": 10,
+          "weight": 10,
+          "time": 0
+        },
+        {
+          "name": "Flexões",
+          "sets": 3,
+          "reps": 22,
+          "weight": 0,
+          "time": 0
+        }
+      ]
+    },
+    {
+      "date": "01/05/2026",
+      "dayKey": "SEX",
+      "day": "Sexta",
+      "blockLabel": "Academia — Braço",
+      "blockType": "academia",
+      "exercises": [
+        { "name": "Rosca direta",  "sets": 3, "reps": 12, "weight": 22, "time": 0 },
+        { "name": "Tríceps corda", "sets": 3, "reps": 12, "weight": 27, "time": 0 },
+        { "name": "Martelo",       "sets": 3, "reps": 10, "weight": 20, "time": 0 }
+      ]
+    },
+    {
+      "date": "30/04/2026",
+      "dayKey": "QUI",
+      "day": "Quinta",
+      "blockLabel": "Academia — Ombro",
+      "blockType": "academia",
+      "exercises": [
+        { "name": "Desenvolvimento militar", "sets": 4, "reps": 10, "weight": 62, "time": 0 },
+        { "name": "Elevação lateral",        "sets": 3, "reps": 15, "weight": 13, "time": 0 }
+      ]
+    },
+    {
+      "_comentario_pr": "Este registro contém um PR (peso maior que todos os registros anteriores do mesmo exercício). O sistema detecta isso automaticamente ao registrar e exibe toast especial.",
+      "date": "28/04/2026",
+      "dayKey": "TER",
+      "day": "Terça",
+      "blockLabel": "Academia — Pull",
+      "blockType": "academia",
+      "exercises": [
+        { "name": "Barra fixa",     "sets": 4, "reps": 8,  "weight": 15, "time": 0 },
+        { "name": "Remada curvada", "sets": 3, "reps": 10, "weight": 65, "time": 0 }
+      ]
+    },
+    {
+      "date": "27/04/2026",
+      "dayKey": "SEG",
+      "day": "Segunda",
+      "blockLabel": "Academia — Push",
+      "blockType": "academia",
+      "exercises": [
+        { "name": "Supino reto",   "sets": 4, "reps": 10, "weight": 82, "time": 0 },
+        { "name": "Desenvolvimento","sets": 3, "reps": 12, "weight": 52, "time": 0 },
+        { "name": "Crossover",     "sets": 3, "reps": 15, "weight": 16, "time": 0 }
+      ]
+    }
+  ],
+
+  "goals": [
+    {
+      "_comentario": "'progress' de 0 a 100 (representa %). Incrementado/decrementado pelos botões +5, +10, -5, -10.",
+      "name": "Shape em V",
+      "progress": 28,
+      "note": "Foco em ombro e lat"
+    },
+    {
+      "name": "Handstand 10s",
+      "progress": 42,
+      "note": "Praticar equilíbrio"
+    },
+    {
+      "name": "Muscle-up",
+      "progress": 20,
+      "note": "Força de barra"
+    },
+    {
+      "name": "Core definido",
+      "progress": 45,
+      "note": ""
+    },
+    {
+      "_comentario_meta_custom": "Metas são completamente livres — qualquer objetivo pode ser criado.",
+      "name": "Dead hang 1 minuto",
+      "progress": 60,
+      "note": "Progressão de grip"
+    }
+  ],
+
+  "appearance": {
+    "_comentario": "Preferências visuais. Alteradas em Configurações → Aparência. Aplicadas imediatamente via CSS custom properties.",
+
+    "theme": "dark",
+    "_temas_disponiveis": ["dark", "obsidian", "forest", "ember", "steel", "midnight", "carbon", "leninha", "paper", "frost", "sage"],
+
+    "accentColor": "#ffffff",
+    "_accentColor_doc": "Cor de destaque. Hex string. Em temas escuros costuma ser #ffffff; em claros, #000000 ou a cor do tema.",
+
+    "font": "helvetica",
+    "_fontes_disponiveis": ["helvetica", "mono", "serif", "rounded"],
+
+    "borderRadius": 14,
+    "_borderRadius_doc": "Raio de borda global em px. Slider de 0 a 20. Controla --r-lg no CSS.",
+
+    "compactMode": false,
+    "_compactMode_doc": "Quando true, reduz padding do #content de 16px para 12px.",
+
+    "animSpeed": "normal",
+    "_animSpeed_doc": "Velocidade das animações. Controla --dur-base: fast=0.15s, normal=0.22s, slow=0.38s."
+  }
+}
