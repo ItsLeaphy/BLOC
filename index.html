@@ -928,7 +928,12 @@ body{
   max-height:88%;
   overflow-y:auto;
   animation:modalIn var(--dur-slow) var(--ease-spring);
+  scrollbar-width:thin;
+  scrollbar-color:var(--s3) transparent;
 }
+.modal::-webkit-scrollbar{width:2px}
+.modal::-webkit-scrollbar-track{background:transparent}
+.modal::-webkit-scrollbar-thumb{background:var(--s3);border-radius:1px}
 
 /* Modal drag handle */
 .modal::before{
@@ -1720,6 +1725,10 @@ const BTYPE_ICONS={
   neck:`<svg viewBox="0 0 16 16"><circle cx="8" cy="5" r="2.5" stroke-width="1.2"/><path d="M6 7.5C5 9 5 12 6.5 13.5h3C11 12 11 9 10 7.5" stroke-width="1.2"/></svg>`,
   cardio:`<svg viewBox="0 0 16 16"><path d="M2 8h2l2-4 2 8 2-4 2 2h2" stroke-width="1.4" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   custom:`<svg viewBox="0 0 16 16"><rect x="3" y="3" width="4" height="4" rx="1"/><rect x="9" y="3" width="4" height="4" rx="1"/><rect x="3" y="9" width="4" height="4" rx="1"/><rect x="9" y="9" width="4" height="4" rx="1"/></svg>`,
+  aquecimento:`<svg viewBox="0 0 16 16"><path d="M8 2c0 3-4 4-4 7a4 4 0 008 0c0-3-4-4-4-7z" stroke-width="1.3" stroke-linejoin="round"/><path d="M6 11.5c.5.8 2 .8 2.5 0" stroke-width="1.3" stroke-linecap="round"/></svg>`,
+  ativacao:`<svg viewBox="0 0 16 16"><path d="M8 1l1.2 4H14l-3.9 2.8 1.5 4.6L8 9.5l-3.6 2.9 1.5-4.6L2 5h4.8z" stroke-width="1.2" stroke-linejoin="round"/></svg>`,
+  grip:`<svg viewBox="0 0 16 16"><path d="M5 3.5C5 2.7 5.7 2 6.5 2S8 2.7 8 3.5V8" stroke-width="1.3" stroke-linecap="round"/><path d="M8 4.5C8 3.7 8.7 3 9.5 3S11 3.7 11 4.5V8" stroke-width="1.3" stroke-linecap="round"/><path d="M4 6.5C4 5.7 4.7 5 5.5 5S7 5.7 7 6.5V10" stroke-width="1.3" stroke-linecap="round"/><path d="M4 9v1.5A3.5 3.5 0 0011 10.5V8" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  recovery:`<svg viewBox="0 0 16 16"><path d="M3 8a5 5 0 109.9-1" stroke-width="1.3" stroke-linecap="round"/><path d="M13 4l-0.1 3-3-0.1" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/><path d="M8 5v3l2 1" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
 };
 
 const BTYPES={
@@ -1730,6 +1739,10 @@ const BTYPES={
   mobilidade:{l:'Mobilidade',d:'Alongamento e recuperação'},
   neck:{l:'Neck',d:'Pescoço'},
   cardio:{l:'Cardio',d:'Resistência aeróbica'},
+  aquecimento:{l:'Aquecimento',d:'Preparo articular e cardíaco'},
+  ativacao:{l:'Ativação',d:'Ativação muscular e neuromuscular'},
+  grip:{l:'Grip / Antebraço',d:'Força de preensão e antebraço'},
+  recovery:{l:'Recovery',d:'Recuperação ativa e descanso'},
   custom:{l:'Personalizado',d:'Bloco livre'},
 };
 
@@ -1771,33 +1784,50 @@ const STORE = 'bloc_data'; // chave única no localStorage
 
 const DEFAULT_BLOCKS = {
   SEG:[
+    {type:'aquecimento',label:'Aquecimento',notes:'',exercises:[{name:'Mobilização de ombro',sets:2,reps:10,weight:0,time:0,media:[]},{name:'Band pull-apart',sets:2,reps:15,weight:0,time:0,media:[]},{name:'Rotação torácica',sets:2,reps:10,weight:0,time:0,media:[]}]},
+    {type:'ativacao',label:'Ativação',notes:'',exercises:[{name:'Face pull leve',sets:2,reps:15,weight:0,time:0,media:[]},{name:'Serrátil anterior',sets:2,reps:12,weight:0,time:0,media:[]}]},
     {type:'academia',label:'Academia — Push',notes:'',exercises:[{name:'Supino reto',sets:4,reps:10,weight:0,time:0,media:[]},{name:'Desenvolvimento',sets:3,reps:12,weight:0,time:0,media:[]},{name:'Crossover',sets:3,reps:15,weight:0,time:0,media:[]}]},
     {type:'skill',label:'Skill',notes:'',exercises:[{name:'Handstand',sets:3,reps:0,time:30,weight:0,media:[]}]},
     {type:'core',label:'Core leve',notes:'',exercises:[{name:'Prancha',sets:3,reps:0,time:45,weight:0,media:[]},{name:'Hollow body',sets:3,reps:0,time:30,weight:0,media:[]}]}
   ],
   TER:[
+    {type:'aquecimento',label:'Aquecimento',notes:'',exercises:[{name:'Mobilização de escápula',sets:2,reps:10,weight:0,time:0,media:[]},{name:'Dislocates com bastão',sets:2,reps:10,weight:0,time:0,media:[]}]},
     {type:'academia',label:'Academia — Pull',notes:'',exercises:[{name:'Barra fixa',sets:4,reps:8,weight:0,time:0,media:[]},{name:'Remada curvada',sets:3,reps:10,weight:0,time:0,media:[]}]},
     {type:'calistenia',label:'Calistenia',notes:'',exercises:[{name:'Muscle-up negativo',sets:3,reps:5,weight:0,time:0,media:[]}]},
-    {type:'core',label:'Core leve',notes:'',exercises:[{name:'Ab wheel',sets:3,reps:10,weight:0,time:0,media:[]}]}
+    {type:'core',label:'Core leve',notes:'',exercises:[{name:'Ab wheel',sets:3,reps:10,weight:0,time:0,media:[]}]},
+    {type:'grip',label:'Grip / Antebraço',notes:'',exercises:[{name:'Dead hang',sets:3,reps:0,time:30,weight:0,media:[]},{name:'Rosca punho',sets:3,reps:15,weight:0,time:0,media:[]},{name:'Farmer carry',sets:3,reps:0,time:20,weight:0,media:[]}]},
+    {type:'recovery',label:'Recovery',notes:'',exercises:[{name:'Liberação miofascial costas',sets:1,reps:0,time:120,weight:0,media:[]},{name:'Alongamento bíceps e antebraço',sets:2,reps:0,time:30,weight:0,media:[]}]}
   ],
   QUA:[
+    {type:'aquecimento',label:'Aquecimento',notes:'',exercises:[{name:'Mobilização de quadril',sets:2,reps:10,weight:0,time:0,media:[]},{name:'Glute bridge',sets:2,reps:15,weight:0,time:0,media:[]},{name:'Polichinelo',sets:1,reps:0,time:60,weight:0,media:[]}]},
+    {type:'ativacao',label:'Ativação',notes:'',exercises:[{name:'Ativação de glúteo',sets:3,reps:15,weight:0,time:0,media:[]},{name:'Clamshell',sets:2,reps:12,weight:0,time:0,media:[]}]},
     {type:'academia',label:'Academia — Perna',notes:'',exercises:[{name:'Agachamento',sets:4,reps:10,weight:0,time:0,media:[]},{name:'Leg press',sets:3,reps:12,weight:0,time:0,media:[]},{name:'Panturrilha',sets:4,reps:15,weight:0,time:0,media:[]}]},
     {type:'core',label:'Core pesado',notes:'',exercises:[{name:'Dragon flag',sets:3,reps:6,weight:0,time:0,media:[]},{name:'Levantamento de pernas',sets:3,reps:12,weight:0,time:0,media:[]}]}
   ],
   QUI:[
+    {type:'aquecimento',label:'Aquecimento',notes:'',exercises:[{name:'Rotação de manguito',sets:2,reps:15,weight:0,time:0,media:[]},{name:'Shoulder CARs',sets:2,reps:5,weight:0,time:0,media:[]}]},
+    {type:'ativacao',label:'Ativação',notes:'',exercises:[{name:'Band pull-apart',sets:3,reps:15,weight:0,time:0,media:[]},{name:'YTW com elástico',sets:2,reps:10,weight:0,time:0,media:[]}]},
     {type:'academia',label:'Academia — Ombro',notes:'',exercises:[{name:'Desenvolvimento militar',sets:4,reps:10,weight:0,time:0,media:[]},{name:'Elevação lateral',sets:3,reps:15,weight:0,time:0,media:[]}]},
     {type:'skill',label:'Skill',notes:'',exercises:[{name:'L-sit',sets:4,reps:0,time:20,weight:0,media:[]}]},
     {type:'neck',label:'Neck',notes:'',exercises:[{name:'Flexão cervical',sets:2,reps:15,weight:0,time:0,media:[]}]}
   ],
   SEX:[
+    {type:'aquecimento',label:'Aquecimento',notes:'',exercises:[{name:'Mobilização de cotovelo',sets:2,reps:10,weight:0,time:0,media:[]},{name:'Band pull-apart',sets:2,reps:15,weight:0,time:0,media:[]}]},
     {type:'academia',label:'Academia — Braço',notes:'',exercises:[{name:'Rosca direta',sets:3,reps:12,weight:0,time:0,media:[]},{name:'Tríceps corda',sets:3,reps:12,weight:0,time:0,media:[]},{name:'Martelo',sets:3,reps:10,weight:0,time:0,media:[]}]},
-    {type:'core',label:'Core técnico',notes:'',exercises:[{name:'Dead bug',sets:3,reps:10,weight:0,time:0,media:[]},{name:'Pallof press',sets:3,reps:12,weight:0,time:0,media:[]}]}
+    {type:'core',label:'Core técnico',notes:'',exercises:[{name:'Dead bug',sets:3,reps:10,weight:0,time:0,media:[]},{name:'Pallof press',sets:3,reps:12,weight:0,time:0,media:[]}]},
+    {type:'grip',label:'Grip / Antebraço',notes:'',exercises:[{name:'Pinch grip',sets:3,reps:0,time:20,weight:0,media:[]},{name:'Extensão de punho',sets:3,reps:15,weight:0,time:0,media:[]},{name:'Pronação e supinação',sets:2,reps:12,weight:0,time:0,media:[]}]}
   ],
   SAB:[
+    {type:'aquecimento',label:'Aquecimento',notes:'',exercises:[{name:'Mobilização geral',sets:2,reps:10,weight:0,time:0,media:[]},{name:'Corda ou polichinelo',sets:1,reps:0,time:120,weight:0,media:[]},{name:'Rotação de quadril e ombro',sets:2,reps:8,weight:0,time:0,media:[]}]},
+    {type:'ativacao',label:'Ativação',notes:'',exercises:[{name:'Serrátil e trapézio baixo',sets:2,reps:12,weight:0,time:0,media:[]},{name:'Ring support hold',sets:3,reps:0,time:15,weight:0,media:[]}]},
     {type:'calistenia',label:'Calistenia full',notes:'',exercises:[{name:'Barra fixa',sets:5,reps:8,weight:0,time:0,media:[]},{name:'Dips',sets:4,reps:10,weight:0,time:0,media:[]},{name:'Flexões',sets:3,reps:20,weight:0,time:0,media:[]}]},
-    {type:'core',label:'Core moderado',notes:'',exercises:[{name:'Prancha lateral',sets:3,reps:0,time:30,weight:0,media:[]}]}
+    {type:'core',label:'Core moderado',notes:'',exercises:[{name:'Prancha lateral',sets:3,reps:0,time:30,weight:0,media:[]}]},
+    {type:'grip',label:'Grip / Antebraço',notes:'',exercises:[{name:'Dead hang',sets:4,reps:0,time:30,weight:0,media:[]},{name:'Towel pull-up hold',sets:3,reps:0,time:15,weight:0,media:[]}]}
   ],
-  DOM:[{type:'mobilidade',label:'Recuperação',notes:'',exercises:[{name:'Alongamento full body',sets:1,reps:0,time:600,weight:0,media:[]}]}],
+  DOM:[
+    {type:'recovery',label:'Recovery',notes:'',exercises:[{name:'Foam roller full body',sets:1,reps:0,time:300,weight:0,media:[]},{name:'Respiração diafragmática',sets:3,reps:0,time:60,weight:0,media:[]},{name:'Banho frio ou contraste',sets:1,reps:0,time:120,weight:0,media:[]}]},
+    {type:'mobilidade',label:'Mobilidade',notes:'',exercises:[{name:'Alongamento full body',sets:1,reps:0,time:600,weight:0,media:[]},{name:'Hip 90/90',sets:2,reps:0,time:60,weight:0,media:[]},{name:'Rotação torácica com bastão',sets:2,reps:10,weight:0,time:0,media:[]}]}
+  ],
 };
 
 const DEFAULT_GOALS = [
