@@ -2364,7 +2364,13 @@ function renderConfigDados(){
 }
 
 /* -------- APPEARANCE SETTERS -------- */
-function setTheme(id){appearance.theme=id;sv('bv2_appearance',appearance);applyAppearance();render()}
+function setTheme(id){
+  appearance.theme=id;
+  const t=THEMES[id]||THEMES.dark;
+  const isLight=t.bg>'#888';
+  appearance.accentColor=isLight?'#000000':'#ffffff';
+  sv('bv2_appearance',appearance);applyAppearance();render();
+}
 function setAccentColor(v){appearance.accentColor=v;sv('bv2_appearance',appearance);applyAppearance()}
 function setFont(id){appearance.font=id;sv('bv2_appearance',appearance);applyAppearance();render()}
 function setBorderRadius(v){appearance.borderRadius=parseInt(v);sv('bv2_appearance',appearance);applyAppearance();render()}
