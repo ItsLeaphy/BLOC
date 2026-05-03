@@ -1,9 +1,21 @@
 {
   "SEG": [
     {
+      "type": "aquecimento",
+      "label": "Aquecimento — Push",
+      "notes": "Mobilidade curta + ativação forte. Não fatigue antes do supino.",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Rotações torácicas", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Wall slides", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Scapular push-ups", "sets": 2, "reps": 12, "weight": 0, "time": 0, "media": [] },
+        { "name": "Supino inclinado leve (50%)", "sets": 2, "reps": 8, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
       "type": "academia",
       "label": "Push — Peito, Ombro, Tríceps",
-      "notes": "RIR 2. Foco em execução no supino inclinado.",
+      "notes": "RIR 1–2 nos compostos. Elevação lateral é o principal construtor do shape em V.",
       "accentColor": "blue",
       "exercises": [
         { "name": "Supino inclinado", "sets": 4, "reps": 8, "weight": 0, "time": 0, "media": [] },
@@ -17,7 +29,7 @@
     {
       "type": "skill",
       "label": "Skill",
-      "notes": "",
+      "notes": "Handstand: foco em estabilidade escapular, não tempo. Pike: controle excêntrico.",
       "accentColor": "purple",
       "exercises": [
         { "name": "Handstand na parede", "sets": 4, "reps": 0, "weight": 0, "time": 30, "media": [] },
@@ -37,9 +49,21 @@
   ],
   "TER": [
     {
+      "type": "aquecimento",
+      "label": "Aquecimento — Pull",
+      "notes": "Prioriza ativação escapular. Hangs leves antes de qualquer puxada.",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Active hang leve", "sets": 2, "reps": 0, "weight": 0, "time": 25, "media": [] },
+        { "name": "Shoulder dislocates (bastão)", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Scapular pull-ups", "sets": 2, "reps": 8, "weight": 0, "time": 0, "media": [] },
+        { "name": "Remada leve (50%)", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
       "type": "academia",
       "label": "Pull — Costas, Bíceps",
-      "notes": "Foco em retração escapular. Barra fixa é o exercício principal.",
+      "notes": "Barra fixa é o exercício principal. Retração escapular em todos os puxamentos.",
       "accentColor": "green",
       "exercises": [
         { "name": "Barra fixa / Graviton", "sets": 4, "reps": 8, "weight": 0, "time": 0, "media": [] },
@@ -54,7 +78,7 @@
     {
       "type": "calistenia",
       "label": "Controle",
-      "notes": "",
+      "notes": "Barra controlada: descida em 4s. Foco em propriocepção.",
       "accentColor": "teal",
       "exercises": [
         { "name": "Active hang", "sets": 3, "reps": 0, "weight": 0, "time": 30, "media": [] },
@@ -76,15 +100,27 @@
       "notes": "",
       "accentColor": "",
       "exercises": [
-        { "name": "Farmer carry", "sets": 3, "reps": 0, "weight": 0, "time": 25, "media": [] },
+        { "name": "Farmer carry", "sets": 3, "reps": 0, "weight": 0, "time": 27, "media": [] },
         { "name": "Dead hang", "sets": 3, "reps": 0, "weight": 0, "time": 30, "media": [] }
       ]
     }
   ],
   "QUA": [
     {
+      "type": "aquecimento",
+      "label": "Aquecimento — Legs",
+      "notes": "Mobilidade de quadril e tornozelo antes de qualquer carga axial.",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Hip 90/90", "sets": 2, "reps": 0, "weight": 0, "time": 40, "media": [] },
+        { "name": "Deep squat hold", "sets": 2, "reps": 0, "weight": 0, "time": 40, "media": [] },
+        { "name": "Glute bridge", "sets": 2, "reps": 15, "weight": 0, "time": 0, "media": [] },
+        { "name": "Agachamento leve (50%)", "sets": 2, "reps": 8, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
       "type": "academia",
-      "label": "Perna — Base estrutural",
+      "label": "Legs — Base Estrutural",
       "notes": "Agachamento livre é o foco. Não negligencie panturrilha.",
       "accentColor": "orange",
       "exercises": [
@@ -108,8 +144,8 @@
     },
     {
       "type": "core",
-      "label": "Core pesado",
-      "notes": "",
+      "label": "Core Pesado",
+      "notes": "L-sit: acumule tempo total por série, não force posição ruim.",
       "accentColor": "red",
       "exercises": [
         { "name": "Dragon flag progressão", "sets": 3, "reps": 6, "weight": 0, "time": 0, "media": [] },
@@ -120,9 +156,21 @@
   ],
   "QUI": [
     {
+      "type": "aquecimento",
+      "label": "Aquecimento — Upper Atlético",
+      "notes": "Mobilidade maior aqui. Ativação leve — o volume de ombro é alto.",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Rotações torácicas", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Extensão torácica no banco", "sets": 2, "reps": 0, "weight": 0, "time": 35, "media": [] },
+        { "name": "Band pull-aparts", "sets": 3, "reps": 15, "weight": 0, "time": 0, "media": [] },
+        { "name": "Wall slides", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
       "type": "academia",
       "label": "Upper Atlético — Ombro, Costas",
-      "notes": "Volume de ombro alto. Foco estético e postural.",
+      "notes": "Volume de ombro alto. Shape em V como objetivo central.",
       "accentColor": "pink",
       "exercises": [
         { "name": "Elevação lateral", "sets": 4, "reps": 15, "weight": 0, "time": 0, "media": [] },
@@ -146,7 +194,7 @@
     {
       "type": "core",
       "label": "Core",
-      "notes": "",
+      "notes": "Vacuum: expire tudo, suga e segura. Não é abdômen — é diafragma.",
       "accentColor": "",
       "exercises": [
         { "name": "Vacuum", "sets": 3, "reps": 0, "weight": 0, "time": 30, "media": [] },
@@ -166,9 +214,21 @@
   ],
   "SEX": [
     {
+      "type": "aquecimento",
+      "label": "Aquecimento — Full Body",
+      "notes": "Mobilidade dinâmica completa. Hoje é integração — o corpo todo precisa estar ligado.",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Rotações torácicas", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Hip opener dinâmico", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Arm circles", "sets": 2, "reps": 12, "weight": 0, "time": 0, "media": [] },
+        { "name": "Bodyweight squat", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
       "type": "academia",
       "label": "Full Body Performance",
-      "notes": "Foco em potência e controle. Qualidade > quantidade.",
+      "notes": "Foco em potência e controle. Qualidade acima de tudo.",
       "accentColor": "yellow",
       "exercises": [
         { "name": "Dips", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
@@ -179,8 +239,8 @@
     },
     {
       "type": "calistenia",
-      "label": "Calistenia",
-      "notes": "",
+      "label": "Calistenia / Skill",
+      "notes": "Muscle-up: progressão honesta. Não force se o padrão quebrar.",
       "accentColor": "teal",
       "exercises": [
         { "name": "Flexão explosiva", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
@@ -214,19 +274,21 @@
     {
       "type": "mobilidade",
       "label": "Mobilidade",
-      "notes": "",
+      "notes": "Mobilidade longa hoje. Isométricos com respiração controlada.",
       "accentColor": "blue",
       "exercises": [
-        { "name": "Mobilidade torácica", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
-        { "name": "Mobilidade ombro", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Rotações torácicas", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Extensão torácica no banco", "sets": 2, "reps": 0, "weight": 0, "time": 40, "media": [] },
+        { "name": "Arm circles lentos", "sets": 2, "reps": 12, "weight": 0, "time": 0, "media": [] },
         { "name": "Hip 90/90", "sets": 2, "reps": 0, "weight": 0, "time": 45, "media": [] },
-        { "name": "Alongamento posterior", "sets": 2, "reps": 0, "weight": 0, "time": 45, "media": [] }
+        { "name": "Alongamento posterior", "sets": 2, "reps": 0, "weight": 0, "time": 45, "media": [] },
+        { "name": "Deep squat hold", "sets": 2, "reps": 0, "weight": 0, "time": 40, "media": [] }
       ]
     },
     {
       "type": "skill",
-      "label": "Skill leve",
-      "notes": "",
+      "label": "Skill — Refinamento Neural",
+      "notes": "Sem fadiga. Foco em qualidade de movimento.",
       "accentColor": "purple",
       "exercises": [
         { "name": "Handstand leve", "sets": 4, "reps": 0, "weight": 0, "time": 20, "media": [] },
@@ -250,7 +312,7 @@
     {
       "type": "recovery",
       "label": "Descanso",
-      "notes": "Dia de recuperação. Sem intensidade.",
+      "notes": "Recuperação total. No máximo mobilidade suave e respiração.",
       "accentColor": "",
       "exercises": [
         { "name": "Alongamento leve", "sets": 1, "reps": 0, "weight": 0, "time": 300, "media": [] },

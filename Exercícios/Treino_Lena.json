@@ -2,29 +2,30 @@
   "SEG": [
     {
       "type": "aquecimento",
-      "label": "Aquecimento",
-      "notes": "Ativar articulações superiores e preparar padrão de empurrar",
-      "accentColor": "blue",
+      "label": "Aquecimento — Upper Leve",
+      "notes": "",
+      "accentColor": "",
       "exercises": [
-        { "name": "Mobilidade de ombro", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
-        { "name": "Band pull-apart", "sets": 2, "reps": 15, "weight": 0, "time": 0, "media": [] }
+        { "name": "Rotação de ombro", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Abertura torácica", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Puxada leve (50%)", "sets": 2, "reps": 12, "weight": 0, "time": 0, "media": [] },
+        { "name": "Remada leve (50%)", "sets": 2, "reps": 12, "weight": 0, "time": 0, "media": [] }
       ]
     },
     {
       "type": "academia",
-      "label": "Upper — Base (Push/Pull)",
-      "notes": "RIR 2-3. Foco em execução e aprendizado motor",
-      "accentColor": "pink",
+      "label": "Upper Leve — Manutenção",
+      "notes": "RIR 2–3. Foco em execução, não em carga.",
+      "accentColor": "blue",
       "exercises": [
-        { "name": "Supino máquina", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
         { "name": "Puxada na frente", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
         { "name": "Remada sentada", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
-        { "name": "Desenvolvimento ombro máquina", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] }
+        { "name": "Desenvolvimento máquina", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] }
       ]
     },
     {
       "type": "core",
-      "label": "Core leve",
+      "label": "Core",
       "notes": "",
       "accentColor": "",
       "exercises": [
@@ -32,31 +33,42 @@
       ]
     }
   ],
-
   "TER": [
     {
       "type": "aquecimento",
-      "label": "Aquecimento",
-      "notes": "",
+      "label": "Aquecimento — Lower A",
+      "notes": "Mobilidade de quadril e tornozelo antes de qualquer carga.",
       "accentColor": "",
       "exercises": [
-        { "name": "Mobilidade escápula", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] }
+        { "name": "Mobilidade de quadril", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Mobilidade de tornozelo", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Leg press leve (50%)", "sets": 2, "reps": 12, "weight": 0, "time": 0, "media": [] },
+        { "name": "Glute bridge", "sets": 2, "reps": 12, "weight": 0, "time": 0, "media": [] }
       ]
     },
     {
       "type": "academia",
-      "label": "Pull — Costas (X shape)",
-      "notes": "Construção de largura e postura",
-      "accentColor": "green",
+      "label": "Lower A — Quadríceps + Volume",
+      "notes": "Foco em volume de perna. Técnica antes de carga.",
+      "accentColor": "yellow",
       "exercises": [
-        { "name": "Puxada alta", "sets": 4, "reps": 10, "weight": 0, "time": 0, "media": [] },
-        { "name": "Remada máquina", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
-        { "name": "Remada unilateral", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] }
+        { "name": "Leg press", "sets": 4, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Agachamento guiado", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Extensora", "sets": 3, "reps": 12, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "ativacao",
+      "label": "Finalização Estética",
+      "notes": "Pump de glúteo. Carga leve, foco em contração.",
+      "accentColor": "pink",
+      "exercises": [
+        { "name": "Abdutora", "sets": 3, "reps": 15, "weight": 0, "time": 0, "media": [] }
       ]
     },
     {
       "type": "core",
-      "label": "Core leve",
+      "label": "Core",
       "notes": "",
       "accentColor": "",
       "exercises": [
@@ -64,99 +76,112 @@
       ]
     }
   ],
-
   "QUA": [
     {
-      "type": "aquecimento",
-      "label": "Aquecimento",
-      "notes": "Preparação de quadril",
+      "type": "recovery",
+      "label": "Descanso",
+      "notes": "Caminhada leve opcional. Mobilidade suave se quiser.",
       "accentColor": "",
       "exercises": [
-        { "name": "Glute bridge", "sets": 2, "reps": 15, "weight": 0, "time": 0, "media": [] }
-      ]
-    },
-    {
-      "type": "academia",
-      "label": "Lower A — Glúteo foco",
-      "notes": "Prioridade estética e emocional",
-      "accentColor": "yellow",
-      "exercises": [
-        { "name": "Hip thrust", "sets": 4, "reps": 10, "weight": 0, "time": 0, "media": [] },
-        { "name": "Leg press (alto)", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
-        { "name": "Stiff", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] }
-      ]
-    },
-    {
-      "type": "core",
-      "label": "Core leve",
-      "notes": "",
-      "accentColor": "",
-      "exercises": [
-        { "name": "Prancha", "sets": 3, "reps": 0, "weight": 0, "time": 30, "media": [] }
+        { "name": "Caminhada leve (opcional)", "sets": 1, "reps": 0, "weight": 0, "time": 900, "media": [] }
       ]
     }
   ],
-
   "QUI": [
     {
       "type": "aquecimento",
-      "label": "Aquecimento",
+      "label": "Aquecimento — Upper Suporte",
       "notes": "",
       "accentColor": "",
       "exercises": [
-        { "name": "Rotação de ombro", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] }
+        { "name": "Rotação de ombro", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Puxada leve (50%)", "sets": 2, "reps": 12, "weight": 0, "time": 0, "media": [] }
       ]
     },
     {
       "type": "academia",
-      "label": "Upper — X shape",
-      "notes": "Deltoide lateral e postura",
+      "label": "Upper Suporte — Postura + X Shape",
+      "notes": "Elevação lateral: construtor do shape. Não force carga.",
       "accentColor": "teal",
       "exercises": [
-        { "name": "Desenvolvimento ombro", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
-        { "name": "Elevação lateral", "sets": 4, "reps": 15, "weight": 0, "time": 0, "media": [] },
-        { "name": "Puxada neutra", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] }
+        { "name": "Puxada neutra", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Elevação lateral", "sets": 3, "reps": 15, "weight": 0, "time": 0, "media": [] }
       ]
     },
     {
       "type": "core",
-      "label": "Core leve",
-      "notes": "",
-      "accentColor": "",
-      "exercises": [
-        { "name": "Hollow hold", "sets": 3, "reps": 0, "weight": 0, "time": 20, "media": [] }
-      ]
-    }
-  ],
-
-  "SEX": [
-    {
-      "type": "aquecimento",
-      "label": "Aquecimento",
-      "notes": "",
-      "accentColor": "",
-      "exercises": [
-        { "name": "Mobilidade quadril", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] }
-      ]
-    },
-    {
-      "type": "academia",
-      "label": "Lower B — Completo",
-      "notes": "Segunda estimulação de glúteo + perna",
-      "accentColor": "orange",
-      "exercises": [
-        { "name": "Agachamento", "sets": 4, "reps": 10, "weight": 0, "time": 0, "media": [] },
-        { "name": "Leg press", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
-        { "name": "Hip thrust leve", "sets": 3, "reps": 12, "weight": 0, "time": 0, "media": [] }
-      ]
-    },
-    {
-      "type": "core",
-      "label": "Core leve",
+      "label": "Core",
       "notes": "",
       "accentColor": "",
       "exercises": [
         { "name": "Prancha lateral", "sets": 3, "reps": 0, "weight": 0, "time": 30, "media": [] }
+      ]
+    }
+  ],
+  "SEX": [
+    {
+      "type": "aquecimento",
+      "label": "Aquecimento — Lower B",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Mobilidade de quadril", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Glute bridge", "sets": 2, "reps": 12, "weight": 0, "time": 0, "media": [] },
+        { "name": "Stiff leve (50%)", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "academia",
+      "label": "Lower B — Glúteo + Posterior",
+      "notes": "Hip thrust é o exercício principal. Contração no topo.",
+      "accentColor": "orange",
+      "exercises": [
+        { "name": "Hip thrust", "sets": 4, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Stiff", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Leg press alto", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "ativacao",
+      "label": "Finalização Estética",
+      "notes": "",
+      "accentColor": "pink",
+      "exercises": [
+        { "name": "Abdutora", "sets": 3, "reps": 20, "weight": 0, "time": 0, "media": [] }
+      ]
+    }
+  ],
+  "SAB": [
+    {
+      "type": "aquecimento",
+      "label": "Mobilidade Leve",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Mobilidade geral leve", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "academia",
+      "label": "Lower C — Pump Estético",
+      "notes": "Carga leve, reps altas. Foco em sensação muscular.",
+      "accentColor": "green",
+      "exercises": [
+        { "name": "Leg press leve", "sets": 3, "reps": 15, "weight": 0, "time": 0, "media": [] },
+        { "name": "Extensora", "sets": 3, "reps": 15, "weight": 0, "time": 0, "media": [] },
+        { "name": "Abdutora", "sets": 3, "reps": 20, "weight": 0, "time": 0, "media": [] },
+        { "name": "Panturrilha em pé", "sets": 4, "reps": 15, "weight": 0, "time": 0, "media": [] }
+      ]
+    }
+  ],
+  "DOM": [
+    {
+      "type": "recovery",
+      "label": "Descanso",
+      "notes": "Recuperação total.",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Alongamento leve (opcional)", "sets": 1, "reps": 0, "weight": 0, "time": 300, "media": [] }
       ]
     }
   ]
