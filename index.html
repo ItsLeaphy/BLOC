@@ -397,13 +397,14 @@ body{
 
 .bh-right{display:flex;align-items:center;gap:var(--sp-8);flex-shrink:0}
 
-/* Done indicator */
+/* Done indicator — QUICK WIN #6: maior presença visual para conclusão */
 .done-dot{
-  width:5px;
-  height:5px;
+  width:7px;
+  height:7px;
   border-radius:50%;
   background:var(--green);
-  opacity:0.8;
+  opacity:0.9;
+  box-shadow:0 0 6px rgba(34,197,94,0.4);
 }
 
 /* Chevron */
@@ -551,15 +552,17 @@ body{
 
 /* ============================================================
    § REGISTER BUTTON
+   QUICK WIN #3: CTA principal tinha cor:var(--t2) — cinza. 
+   Invertida para cor primária com fundo sutil. 
    ============================================================ */
 .sreg{
   width:100%;
   margin-top:var(--sp-16);
   padding:var(--sp-12);
-  background:transparent;
+  background:rgba(255,255,255,0.04);
   border:0.5px solid var(--b2);
   border-radius:var(--r-md);
-  color:var(--t2);
+  color:var(--tc);
   font-size:var(--fs-sub);
   cursor:pointer;
   font-family:inherit;
@@ -569,12 +572,12 @@ body{
   transition:all var(--dur-base) var(--ease-sharp),
              transform var(--dur-fast) var(--ease-spring);
 }
-.sreg:hover{background:var(--s3);color:var(--tc);border-color:var(--b2)}
+.sreg:hover{background:rgba(255,255,255,0.08);color:var(--tc);border-color:var(--b2)}
 .sreg:active{transform:scale(0.96)} /* slight haptic */
 .sreg.done{
-  border-color:rgba(34,197,94,0.25);
+  border-color:rgba(34,197,94,0.35);
   color:var(--green);
-  background:rgba(34,197,94,0.04);
+  background:rgba(34,197,94,0.06);
 }
 
 /* ============================================================
@@ -1465,9 +1468,22 @@ body{
   from{opacity:0;transform:translateY(-6px)}
   to{opacity:1;transform:translateY(0)}
 }
+/* QUICK WIN #4: animações de saída simétricas às de entrada */
+@keyframes slideUp{
+  from{opacity:1;transform:translateY(0)}
+  to{opacity:0;transform:translateY(-6px)}
+}
 @keyframes fadeIn{
   from{opacity:0}
   to{opacity:1}
+}
+@keyframes fadeOut{
+  from{opacity:0}
+  to{opacity:0}
+}
+@keyframes modalOut{
+  from{opacity:1;transform:translateY(0) scale(1)}
+  to{opacity:0;transform:translateY(16px) scale(0.99)}
 }
 @keyframes pageIn{
   from{opacity:0;transform:translateY(6px)}
@@ -1493,10 +1509,53 @@ body{
   0%,100%{opacity:1}
   50%{opacity:0.45}
 }
+/* QUICK WIN #6: pulse ao registrar bloco */
+@keyframes donePulse{
+  0%{transform:scale(1);box-shadow:0 0 6px rgba(34,197,94,0.4)}
+  40%{transform:scale(2.2);box-shadow:0 0 12px rgba(34,197,94,0.7)}
+  100%{transform:scale(1);box-shadow:0 0 6px rgba(34,197,94,0.4)}
+}
 
 /* ============================================================
-   § RIPPLE FEEDBACK
+   § LIGHT THEME OVERRIDES — QUICK WIN #5
+   Corrige inconsistências em temas claros:
+   - .sreg precisa de fundo visível em bg claro
+   - .trnd badges precisam de contraste adequado
+   - .add-b border dashed precisa de visibilidade
    ============================================================ */
+[data-theme-light] .sreg{
+  background:rgba(0,0,0,0.04);
+  border-color:rgba(0,0,0,0.18);
+  color:var(--tc);
+}
+[data-theme-light] .sreg:hover{
+  background:rgba(0,0,0,0.08);
+}
+[data-theme-light] .add-b{
+  border-color:rgba(0,0,0,0.18);
+  color:var(--t2);
+}
+[data-theme-light] .trnd.up{
+  color:#15803d;
+  background:rgba(21,128,61,.10);
+  border-color:rgba(21,128,61,.22);
+}
+[data-theme-light] .trnd.dn{
+  color:#b91c1c;
+  background:rgba(185,28,28,.08);
+  border-color:rgba(185,28,28,.18);
+}
+
+/* ============================================================
+   § BLOCK COMPLETION STATE — QUICK WIN #6
+   Bloco registrado recebe borda verde sutil no header
+   ============================================================ */
+.bc.done-block{
+  border-color:rgba(34,197,94,0.20);
+}
+.bc.done-block .bh{
+  background:rgba(34,197,94,0.025);
+}
 .btn-ripple{position:relative;overflow:hidden}
 .btn-ripple::after{
   content:'';position:absolute;inset:0;
@@ -1505,6 +1564,9 @@ body{
 }
 .btn-ripple:active::after{
   animation:ripple 0.35s var(--ease-sharp);
+}
+[data-theme-light] .btn-ripple::after{
+  background:radial-gradient(circle, rgba(0,0,0,.07) 0%, transparent 70%);
 }
 @keyframes ripple{0%{transform:scale(0);opacity:1}100%{transform:scale(2.5);opacity:0}}
 </style>
@@ -1789,7 +1851,11 @@ let goals     = _store.goals;
 let appearance = _store.appearance;
 
 let page='hoje',configOpen=false,configTab='blocos';
-let openBlk={},openEx={},openHist={},modal=null,dangerConfirmStep={};
+let openEx={},openHist={},modal=null,dangerConfirmStep={};
+
+/* Preserva estado de blocos abertos entre navegações (QUICK WIN #1) */
+let openBlk=JSON.parse(sessionStorage.getItem('bloc_openBlk')||'{}');
+function persistOpenBlk(){ sessionStorage.setItem('bloc_openBlk',JSON.stringify(openBlk)); }
 
 const todayI=new Date().getDay();
 const todayKey=DAYS[todayI];
@@ -1819,6 +1885,9 @@ function applyAppearance(){
   root.style.setProperty('--t4',isLight?'rgba(0,0,0,0.08)':'#1e1e1e');
   /* t3 já vem do tema, mas garantimos que não some em temas claros */
   if(t.t3)root.style.setProperty('--t3',t.t3);
+  /* Marca o app com atributo de tema para overrides CSS (QUICK WIN #5) */
+  const appEl=document.getElementById('app');
+  if(isLight){appEl.setAttribute('data-theme-light','');} else {appEl.removeAttribute('data-theme-light');}
   const f=FONT_OPTIONS.find(x=>x.id===a.font)||FONT_OPTIONS[0];
   root.style.setProperty('--font-family',f.val);
   document.getElementById('app').style.fontFamily=f.val;
@@ -1841,6 +1910,16 @@ function ytId(url){const m=url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|
 function isImg(url){return/\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(url)||url.startsWith('data:image')||/imgur\.com|i\.ibb\.co|imgbb\.com|postimg\.cc|pbs\.twimg\.com|media\.discordapp|cdn\.discordapp|gyazo\.com|prnt\.sc/.test(url)}
 function openLink(u){window.open(u,'_blank')}
 function looksLikeMedia(url){return isImg(url)||!!ytId(url)} /* compat alias */
+
+/* Retorna o último peso/rep/tempo registrado de um exercício (QUICK WIN #2) */
+function getLastRegistered(exName){
+  for(let h of history){
+    const exList=Array.isArray(h.exercises)?h.exercises:(h.entries||[]).flatMap(b=>b.exercises||[]);
+    const found=exList.find(e=>e.name===exName);
+    if(found)return found;
+  }
+  return null;
+}
 
 function trend(curr,prev){
   if(prev===0||curr===0)return{cls:'eq',sym:'→',txt:'—'};
@@ -1885,7 +1964,16 @@ function saveLog(dk,bi){
   history.unshift({date:today,dayKey:dk,day:DAYFULL[DAYS.indexOf(dk)],blockLabel:b.label,blockType:b.type,exercises:exArr});
   if(history.length>180)history=history.slice(0,180);
   sv('bv2_history',history);sv('bv2_blocks',blocks);
-  toast(b.label+' registrado');render();
+  /* QUICK WIN #6: feedback rico de conclusão */
+  const totalVol=exArr.reduce((acc,e)=>acc+(e.sets*(e.weight||0)),0);
+  const msg=totalVol>0?`${b.label} · ${totalVol}kg vol.`:`${b.label} registrado`;
+  toast(msg);
+  render();
+  /* Pulsa o done-dot após render */
+  setTimeout(()=>{
+    const dots=document.querySelectorAll('.done-dot');
+    dots.forEach(d=>{d.style.animation='none';void d.offsetWidth;d.style.animation='donePulse 0.6s var(--ease-spring)';});
+  },60);
 }
 
 function updEx(dk,bi,en,field,val){
@@ -1949,13 +2037,20 @@ function renderExRow(e,dk,bi,ei,fromSemana){
   if(isOpen){
     const updFn=fromSemana?'updExBase':'updEx';
     const pfx=fromSemana?'b':'';
+    /* QUICK WIN #2: prefill com último valor registrado, não só o base */
+    const lastReg=!fromSemana?getLastRegistered(e.name):null;
+    const dispSets=lastReg?lastReg.sets:e.sets;
+    const dispReps=lastReg?(lastReg.reps||0):(e.reps||0);
+    const dispTime=lastReg?(lastReg.time||0):(e.time||0);
+    const dispWeight=lastReg?(lastReg.weight||0):(e.weight||0);
+    const lastHint=lastReg?`<div style="padding:4px 16px 8px;font-size:9px;color:var(--t2);letter-spacing:0.5px;display:flex;align-items:center;gap:4px;opacity:0.7"><span>↑</span>última sessão</div>`:'';
     exD+=`<div class="ex-inputs-row">
-      <div class="inp-g"><input id="s${pfx}-${dk+bi+e.name}" type="number" value="${e.sets}" min="1" onchange="${updFn}('${dk}',${bi},'${e.name}','sets',this.value)"><div class="inp-lbl">séries</div></div>
+      <div class="inp-g"><input id="s${pfx}-${dk+bi+e.name}" type="number" value="${dispSets}" min="1" onchange="${updFn}('${dk}',${bi},'${e.name}','sets',this.value)"><div class="inp-lbl">séries</div></div>
       ${hasTime
-        ?`<div class="inp-g"><input id="t${pfx}-${dk+bi+e.name}" type="number" value="${e.time||0}" min="0" onchange="${updFn}('${dk}',${bi},'${e.name}','time',this.value)"><div class="inp-lbl">seg</div></div>`
-        :`<div class="inp-g"><input id="r${pfx}-${dk+bi+e.name}" type="number" value="${e.reps||0}" min="0" onchange="${updFn}('${dk}',${bi},'${e.name}','reps',this.value)"><div class="inp-lbl">reps</div></div>`}
-      <div class="inp-g"><input id="w${pfx}-${dk+bi+e.name}" type="number" value="${e.weight||0}" min="0" step="2.5" onchange="${updFn}('${dk}',${bi},'${e.name}','weight',this.value)"><div class="inp-lbl">kg</div></div>
-    </div>`;
+        ?`<div class="inp-g"><input id="t${pfx}-${dk+bi+e.name}" type="number" value="${dispTime}" min="0" onchange="${updFn}('${dk}',${bi},'${e.name}','time',this.value)"><div class="inp-lbl">seg</div></div>`
+        :`<div class="inp-g"><input id="r${pfx}-${dk+bi+e.name}" type="number" value="${dispReps}" min="0" onchange="${updFn}('${dk}',${bi},'${e.name}','reps',this.value)"><div class="inp-lbl">reps</div></div>`}
+      <div class="inp-g"><input id="w${pfx}-${dk+bi+e.name}" type="number" value="${dispWeight}" min="0" step="2.5" onchange="${updFn}('${dk}',${bi},'${e.name}','weight',this.value)"><div class="inp-lbl">kg</div></div>
+    </div>${lastHint}`;
     if(fromSemana){
       exD+=`<div style="padding:8px 16px;font-size:10px;color:var(--t2);border-top:0.5px solid var(--t4);letter-spacing:0.3px">Alterações salvas como padrão</div>`;
     }
@@ -2002,7 +2097,7 @@ function renderBlockCard(b,dk,bi,prefix){
 
   const chevSvg=`<svg viewBox="0 0 14 14"><path d="M3 5L7 9L11 5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
-  return`<div class="bc${isOpen?' open':''}${colorAttr}">
+  return`<div class="bc${isOpen?' open':''}${hasDone?' done-block':''}${colorAttr}">
     <div class="bh" onclick="toggleBlk('${key}')">
       <div class="bl-icon">${blockIcon(b)}</div>
       <div class="bh-info">
@@ -2020,10 +2115,10 @@ function renderBlockCard(b,dk,bi,prefix){
 
 /* -------- TOGGLE HELPERS -------- */
 function toggleEx(k){openEx[k]=!openEx[k];render()}
-function toggleBlk(k){openBlk[k]=!openBlk[k];render()}
+function toggleBlk(k){openBlk[k]=!openBlk[k];persistOpenBlk();render()}
 function toggleHist(k){openHist[k]=!openHist[k];render()}
 function toggleExSem(k,dk){openEx[k]=!openEx[k];if(window._lastDayDetail)openDayDetail(window._lastDayDetail)}
-function toggleBlkSem(k,dk){openBlk[k]=!openBlk[k];openDayDetail(dk)}
+function toggleBlkSem(k,dk){openBlk[k]=!openBlk[k];persistOpenBlk();openDayDetail(dk)}
 
 /* -------- MODAL -------- */
 function openModal(m){modal=m;render()}
