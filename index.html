@@ -3647,7 +3647,7 @@ function renderConfigDados(){
     <div class="prog-sub">Carregue um arquivo JSON exportado</div>
     <div style="margin-top:12px">
       <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)">
-      <button class="data-btn" onclick="document.getElementById('import-file').click()">↑ Carregar JSON</button>
+      <button class="data-btn" onclick="document.getElementById('import-file-persistent').click()">↑ Carregar JSON</button>
     </div>
   </div>`;
   h+=`<div class="prog-c" style="border-color:rgba(239,68,68,.12)">
@@ -3711,17 +3711,19 @@ function importData(input){
   reader.onload=(e)=>{
     try{
       const data=JSON.parse(e.target.result);
-      // Aceita tanto formato novo (com version) quanto antigo (sem)
-      if(data.blocks)  blocks=data.blocks;
-      if(data.history) history=data.history;
-      if(data.goals)   goals=data.goals;
-      if(data.appearance) appearance=data.appearance;
-      // Roda migrações se necessário
+      // Monta store temporário para rodar migrações
       let v=data.version||0;
-      const tempStore={version:v,blocks,history,goals,appearance};
+      const tempStore={
+        version:v,
+        blocks:data.blocks||JSON.parse(JSON.stringify(DEFAULT_BLOCKS)),
+        history:data.history||[],
+        goals:data.goals||JSON.parse(JSON.stringify(DEFAULT_GOALS)),
+        appearance:data.appearance||JSON.parse(JSON.stringify(DEFAULT_APPEARANCE)),
+      };
       let s=tempStore;
       while(v<DATA_VERSION){if(MIGRATIONS[v])s=MIGRATIONS[v](s);v++;}
-      blocks=s.blocks;history=s.history;goals=s.goals;
+      // Atualiza todas as variáveis globais — incluindo appearance
+      blocks=s.blocks;history=s.history;goals=s.goals;appearance=s.appearance;
       saveStore();
       applyAppearance();
       toast('Dados importados');render();
@@ -3729,6 +3731,16 @@ function importData(input){
   };
   reader.readAsText(file);input.value='';
 }
+
+/* Input de importação persistente — fora do ciclo de render para não ser destruído */
+(function(){
+  if(document.getElementById('import-file-persistent')) return;
+  const inp=document.createElement('input');
+  inp.type='file';inp.id='import-file-persistent';inp.accept='.json';
+  inp.style.display='none';
+  inp.addEventListener('change',function(){importData(this);});
+  document.body.appendChild(inp);
+})();
 
 /* -------- DANGER ZONE -------- */
 function initDangerAction(action){dangerConfirmStep[action]=true;render();setTimeout(()=>{const el=document.getElementById('danger-confirm-'+action);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},100)}
@@ -3740,7 +3752,7 @@ function confirmDanger(action){
   if(action==='reset'&&val!=='RESETAR'){toast('Digite RESETAR para confirmar');return;}
   delete dangerConfirmStep[action];
   if(action==='history'){history=[];saveStore();toast('Histórico apagado');render();}
-  if(action==='reset'){localStorage.removeItem(STORE);location.reload();}
+  if(action==='reset'){const emptyStore={version:DATA_VERSION,blocks:{},history:[],goals:[],appearance:JSON.parse(JSON.stringify(DEFAULT_APPEARANCE))};localStorage.setItem(STORE,JSON.stringify(emptyStore));localStorage.removeItem(JOURNAL_STORE);location.reload();}
 }
 
 /* -------- MAIN RENDER -------- */
