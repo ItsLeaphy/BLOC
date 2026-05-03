@@ -3636,6 +3636,11 @@ function renderConfigAparencia(){
 
 function renderConfigDados(){
   let h='';
+  const TEMPLATES=[
+    {id:'dani',label:'Treino Dani',sub:'Push/Pull · Skill · Core · Grip',url:'https://raw.githubusercontent.com/ItsLeaphy/BLOC/main/Exercicios/Treino_Dani.json'},
+    {id:'lena',label:'Treino Lena',sub:'Upper/Lower · Glúteo · X shape',url:'https://raw.githubusercontent.com/ItsLeaphy/BLOC/main/Exercicios/Treino_Lena.json'},
+  ];
+  h+=`<div class="sec">Dados</div>`;
   h+=`<div class="prog-c">
     <div class="prog-n">Exportar dados</div>
     <div class="prog-sub">${history.length} treinos · ${Object.values(blocks).flat().length} blocos · ${goals.length} metas</div>
@@ -3668,6 +3673,32 @@ function renderConfigDados(){
       <div class="danger-btns"><button class="danger-cancel" onclick="cancelDanger('reset')">Cancelar</button><button class="danger-ok" onclick="confirmDanger('reset')">Confirmar</button></div>
     </div>`:''}
   </div>`;
+  // Ghost button — invisible, below danger zone
+  h+=`<button style="width:100%;height:32px;margin-top:8px;background:transparent;border:none;cursor:default;outline:none;-webkit-tap-highlight-color:transparent;color:transparent;user-select:none" onclick="initTemplatePin()" aria-hidden="true"> </button>`;
+  if(window._templateUnlocked){
+    h+=`<div class="prog-c" style="border-color:rgba(96,165,250,.18);margin-top:0">`;
+    h+=`<div class="prog-n" style="color:var(--blue)">Templates do GitHub</div>`;
+    h+=`<div class="prog-sub">Substitui apenas os blocos — histórico e metas ficam intactos</div>`;
+    h+=`<div style="display:flex;flex-direction:column;gap:8px;margin-top:12px">`;
+    TEMPLATES.forEach(t=>{
+      h+=`<div style="display:flex;align-items:center;justify-content:space-between;gap:12px;padding:10px 12px;background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-md)">`;
+      h+=`<div><div style="font-size:var(--fs-body);font-weight:var(--fw-medium);color:var(--tc)">${t.label}</div><div style="font-size:var(--fs-sub);color:var(--t2);margin-top:2px">${t.sub}</div></div>`;
+      h+=`<button class="data-btn" style="margin:0;flex-shrink:0;white-space:nowrap" onclick="loadTemplate('${t.id}','${t.url}')">&#8595; Carregar</button>`;
+      h+=`</div>`;
+    });
+    h+=`</div>`;
+    h+=`<button class="data-btn" style="margin-top:12px;color:var(--t2)" onclick="window._templateUnlocked=false;render()">Ocultar</button>`;
+    h+=`</div>`;
+  }
+  if(window._templatePinOpen){
+    h+=`<div class="danger-confirm" id="template-pin-box" style="border-color:rgba(96,165,250,.18)">`;
+    h+=`<div class="danger-confirm-title" style="color:var(--blue)">Verificação</div>`;
+    h+=`<div class="danger-confirm-msg">Digite o PIN para acessar os templates:</div>`;
+    h+=`<input class="danger-confirm-input" id="template-pin-input" type="password" placeholder="••••" maxlength="8" autocomplete="off" onkeydown="if(event.key==='Enter')confirmTemplatePin()">`;
+    h+=`<div class="danger-btns"><button class="danger-cancel" onclick="window._templatePinOpen=false;render()">Cancelar</button><button class="danger-ok" onclick="confirmTemplatePin()">Confirmar</button></div>`;
+    h+=`</div>`;
+    setTimeout(()=>{const el=document.getElementById('template-pin-input');if(el)el.focus();},80);
+  }
   return h;
 }
 
@@ -3692,6 +3723,53 @@ function setAnimSpeed(v){
 function resetAppearance(){
   appearance={theme:'dark',accentColor:'#ffffff',font:'helvetica',borderRadius:14,compactMode:false,animSpeed:'normal'};
   sv('bv2_appearance',appearance);applyAppearance();render();toast('Aparência resetada');
+}
+
+/* -------- TEMPLATES — PIN de 2 fatores -------- */
+// PIN hardcoded — mude aqui se quiser trocar
+const TEMPLATE_PIN = '1502';
+window._templatePinOpen   = false;
+window._templateUnlocked  = false;
+
+function initTemplatePin(){
+  if(window._templateUnlocked){ window._templateUnlocked=false; render(); return; }
+  window._templatePinOpen=true; render();
+  setTimeout(()=>{ const el=document.getElementById('template-pin-input'); if(el) el.focus(); },80);
+}
+
+function confirmTemplatePin(){
+  const el=document.getElementById('template-pin-input');
+  if(!el) return;
+  if(el.value===TEMPLATE_PIN){
+    window._templatePinOpen=false;
+    window._templateUnlocked=true;
+    render();
+    setTimeout(()=>{ const box=document.getElementById('template-pin-box'); if(box) box.scrollIntoView({behavior:'smooth',block:'center'}); },100);
+  } else {
+    el.value='';
+    el.placeholder='PIN incorreto';
+    el.style.borderColor='rgba(239,68,68,.4)';
+    setTimeout(()=>{ el.placeholder='••••'; el.style.borderColor=''; },1200);
+  }
+}
+
+/* -------- TEMPLATES DO GITHUB -------- */
+function loadTemplate(id, url){
+  toast('Buscando template...');
+  fetch(url)
+    .then(r=>{ if(!r.ok) throw new Error('HTTP '+r.status); return r.json(); })
+    .then(data=>{
+      // O JSON é {DIA: [...blocos]} — substitui só os blocks
+      if(typeof data!=='object'||Array.isArray(data)) throw new Error('Formato inválido');
+      blocks = data;
+      saveStore();
+      render();
+      toast('Template carregado');
+    })
+    .catch(err=>{
+      console.error(err);
+      toast('Erro ao buscar template — verifique a conexão');
+    });
 }
 
 /* -------- DATA -------- */
