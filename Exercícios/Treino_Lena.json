@@ -1,0 +1,163 @@
+{
+  "SEG": [
+    {
+      "type": "aquecimento",
+      "label": "Aquecimento",
+      "notes": "Ativar articulações superiores e preparar padrão de empurrar",
+      "accentColor": "blue",
+      "exercises": [
+        { "name": "Mobilidade de ombro", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Band pull-apart", "sets": 2, "reps": 15, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "academia",
+      "label": "Upper — Base (Push/Pull)",
+      "notes": "RIR 2-3. Foco em execução e aprendizado motor",
+      "accentColor": "pink",
+      "exercises": [
+        { "name": "Supino máquina", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Puxada na frente", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Remada sentada", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Desenvolvimento ombro máquina", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "core",
+      "label": "Core leve",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Prancha", "sets": 3, "reps": 0, "weight": 0, "time": 30, "media": [] }
+      ]
+    }
+  ],
+
+  "TER": [
+    {
+      "type": "aquecimento",
+      "label": "Aquecimento",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Mobilidade escápula", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "academia",
+      "label": "Pull — Costas (X shape)",
+      "notes": "Construção de largura e postura",
+      "accentColor": "green",
+      "exercises": [
+        { "name": "Puxada alta", "sets": 4, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Remada máquina", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Remada unilateral", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "core",
+      "label": "Core leve",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Dead bug", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] }
+      ]
+    }
+  ],
+
+  "QUA": [
+    {
+      "type": "aquecimento",
+      "label": "Aquecimento",
+      "notes": "Preparação de quadril",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Glute bridge", "sets": 2, "reps": 15, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "academia",
+      "label": "Lower A — Glúteo foco",
+      "notes": "Prioridade estética e emocional",
+      "accentColor": "yellow",
+      "exercises": [
+        { "name": "Hip thrust", "sets": 4, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Leg press (alto)", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Stiff", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "core",
+      "label": "Core leve",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Prancha", "sets": 3, "reps": 0, "weight": 0, "time": 30, "media": [] }
+      ]
+    }
+  ],
+
+  "QUI": [
+    {
+      "type": "aquecimento",
+      "label": "Aquecimento",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Rotação de ombro", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "academia",
+      "label": "Upper — X shape",
+      "notes": "Deltoide lateral e postura",
+      "accentColor": "teal",
+      "exercises": [
+        { "name": "Desenvolvimento ombro", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Elevação lateral", "sets": 4, "reps": 15, "weight": 0, "time": 0, "media": [] },
+        { "name": "Puxada neutra", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "core",
+      "label": "Core leve",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Hollow hold", "sets": 3, "reps": 0, "weight": 0, "time": 20, "media": [] }
+      ]
+    }
+  ],
+
+  "SEX": [
+    {
+      "type": "aquecimento",
+      "label": "Aquecimento",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Mobilidade quadril", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "academia",
+      "label": "Lower B — Completo",
+      "notes": "Segunda estimulação de glúteo + perna",
+      "accentColor": "orange",
+      "exercises": [
+        { "name": "Agachamento", "sets": 4, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Leg press", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Hip thrust leve", "sets": 3, "reps": 12, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "core",
+      "label": "Core leve",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Prancha lateral", "sets": 3, "reps": 0, "weight": 0, "time": 30, "media": [] }
+      ]
+    }
+  ]
+}
