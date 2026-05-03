@@ -145,6 +145,10 @@ const link=document.createElement('link');link.rel='manifest';link.href=URL.crea
 /* ============================================================
    § STRUCTURE
    ============================================================ */
+html,body{
+  height:100%; /* necessário para que #app tenha altura definida e #content possa scrollar */
+}
+
 body{
   margin:0;
   background:var(--bg);
@@ -157,13 +161,13 @@ body{
   font-family:var(--font-family);
   background:var(--bg);
   color:var(--tc);
-  min-height:100dvh;
+  height:100dvh; /* min-height → height: container precisa de altura fixa para scroll funcionar */
   max-width:430px;
   margin:0 auto;
   display:flex;
   flex-direction:column;
   position:relative;
-  overflow:hidden; /* clip → hidden: clip bloqueia scroll em iOS/Android dentro de flex containers */
+  overflow:hidden;
 }
 
 /* ============================================================
@@ -289,10 +293,12 @@ body{
 #content{
   flex:1;
   overflow-y:auto;
+  -webkit-overflow-scrolling:touch; /* scroll inercial em iOS */
   padding:var(--sp-16);
   padding-bottom:var(--sp-48);
   scroll-behavior:smooth;
   overscroll-behavior:contain;
+  min-height:0; /* garante que flex:1 não expande além do container pai */
 }
 #content::-webkit-scrollbar{width:2px}
 #content::-webkit-scrollbar-thumb{background:var(--s3);border-radius:1px}
