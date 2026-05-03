@@ -258,7 +258,7 @@ body{
   padding:6px 4px;
   border:none;
   background:transparent;
-  color:var(--t3);
+  color:var(--t2); /* t3 → t2: t3 é quase invisível em temas claros */
   font-family:var(--font-family);
   font-size:9px;
   letter-spacing:1.5px;
@@ -1138,12 +1138,77 @@ body{
 .ap-select option{background:var(--s1)}
 .ap-slider{width:90px;accent-color:var(--ac);cursor:pointer}
 
-.preset-grid{
+/* ── Theme swatches (substituem preset-btn) ── */
+.theme-swatch-grid{
   display:grid;
-  grid-template-columns:repeat(3,1fr);
+  grid-template-columns:repeat(4,1fr);
   gap:var(--sp-8);
   margin-bottom:var(--sp-8);
 }
+.preset-group-label{
+  font-size:9px;
+  font-weight:var(--fw-medium);
+  color:var(--t2);
+  letter-spacing:1.5px;
+  text-transform:uppercase;
+  margin:var(--sp-12) 0 var(--sp-8);
+}
+.theme-swatch{
+  border:none;
+  padding:0;
+  cursor:pointer;
+  border-radius:var(--r-md);
+  overflow:hidden;
+  outline:2px solid transparent;
+  outline-offset:2px;
+  transition:outline-color var(--dur-fast) var(--ease-sharp),
+             transform var(--dur-fast) var(--ease-spring);
+  background:transparent;
+  font-family:inherit;
+}
+.theme-swatch:active{transform:scale(0.94)}
+.theme-swatch-active{outline-color:var(--ac)}
+.sw-preview{
+  position:relative;
+  height:44px;
+  overflow:hidden;
+}
+.sw-bg{
+  width:100%;
+  height:100%;
+  position:relative;
+  display:flex;
+  align-items:flex-end;
+  padding:5px 5px 0;
+  gap:3px;
+}
+.sw-card{
+  height:22px;
+  flex:1;
+  border-radius:3px;
+  border:0.5px solid;
+  opacity:0.9;
+}
+.sw-card2{flex:1.4}
+.sw-dot{
+  position:absolute;
+  top:6px;
+  right:6px;
+  width:7px;
+  height:7px;
+  border-radius:50%;
+}
+.sw-name{
+  font-size:10px;
+  font-weight:500;
+  padding:4px 6px;
+  text-align:center;
+  letter-spacing:0.2px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+/* Legado — mantido para compatibilidade */
 .preset-btn{
   padding:10px 6px;
   border-radius:var(--r-md);
@@ -1554,11 +1619,19 @@ const FONT_OPTIONS=[
 ];
 
 const THEMES={
-  dark:   {bg:'#060606',s1:'#0d0d0d',s2:'#141414',s3:'#1c1c1c',s4:'#242424',tc:'#f0f0f0',t2:'#707070',t3:'#303030',ac:'#ffffff'},
+  /* ── Escuros ── */
+  dark:    {bg:'#060606',s1:'#0d0d0d',s2:'#141414',s3:'#1c1c1c',s4:'#242424',tc:'#f0f0f0',t2:'#707070',t3:'#303030',ac:'#ffffff'},
   obsidian:{bg:'#050508',s1:'#0d0d14',s2:'#12121c',s3:'#181825',s4:'#1e1e2d',tc:'#d4d4f0',t2:'#6666aa',t3:'#333355',ac:'#a0a0ff'},
-  forest: {bg:'#050a07',s1:'#0b130e',s2:'#101a12',s3:'#162118',s4:'#1c2b1e',tc:'#c8e8d0',t2:'#5a8a6a',t3:'#223328',ac:'#4ade80'},
-  ember:  {bg:'#0a0603',s1:'#140c06',s2:'#1a100a',s3:'#22160e',s4:'#2a1c12',tc:'#f0ddc8',t2:'#8a6a50',t3:'#3a2a20',ac:'#fb923c'},
-  steel:  {bg:'#06080c',s1:'#0d1018',s2:'#121620',s3:'#181e28',s4:'#1e2530',tc:'#d0dce8',t2:'#607080',t3:'#283038',ac:'#60a5fa'},
+  forest:  {bg:'#050a07',s1:'#0b130e',s2:'#101a12',s3:'#162118',s4:'#1c2b1e',tc:'#c8e8d0',t2:'#5a8a6a',t3:'#223328',ac:'#4ade80'},
+  ember:   {bg:'#0a0603',s1:'#140c06',s2:'#1a100a',s3:'#22160e',s4:'#2a1c12',tc:'#f0ddc8',t2:'#8a6a50',t3:'#3a2a20',ac:'#fb923c'},
+  steel:   {bg:'#06080c',s1:'#0d1018',s2:'#121620',s3:'#181e28',s4:'#1e2530',tc:'#d0dce8',t2:'#607080',t3:'#283038',ac:'#60a5fa'},
+  midnight:{bg:'#02020a',s1:'#07070f',s2:'#0c0c18',s3:'#111120',s4:'#161628',tc:'#e8e8ff',t2:'#5555aa',t3:'#222244',ac:'#818cf8'},
+  carbon:  {bg:'#0a0a0a',s1:'#111111',s2:'#171717',s3:'#1f1f1f',s4:'#272727',tc:'#e8e8e8',t2:'#686868',t3:'#2e2e2e',ac:'#e8e8e8'},
+  /* ── Claros ── */
+  leninha: {bg:'#fdf6f8',s1:'#ffffff',s2:'#fef0f4',s3:'#fce4ec',s4:'#f8d7e3',tc:'#3d1a28',t2:'#a06070',t3:'#d4a0b0',ac:'#c0405e'},
+  paper:   {bg:'#f7f5f0',s1:'#ffffff',s2:'#f0ede6',s3:'#e8e4da',s4:'#dedad0',tc:'#2a2520',t2:'#706858',t3:'#b8b0a0',ac:'#2a2520'},
+  frost:   {bg:'#f0f4f8',s1:'#ffffff',s2:'#e8eef4',s3:'#dde6ef',s4:'#d0dce8',tc:'#1a2a3a',t2:'#4a6880',t3:'#90aabf',ac:'#1d4ed8'},
+  sage:    {bg:'#f2f5f0',s1:'#ffffff',s2:'#e8ede4',s3:'#dce4d6',s4:'#cfdac8',tc:'#1e2d1a',t2:'#4a6038',t3:'#90a880',ac:'#2d6020'},
 };
 
 const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
@@ -1632,6 +1705,13 @@ function applyAppearance(){
   root.style.setProperty('--t2',t.t2);
   root.style.setProperty('--t3',t.t3);
   root.style.setProperty('--ac',a.accentColor);
+  /* Bordas e divisores adaptados ao tema claro/escuro */
+  const isLight=t.bg>'#888';
+  root.style.setProperty('--b1',isLight?'rgba(0,0,0,0.09)':'rgba(255,255,255,0.06)');
+  root.style.setProperty('--b2',isLight?'rgba(0,0,0,0.18)':'rgba(255,255,255,0.10)');
+  root.style.setProperty('--t4',isLight?'rgba(0,0,0,0.08)':'#1e1e1e');
+  /* t3 já vem do tema, mas garantimos que não some em temas claros */
+  if(t.t3)root.style.setProperty('--t3',t.t3);
   const f=FONT_OPTIONS.find(x=>x.id===a.font)||FONT_OPTIONS[0];
   root.style.setProperty('--font-family',f.val);
   document.getElementById('app').style.fontFamily=f.val;
@@ -2192,12 +2272,32 @@ function renderConfigAparencia(){
   const a=appearance;
   let h=`<div class="ap-section">`;
   h+=`<div class="ap-title">Tema</div>`;
-  h+=`<div class="preset-grid">`;
-  Object.entries(THEMES).forEach(([id,t])=>{
-    const active=a.theme===id;
-    h+=`<button class="preset-btn${active?' active-preset':''}" onclick="setTheme('${id}')" style="background:${t.bg};color:${t.tc};border-color:${active?t.ac:'rgba(255,255,255,0.06)'}">${id.charAt(0).toUpperCase()+id.slice(1)}</button>`;
-  });
-  h+=`</div>`;
+  const darkThemes=['dark','obsidian','forest','ember','steel','midnight','carbon'];
+  const lightThemes=['leninha','paper','frost','sage'];
+  const renderGroup=(ids)=>{
+    let g='<div class="theme-swatch-grid">';
+    ids.forEach(id=>{
+      const t=THEMES[id]; if(!t)return;
+      const active=a.theme===id;
+      const label=id.charAt(0).toUpperCase()+id.slice(1);
+      /* Swatch: quadrado com gradiente bg→s2 + dot de acento no canto */
+      g+=`<button class="theme-swatch${active?' theme-swatch-active':''}" onclick="setTheme('${id}')" title="${label}" style="--sw-bg:${t.bg};--sw-s1:${t.s1};--sw-s2:${t.s2};--sw-ac:${t.ac};--sw-tc:${t.tc};--sw-t2:${t.t2}">
+        <div class="sw-preview">
+          <div class="sw-bg" style="background:${t.bg}">
+            <div class="sw-card" style="background:${t.s1};border-color:${t.t3}"></div>
+            <div class="sw-card sw-card2" style="background:${t.s2};border-color:${t.t3}"></div>
+          </div>
+          <div class="sw-dot" style="background:${t.ac}"></div>
+        </div>
+        <div class="sw-name" style="color:${t.tc};background:${t.s1}">${active?'✓ ':''} ${label}</div>
+      </button>`;
+    });
+    return g+'</div>';
+  };
+  h+=`<div class="preset-group-label">Escuros</div>`;
+  h+=renderGroup(darkThemes);
+  h+=`<div class="preset-group-label">Claros</div>`;
+  h+=renderGroup(lightThemes);
   h+=`<div class="ap-row">
     <div><div class="ap-label">Cor de destaque</div><div class="ap-sub">Barras, botão principal</div></div>
     <div class="ap-control"><div class="color-swatch-wrap" style="background:${a.accentColor}"><input type="color" value="${a.accentColor}" oninput="setAccentColor(this.value)" onchange="setAccentColor(this.value)"></div></div>
