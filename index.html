@@ -460,7 +460,8 @@ function applyAppearance(){
 
 function toast(m){const t=document.getElementById('toast');t.textContent=m;t.classList.add('show');setTimeout(()=>t.classList.remove('show'),2200)}
 function ytId(url){const m=url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/);return m?m[1]:null}
-function isImg(url){return/\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(url)||url.startsWith('data:image')}
+function isImg(url){return/\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(url)||url.startsWith('data:image')||/imgur\.com|i\.ibb\.co|imgbb\.com|postimg\.cc|pbs\.twimg\.com|media\.discordapp|cdn\.discordapp|gyazo\.com|prnt\.sc/.test(url)}
+function looksLikeMedia(url){return isImg(url)||ytId(url)}
 function openLink(u){window.open(u,'_blank')}
 
 function trend(curr,prev){
@@ -475,36 +476,39 @@ function trend(curr,prev){
 function getExHistory(exName){
   const vals=[];
   history.forEach(h=>{
-    h.entries.forEach(b=>{
-      b.exercises.forEach(e=>{
-        if(e.name===exName&&(e.weight>0||e.reps>0)){
+    if(Array.isArray(h.exercises)){
+      h.exercises.forEach(e=>{
+        if(e.name===exName&&(e.weight>0||e.reps>0))
           vals.push({date:h.date,w:e.weight||0,r:e.reps||0,t:e.time||0});
-        }
       });
-    });
+    } else if(Array.isArray(h.entries)){
+      h.entries.forEach(b=>{
+        (b.exercises||[]).forEach(e=>{
+          if(e.name===exName&&(e.weight>0||e.reps>0))
+            vals.push({date:h.date,w:e.weight||0,r:e.reps||0,t:e.time||0});
+        });
+      });
+    }
   });
   return vals;
 }
 
-function saveLog(dk){
+function saveLog(dk,bi){
   const today=new Date().toLocaleDateString('pt-BR');
-  history=history.filter(h=>!(h.dayKey===dk&&h.date===today));
-  const entry={date:today,dayKey:dk,day:DAYFULL[DAYS.indexOf(dk)],entries:[]};
-  (blocks[dk]||[]).forEach((b,bi)=>{
-    const exArr=b.exercises.map(e=>{
-      const wEl=document.getElementById('w-'+dk+bi+e.name);
-      const rEl=document.getElementById('r-'+dk+bi+e.name);
-      const sEl=document.getElementById('s-'+dk+bi+e.name);
-      const tEl=document.getElementById('t-'+dk+bi+e.name);
-      return{name:e.name,sets:sEl?parseInt(sEl.value)||e.sets:e.sets,reps:rEl?parseInt(rEl.value)||0:e.reps||0,weight:wEl?parseFloat(wEl.value)||0:e.weight||0,time:tEl?parseInt(tEl.value)||0:e.time||0};
-    });
-    entry.entries.push({label:b.label,type:b.type,exercises:exArr});
+  const b=blocks[dk][bi];
+  const exArr=b.exercises.map(e=>{
+    const key=dk+String(bi)+e.name;
+    const sEl=document.getElementById('s-'+key);
+    const rEl=document.getElementById('r-'+key);
+    const wEl=document.getElementById('w-'+key);
+    const tEl=document.getElementById('t-'+key);
+    return{name:e.name,sets:sEl?parseInt(sEl.value)||e.sets:e.sets,reps:rEl?parseInt(rEl.value)||0:e.reps||0,weight:wEl?parseFloat(wEl.value)||0:e.weight||0,time:tEl?parseInt(tEl.value)||0:e.time||0};
   });
-  history.unshift(entry);
-  if(history.length>90)history=history.slice(0,90);
+  history.unshift({date:today,dayKey:dk,day:DAYFULL[DAYS.indexOf(dk)],blockLabel:b.label,blockType:b.type,exercises:exArr});
+  if(history.length>180)history=history.slice(0,180);
   sv('bv2_history',history);
   sv('bv2_blocks',blocks);
-  toast('Treino registrado');
+  toast(b.label+' registrado');
   render();
 }
 
@@ -536,12 +540,17 @@ function renderMediaSection(e,dk,bi,ei){
   let h=`<div class="ex-media"><div class="media-title">Mídia de execução</div>`;
   (e.media||[]).forEach((url,mi)=>{
     const ytid=ytId(url);
-    h+=`<div class="media-item"><span class="media-type">${ytid?'YT':isImg(url)?'IMG':'URL'}</span>`;
-    if(ytid)h+=`<span class="media-url" onclick="openLink('https://youtu.be/${ytid}')">${url.length>40?url.slice(0,37)+'...':url}</span>`;
-    else h+=`<span class="media-url" onclick="openLink('${url}')">${url.length>40?url.slice(0,37)+'...':url}</span>`;
+    const imgLike=isImg(url);
+    const typeLabel=ytid?'YT':imgLike?'IMG':'URL';
+    h+=`<div class="media-item"><span class="media-type">${typeLabel}</span>`;
+    h+=`<span class="media-url" onclick="openLink('${url}')">${url.length>40?url.slice(0,37)+'...':url}</span>`;
     h+=`<span class="media-del" onclick="delMedia('${dk}',${bi},${ei},${mi})">✕</span></div>`;
-    if(ytid)h+=`<iframe class="media-yt" src="https://www.youtube.com/embed/${ytid}" allowfullscreen loading="lazy"></iframe>`;
-    else if(isImg(url))h+=`<div class="media-img-wrap"><img class="media-img" src="${url}" onclick="openLightbox('${url}')" onerror="this.parentElement.style.display='none'" loading="lazy"><div class="img-expand-btn" onclick="openLightbox('${url}')">⤢</div></div>`;
+    if(ytid){
+      h+=`<iframe class="media-yt" src="https://www.youtube.com/embed/${ytid}" allowfullscreen loading="lazy"></iframe>`;
+    } else {
+      // Tenta renderizar como imagem qualquer URL que não seja YouTube — onerror esconde se falhar
+      h+=`<div class="media-img-wrap"><img class="media-img" src="${url}" onclick="openLightbox('${url}')" onerror="this.parentElement.style.display='none'" loading="lazy"><div class="img-expand-btn" onclick="openLightbox('${url}')">⤢</div></div>`;
+    }
   });
   h+=`<div class="media-inp"><input type="text" id="${mid}" placeholder="URL de imagem ou vídeo do YouTube..."><button class="media-add" onclick="addMedia('${dk}',${bi},${ei})">+ Add</button></div></div>`;
   return h;
@@ -575,7 +584,7 @@ function renderExRow(e,dk,bi,ei,fromSemana){
       <div class="ex-name">${e.name}</div>
       <div class="ex-meta">
         ${trndHtml}
-        <span class="ex-tag">${e.sets}×${hasTime?(e.time+'s'):e.reps}</span>
+        <span class="ex-tag">${e.sets}×${hasTime?(e.time+'s'):(e.reps+' reps')}</span>
         ${hasW&&e.weight?`<span class="ex-tag">${e.weight}kg</span>`:''}
         <div class="ex-expand-btn${isOpen?' open-btn':''}">${isOpen?'▲':'▼'}</div>
       </div>
@@ -593,12 +602,13 @@ function renderBlockCard(b,dk,bi,prefix){
   const key=(prefix||dk)+bi;
   const isOpen=openBlk[key];
   const today=new Date().toLocaleDateString('pt-BR');
-  const hasDone=history.some(h=>h.dayKey===dk&&h.date===today);
+  // Verifica se ESTE bloco específico já foi registrado hoje
+  const hasDone=history.some(h=>h.dayKey===dk&&h.date===today&&h.blockLabel===b.label);
   let body='';
   if(isOpen){
     b.exercises.forEach((e,ei)=>{body+=renderExRow(e,dk,bi,ei);});
     body+=`<button class="add-b" onclick="openModal({t:'addEx',dk:'${dk}',bi:${bi}})">+ exercício</button>`;
-    body+=`<button class="sreg${hasDone?' done':''}" onclick="saveLog('${dk}')">${hasDone?'✓ Registrado hoje — atualizar':'Registrar treino'}</button>`;
+    body+=`<button class="sreg${hasDone?' done':''}" onclick="saveLog('${dk}',${bi})">${hasDone?'✓ Registrado hoje — atualizar':'Registrar bloco'}</button>`;
   }
   const colorAttr=b.accentColor?` data-color="${b.accentColor}"`:'';
   const icon=b.customIcon||bt.i;
@@ -808,7 +818,13 @@ function openDayDetail(dk){
   });
   h+=`<button class="add-b" onclick="openModal({t:'addBlock',dk:'${dk}'})">+ bloco</button>`;
   const dd=document.getElementById('dd');
-  if(dd)dd.innerHTML=h;
+  if(dd){
+    dd.innerHTML=h;
+    // Scroll to the detail panel smoothly
+    setTimeout(()=>{
+      dd.scrollIntoView({behavior:'smooth',block:'start'});
+    },60);
+  }
   window._lastDayDetail=dk;
 }
 
@@ -842,7 +858,7 @@ function renderExRowSemana(e,dk,bi,ei){
       <div class="ex-name">${e.name}</div>
       <div class="ex-meta">
         ${trndHtml}
-        <span class="ex-tag">${e.sets}×${hasTime?(e.time+'s'):e.reps}</span>
+        <span class="ex-tag">${e.sets}×${hasTime?(e.time+'s'):(e.reps+' reps')}</span>
         ${hasW&&e.weight?`<span class="ex-tag">${e.weight}kg</span>`:''}
         <div class="ex-expand-btn">${isOpen?'▲':'▼'}</div>
       </div>
@@ -877,55 +893,70 @@ function reopenDay(dk){
 }
 
 function renderHistorico(){
-  let h=`<div class="sec">histórico de treinos</div>`;
-  if(!history.length)h+=`<div class="empty">Nenhum treino registrado.<br>Registre o de hoje para começar.</div>`;
-  history.slice(0,30).forEach((entry,hi)=>{
-    const isOpen=openHist[hi];
-    // Collect all images from day blocks
-    const dayImages=[];
-    (blocks[entry.dayKey]||[]).forEach(b=>{
-      b.exercises.forEach(e=>{
-        (e.media||[]).forEach(url=>{if(isImg(url))dayImages.push(url);});
-      });
-    });
+  let h=`<div class="sec">histórico de blocos</div>`;
+  if(!history.length)h+=`<div class="empty">Nenhum bloco registrado ainda.<br>Abra um bloco em Hoje e registre.</div>`;
+
+  // Agrupa por data para exibição
+  const byDate={};
+  history.forEach((entry,hi)=>{
+    if(!byDate[entry.date])byDate[entry.date]={date:entry.date,day:entry.day,entries:[],indices:[]};
+    byDate[entry.date].entries.push(entry);
+    byDate[entry.date].indices.push(hi);
+  });
+
+  Object.values(byDate).slice(0,20).forEach(group=>{
+    const groupKey='g'+group.date.replace(/\//g,'');
+    const isOpen=openHist[groupKey];
     let body='';
     if(isOpen){
-      entry.entries.forEach(b=>{
-        b.exercises.forEach(e=>{
-          const val=e.weight?`${e.weight}kg`:e.time?`${e.time}s`:`${e.reps} reps`;
-          body+=`<div class="h-ex-row"><span class="h-ex-name">${e.name}</span><span class="h-ex-val">${e.sets}×${val}</span></div>`;
+      group.entries.forEach(entry=>{
+        const bt=BTYPES[entry.blockType]||BTYPES.custom;
+        // Suporte a formato novo (exercises[]) e antigo (entries[]{exercises[]})
+        const blocks_to_render=Array.isArray(entry.exercises)
+          ?[{label:entry.blockLabel,type:entry.blockType,exercises:entry.exercises}]
+          :(entry.entries||[]);
+        blocks_to_render.forEach(blk=>{
+          const bbt=BTYPES[blk.type]||BTYPES.custom;
+          body+=`<div style="margin-top:10px;padding-top:10px;border-top:1px solid #141414">
+            <div style="font-size:11px;font-weight:600;color:var(--t2);margin-bottom:6px;display:flex;align-items:center;gap:6px">
+              <span>${bbt.i}</span>${blk.label||entry.blockLabel||''}
+            </div>`;
+          (blk.exercises||[]).forEach(e=>{
+            let val;
+            if(e.time&&e.time>0&&(!e.reps||e.reps===0)){val=`${e.sets}×${e.time}s`;}
+            else if(e.weight&&e.weight>0){val=`${e.sets}×${e.reps} reps · ${e.weight}kg`;}
+            else{val=`${e.sets}×${e.reps} reps`;}
+            body+=`<div class="h-ex-row"><span class="h-ex-name">${e.name}</span><span class="h-ex-val">${val}</span></div>`;
+          });
+          body+=`</div>`;
         });
       });
-      if(dayImages.length){
-        body+=`<div class="media-title" style="margin-top:10px">Fotos do treino</div>`;
-        body+=`<div class="hist-media-row">`;
-        dayImages.forEach(url=>{
-          body+=`<img class="hist-thumb" src="${url}" onclick="openLightbox('${url}')" onerror="this.style.display='none'" loading="lazy">`;
-        });
-        body+=`</div>`;
-      }
     }
     h+=`<div class="hist-c">
-      <div class="hist-h" onclick="toggleHist(${hi})">
-        <div><div class="hist-day">${entry.day}</div><div class="hist-date">${entry.date}${dayImages.length?` · <span style="color:var(--t3)">📷 ${dayImages.length}</span>`:''}</div></div>
+      <div class="hist-h" onclick="openHist['${groupKey}']=!openHist['${groupKey}'];render()">
+        <div>
+          <div class="hist-day">${group.day}</div>
+          <div class="hist-date">${group.date} · ${group.entries.length} bloco${group.entries.length!==1?'s':''}</div>
+        </div>
         <span class="bchev${isOpen?' o':''}">▾</span>
       </div>
       ${isOpen?`<div class="hist-body">${body}</div>`:''}
     </div>`;
   });
+
   h+=`<div class="sep"></div><div class="sec">indicador de melhora</div>`;
   const exMap={};
   history.forEach(en=>{
-    en.entries.forEach(b=>{
-      b.exercises.forEach(e=>{
-        if(!exMap[e.name])exMap[e.name]=[];
-        exMap[e.name].push({w:e.weight||0,r:e.reps||0,t:e.time||0,d:en.date});
-      });
+    const exList=Array.isArray(en.exercises)?en.exercises
+      :(en.entries||[]).flatMap(b=>b.exercises||[]);
+    exList.forEach(e=>{
+      if(!exMap[e.name])exMap[e.name]=[];
+      exMap[e.name].push({w:e.weight||0,r:e.reps||0,t:e.time||0,d:en.date});
     });
   });
   const tracked=Object.entries(exMap).filter(([,v])=>v.length>=2);
   if(!tracked.length){
-    h+=`<div class="empty">Registre ao menos 2 treinos<br>para ver sua evolução.</div>`;
+    h+=`<div class="empty">Registre ao menos 2 blocos<br>para ver sua evolução.</div>`;
   } else {
     tracked.forEach(([name,vals])=>{
       const curr=vals[0];const prev=vals[vals.length>4?vals.length-4:vals.length-1];
