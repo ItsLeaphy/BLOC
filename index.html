@@ -1763,6 +1763,378 @@ body{
   background:radial-gradient(circle, rgba(0,0,0,.07) 0%, transparent 70%);
 }
 @keyframes ripple{0%{transform:scale(0);opacity:1}100%{transform:scale(2.5);opacity:0}}
+
+/* ============================================================
+   § JOURNAL SYSTEM
+   Integrado ao design system BLOC — mesmos tokens, mesma linguagem
+   ============================================================ */
+
+/* ── Botão Journal no bloco ── */
+.journal-btn{
+  width:100%;
+  margin-top:var(--sp-8);
+  padding:var(--sp-12);
+  background:transparent;
+  border:0.5px solid var(--b1);
+  border-radius:var(--r-md);
+  color:var(--t2);
+  font-size:var(--fs-sub);
+  cursor:pointer;
+  font-family:inherit;
+  font-weight:var(--fw-medium);
+  letter-spacing:1px;
+  text-transform:uppercase;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  gap:var(--sp-8);
+  transition:all var(--dur-base) var(--ease-sharp),
+             transform var(--dur-fast) var(--ease-spring);
+}
+.journal-btn:hover{border-color:var(--b2);color:var(--tc);background:rgba(255,255,255,0.03)}
+.journal-btn:active{transform:scale(0.97)}
+.journal-btn svg{width:13px;height:13px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;flex-shrink:0}
+.journal-btn.has-entry{
+  border-color:rgba(96,165,250,0.28);
+  color:var(--blue);
+  background:rgba(96,165,250,0.04);
+}
+.journal-btn.has-entry:hover{background:rgba(96,165,250,0.08)}
+
+/* ── Header da tela Journal — sticky dentro do #content ── */
+.journal-hdr{
+  position:sticky;
+  top:-16px; /* compensa o padding-top padrão do #content */
+  background:var(--bg);
+  padding:var(--sp-12) var(--sp-16) var(--sp-16);
+  margin:-16px -16px var(--sp-16);
+  border-bottom:0.5px solid var(--b1);
+  display:flex;
+  align-items:center;
+  gap:var(--sp-12);
+  z-index:10;
+  /* Compact mode: JS seta padding-top do #content para 12px,
+     mas o sticky top precisa de -12px nesse caso. 
+     Resolvido via variável injetada pelo applyAppearance. */
+  top:var(--journal-hdr-top, -16px);
+}
+.journal-back{
+  width:32px;height:32px;
+  border-radius:var(--r-sm);
+  background:transparent;
+  border:0.5px solid var(--b1);
+  display:flex;align-items:center;justify-content:center;
+  cursor:pointer;color:var(--t2);flex-shrink:0;
+  transition:all var(--dur-fast) var(--ease-sharp),transform var(--dur-fast) var(--ease-spring);
+}
+.journal-back:hover{border-color:var(--b2);color:var(--tc);background:var(--s3)}
+.journal-back:active{transform:scale(0.9)}
+.journal-back svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
+.journal-hdr-info{flex:1;min-width:0}
+.journal-hdr-title{font-size:var(--fs-body);font-weight:var(--fw-medium);color:var(--tc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.journal-hdr-sub{font-size:var(--fs-sub);color:var(--t2);margin-top:1px}
+.journal-save-btn{
+  padding:7px var(--sp-12);
+  background:var(--ac);
+  border:none;border-radius:var(--r-sm);
+  color:#000;font-size:11px;font-family:inherit;
+  font-weight:var(--fw-medium);letter-spacing:0.5px;
+  cursor:pointer;flex-shrink:0;
+  transition:opacity var(--dur-fast),transform var(--dur-fast) var(--ease-spring);
+}
+.journal-save-btn:hover{opacity:0.88}
+.journal-save-btn:active{transform:scale(0.95)}
+
+/* ── Contexto automático ── */
+.journal-ctx{
+  background:var(--s1);border:0.5px solid var(--b1);
+  border-radius:var(--r-lg);padding:var(--sp-12) var(--sp-16);
+  margin-bottom:var(--sp-16);display:flex;gap:var(--sp-16);flex-wrap:wrap;
+}
+.journal-ctx-item{display:flex;flex-direction:column;gap:2px}
+.journal-ctx-label{font-size:9px;color:var(--t3);letter-spacing:1.5px;text-transform:uppercase;font-weight:var(--fw-medium)}
+.journal-ctx-val{font-size:var(--fs-sub);color:var(--t2);font-weight:var(--fw-normal)}
+
+/* ── Seção de texto ── */
+.journal-section{margin-bottom:var(--sp-16)}
+.journal-section-label{
+  font-size:var(--fs-micro);color:var(--t3);letter-spacing:1.5px;
+  text-transform:uppercase;font-weight:var(--fw-medium);
+  margin-bottom:var(--sp-8);display:flex;align-items:center;gap:var(--sp-8);
+}
+.journal-section-label::after{content:'';flex:1;height:0.5px;background:var(--t4)}
+
+.journal-textarea{
+  width:100%;min-height:140px;
+  background:var(--s1);border:0.5px solid var(--b1);
+  border-radius:var(--r-lg);padding:var(--sp-16);
+  font-size:15px;color:var(--tc);
+  font-family:inherit;font-weight:var(--fw-normal);
+  line-height:1.65;resize:none;outline:none;
+  transition:border-color var(--dur-fast) var(--ease-sharp),background var(--dur-fast);
+  -webkit-appearance:none;
+  caret-color:var(--ac);
+}
+.journal-textarea:focus{border-color:var(--b2);background:var(--s2)}
+.journal-textarea::placeholder{color:var(--t3);font-style:italic}
+
+/* ── Autosave indicator ── */
+.journal-autosave{
+  font-size:10px;color:var(--t3);text-align:right;
+  margin-top:var(--sp-4);letter-spacing:0.3px;
+  transition:color var(--dur-base);min-height:14px;
+}
+.journal-autosave.saved{color:var(--green);opacity:0.7}
+
+/* ── Seção fotos ── */
+.journal-photos-grid{
+  display:grid;grid-template-columns:repeat(3,1fr);
+  gap:var(--sp-8);margin-bottom:var(--sp-8);
+}
+.journal-photo-wrap{
+  position:relative;aspect-ratio:1;
+  border-radius:var(--r-md);overflow:hidden;
+  border:0.5px solid var(--b1);
+  animation:popIn var(--dur-base) var(--ease-spring);
+}
+.journal-photo-wrap img{
+  width:100%;height:100%;object-fit:cover;display:block;
+  cursor:zoom-in;transition:transform var(--dur-base) var(--ease-spring);
+}
+.journal-photo-wrap img:hover{transform:scale(1.04)}
+.journal-photo-del{
+  position:absolute;top:4px;right:4px;
+  width:20px;height:20px;border-radius:50%;
+  background:rgba(0,0,0,0.72);color:#fff;
+  border:none;cursor:pointer;font-size:10px;
+  display:flex;align-items:center;justify-content:center;
+  transition:background var(--dur-fast);backdrop-filter:blur(4px);
+}
+.journal-photo-del:hover{background:rgba(239,68,68,0.85)}
+.journal-add-photo{
+  aspect-ratio:1;border-radius:var(--r-md);
+  border:0.5px dashed var(--t3);
+  background:transparent;cursor:pointer;
+  display:flex;flex-direction:column;align-items:center;justify-content:center;
+  gap:var(--sp-4);color:var(--t3);font-size:10px;letter-spacing:0.5px;
+  transition:all var(--dur-fast) var(--ease-sharp);font-family:inherit;
+  font-weight:var(--fw-medium);text-transform:uppercase;
+}
+.journal-add-photo svg{width:18px;height:18px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.journal-add-photo:hover{border-color:var(--t2);color:var(--t2)}
+.journal-add-photo:active{transform:scale(0.96)}
+
+/* ── Seção áudio ── */
+.journal-audio-ui{
+  background:var(--s1);border:0.5px solid var(--b1);
+  border-radius:var(--r-lg);padding:var(--sp-16);
+}
+.journal-rec-btn{
+  width:100%;padding:var(--sp-12);
+  background:transparent;border:0.5px solid var(--b1);
+  border-radius:var(--r-md);cursor:pointer;
+  font-family:inherit;font-size:var(--fs-sub);font-weight:var(--fw-medium);
+  color:var(--t2);display:flex;align-items:center;justify-content:center;gap:var(--sp-8);
+  letter-spacing:0.5px;transition:all var(--dur-base) var(--ease-sharp),transform var(--dur-fast) var(--ease-spring);
+}
+.journal-rec-btn svg{width:14px;height:14px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+.journal-rec-btn:hover{border-color:var(--b2);color:var(--tc)}
+.journal-rec-btn:active{transform:scale(0.97)}
+.journal-rec-btn.recording{
+  border-color:rgba(239,68,68,0.45);color:var(--red);
+  background:rgba(239,68,68,0.06);
+  animation:pulse 1.4s ease infinite;
+}
+.journal-rec-timer{
+  text-align:center;font-size:var(--fs-display);font-weight:var(--fw-medium);
+  color:var(--red);letter-spacing:-1px;margin:var(--sp-12) 0;
+  font-variant-numeric:tabular-nums;
+}
+.journal-audio-item{
+  display:flex;align-items:center;gap:var(--sp-12);
+  background:var(--s2);border:0.5px solid var(--b1);
+  border-radius:var(--r-md);padding:var(--sp-8) var(--sp-12);
+  margin-top:var(--sp-8);animation:slideDown var(--dur-base) var(--ease-out);
+}
+.journal-audio-item audio{flex:1;height:32px;min-width:0}
+.journal-audio-del{
+  width:28px;height:28px;border-radius:var(--r-sm);
+  background:transparent;border:0.5px solid var(--b1);
+  color:var(--t3);cursor:pointer;font-size:12px;flex-shrink:0;
+  display:flex;align-items:center;justify-content:center;
+  transition:all var(--dur-fast);
+}
+.journal-audio-del:hover{border-color:rgba(239,68,68,0.4);color:var(--red);background:rgba(239,68,68,0.06)}
+.journal-audio-lbl{font-size:10px;color:var(--t3);letter-spacing:0.4px;white-space:nowrap}
+
+/* ── Modo sem suporte ── */
+.journal-no-audio{
+  font-size:var(--fs-sub);color:var(--t3);text-align:center;
+  padding:var(--sp-16);letter-spacing:0.2px;
+}
+
+/* ── Seção humor (mood) ── */
+.journal-mood-row{
+  display:flex;gap:var(--sp-8);justify-content:space-between;
+}
+.journal-mood-opt{
+  flex:1;display:flex;flex-direction:column;align-items:center;gap:5px;
+  padding:var(--sp-12) var(--sp-4);
+  background:var(--s1);border:0.5px solid var(--b1);
+  border-radius:var(--r-md);cursor:pointer;font-family:inherit;
+  transition:all var(--dur-base) var(--ease-spring);
+}
+.journal-mood-opt:active{transform:scale(0.93)}
+.journal-mood-opt.selected{border-color:var(--b2);background:var(--s3)}
+.journal-mood-emoji{font-size:22px;line-height:1}
+.journal-mood-lbl{font-size:9px;color:var(--t3);letter-spacing:0.8px;text-transform:uppercase;font-weight:var(--fw-medium)}
+.journal-mood-opt.selected .journal-mood-lbl{color:var(--t2)}
+
+/* ── Guia Journals ── */
+.jlist-empty{
+  text-align:center;color:var(--t2);font-size:var(--fs-sub);
+  padding:var(--sp-48) var(--sp-16);line-height:2;letter-spacing:0.2px;
+}
+.jlist-empty strong{
+  display:block;font-size:16px;color:var(--tc);
+  font-weight:var(--fw-medium);margin-bottom:var(--sp-4);
+}
+
+/* ── Card de dia (agrupa blocos) ── */
+.jday-card{
+  background:var(--s1);
+  border:0.5px solid var(--b1);
+  border-radius:var(--r-lg);
+  margin-bottom:var(--sp-8);
+  overflow:hidden;
+  transition:border-color var(--dur-fast) var(--ease-sharp);
+}
+.jday-card.open{border-color:var(--b2)}
+
+.jday-hdr{
+  display:flex;
+  align-items:center;
+  gap:var(--sp-12);
+  padding:var(--sp-12) var(--sp-16);
+  cursor:pointer;
+  user-select:none;
+  transition:background var(--dur-fast) var(--ease-sharp);
+}
+.jday-hdr:active{background:rgba(255,255,255,0.04)}
+
+.jday-date-col{
+  flex-shrink:0;
+  text-align:center;
+  min-width:36px;
+}
+.jday-num{
+  font-size:22px;
+  font-weight:var(--fw-medium);
+  color:var(--tc);
+  line-height:1;
+  letter-spacing:-1px;
+}
+.jday-month{
+  font-size:9px;
+  color:var(--t2);
+  text-transform:uppercase;
+  letter-spacing:1px;
+  margin-top:2px;
+  font-weight:var(--fw-medium);
+}
+
+.jday-info{flex:1;min-width:0}
+.jday-weekday{
+  font-size:var(--fs-body);
+  font-weight:var(--fw-medium);
+  color:var(--tc);
+}
+.jday-meta{
+  font-size:var(--fs-sub);
+  color:var(--t2);
+  margin-top:2px;
+}
+
+.jday-right{display:flex;align-items:center;gap:var(--sp-8);flex-shrink:0}
+.jday-count{
+  font-size:var(--fs-micro);
+  color:var(--t3);
+  letter-spacing:0.5px;
+}
+
+/* Lista de blocos dentro do dia */
+.jday-body{
+  border-top:0.5px solid var(--t4);
+  animation:slideDown var(--dur-base) var(--ease-out);
+}
+
+.jblock-row{
+  display:flex;
+  align-items:center;
+  gap:var(--sp-12);
+  padding:var(--sp-12) var(--sp-16);
+  border-bottom:0.5px solid var(--t4);
+  cursor:pointer;
+  transition:background var(--dur-fast) var(--ease-sharp);
+}
+.jblock-row:last-child{border-bottom:none}
+.jblock-row:active{background:rgba(255,255,255,0.04)}
+.jblock-row:hover{background:var(--s2)}
+
+.jblock-icon{
+  width:28px;height:28px;
+  border-radius:var(--r-sm);
+  background:var(--s3);
+  border:0.5px solid var(--b1);
+  display:flex;align-items:center;justify-content:center;
+  flex-shrink:0;color:var(--t2);
+}
+.jblock-icon svg{width:12px;height:12px;stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round}
+
+.jblock-info{flex:1;min-width:0}
+.jblock-label{
+  font-size:var(--fs-sub);
+  font-weight:var(--fw-medium);
+  color:var(--tc);
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.jblock-preview{
+  font-size:var(--fs-micro);
+  color:var(--t2);
+  margin-top:2px;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;
+}
+.jblock-preview.empty{color:var(--t3);font-style:italic}
+
+.jblock-badges{display:flex;gap:3px;flex-shrink:0}
+.jblock-dot{
+  width:5px;height:5px;border-radius:50%;
+  flex-shrink:0;margin-top:1px;
+}
+.jblock-dot.photo{background:var(--blue)}
+.jblock-dot.audio{background:var(--yellow)}
+.jblock-dot.mood{background:var(--green)}
+
+/* Search/Filter bar para Journals */
+.jsearch{
+  background:var(--s1);border:0.5px solid var(--b1);
+  border-radius:var(--r-md);padding:10px var(--sp-12);
+  font-size:var(--fs-body);color:var(--tc);
+  width:100%;outline:none;font-family:inherit;
+  transition:border-color var(--dur-fast);margin-bottom:var(--sp-16);
+  -webkit-appearance:none;
+}
+.jsearch:focus{border-color:var(--b2);background:var(--s2)}
+.jsearch::placeholder{color:var(--t3)}
+
+/* Journal badge no nav — ponto azul quando há journals */
+.nb .journal-dot{
+  position:absolute;top:4px;right:12px;
+  width:5px;height:5px;border-radius:50%;
+  background:var(--blue);opacity:0;
+  transition:opacity var(--dur-base);
+}
+.nb .journal-dot.visible{opacity:1}
 </style>
 
 <!-- ============================================================
@@ -1834,10 +2206,20 @@ body{
     </svg>
     metas
   </button>
+  <button class="nb" onclick="nav('journals')" id="nb-journals">
+    <div class="nb-dot"></div>
+    <div class="journal-dot" id="journal-nav-dot"></div>
+    <svg viewBox="0 0 20 20">
+      <path d="M4 15.5V12l7.5-7.5 3.5 3.5L7.5 15.5H4z" stroke-width="1.2" stroke-linejoin="round"/>
+      <path d="M12 5.5l2 2" stroke-width="1.2"/>
+    </svg>
+    journal
+  </button>
 </nav>
 
 <!-- TOAST -->
 <div class="toast" id="toast"></div>
+
 </div>
 
 <!-- ============================================================
@@ -2074,6 +2456,7 @@ let appearance = _store.appearance;
 
 let page='hoje',configOpen=false,configTab='blocos';
 let openEx={},openHist={},modal=null,dangerConfirmStep={};
+let journalOpen=false; /* flag: tela de edição de journal ativa */
 
 /* Estado do modo de reorganização de blocos (declarado aqui, engine mais abaixo) */
 let reorderState={active:false,dk:null};
@@ -2173,6 +2556,8 @@ function applyAppearance(){
   ct.style.paddingLeft=p;
   ct.style.paddingRight=p;
   ct.style.paddingBottom='96px';
+  /* Ajusta o top do sticky journal-hdr para compensar o padding correto */
+  root.style.setProperty('--journal-hdr-top', a.compactMode?'-12px':'-16px');
   const speeds={fast:'0.15s',normal:'0.22s',slow:'0.38s'};
   root.style.setProperty('--anim-speed',speeds[a.animSpeed||'normal']||'0.22s');
   root.style.setProperty('--dur-base',speeds[a.animSpeed||'normal']||'0.22s');
@@ -2411,6 +2796,12 @@ function renderBlockCard(b,dk,bi,prefix){
     body+=`<button class="sreg btn-ripple${hasDone?' done':''}" onclick="saveLog('${dk}',${bi})">
       ${hasDone?'✓ Registrado — atualizar':'Registrar bloco'}
     </button>`;
+    /* Botão Journal — sempre presente quando bloco está aberto */
+    const hasJournal=journalHasEntry(dk,bi,new Date().toLocaleDateString('pt-BR'));
+    body+=`<button class="journal-btn${hasJournal?' has-entry':''}" onclick="openJournal('${dk}',${bi})">
+      <svg viewBox="0 0 16 16"><path d="M3 13V4.5L7 2l4 2.5V13" stroke-width="1.3" stroke-linejoin="round"/><path d="M7 2v11" stroke-width="1.3"/><path d="M3 8h4M11 8h2" stroke-width="1.2" stroke-linecap="round"/></svg>
+      ${hasJournal?'Ver journal de hoje':'Escrever no journal'}
+    </button>`;
   }
 
   const chevSvg=`<svg viewBox="0 0 14 14"><path d="M3 5L7 9L11 5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -2577,13 +2968,18 @@ function nav(p){
   saveScroll();   /* salva scroll da aba atual antes de trocar */
   /* Sai do modo reorganização ao trocar de aba — previne estado órfão */
   if(reorderState.active){reorderState.active=false;reorderState.dk=null;saveStore();}
+  /* Fecha journal se estiver aberto */
+  if(journalOpen){stopRecording(false);journalOpen=false;journalState=null;}
   page=p;configOpen=false;
   document.getElementById('gear-btn').classList.remove('active');
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
-  document.getElementById('nb-'+p).classList.add('active');
+  const nbEl=document.getElementById('nb-'+p);
+  if(nbEl)nbEl.classList.add('active');
   render();
 }
 function toggleConfig(){
+  /* Fecha journal se estiver aberto antes de abrir config */
+  if(journalOpen){stopRecording(false);journalOpen=false;journalState=null;}
   configOpen=!configOpen;
   document.getElementById('gear-btn').classList.toggle('active',configOpen);
   render();
@@ -3300,21 +3696,547 @@ function render(){
   captureInputs();   /* captura estado dos inputs ANTES de destruir o DOM */
   saveScroll();      /* salva posição de scroll por aba */
   let h='';
-  if(configOpen)h=renderConfig();
+  if(journalOpen)h=renderJournalScreen();
+  else if(configOpen)h=renderConfig();
   else if(page==='hoje')h=renderHoje();
   else if(page==='semana')h=renderSemana();
   else if(page==='historico')h=renderHistorico();
   else if(page==='metas')h=renderMetas();
+  else if(page==='journals')h=renderJournals();
   const content=document.getElementById('content');
-  content.innerHTML=`<div class="page-anim">${h}</div>`; /* FIX #5: sem modal aqui */
-  /* Modal vai para #modal-root (fora do scroll container) para position:absolute funcionar corretamente */
+  content.innerHTML=`<div class="page-anim">${h}</div>`;
+  /* Modal vai para #modal-root (fora do scroll container) */
   const modalRoot=document.getElementById('modal-root');
   if(modalRoot)modalRoot.innerHTML=renderModal();
   restoreScroll();   /* restaura scroll depois de inserir o conteúdo */
 }
 
+/* ══════════════════════════════════════════════════════════════════
+   JOURNAL SYSTEM — Integrado ao BLOC
+   
+   Arquitetura de dados:
+   journals = { "[dk]-[bi]-[date]": { text, photos[], audios[], meta, updatedAt } }
+   
+   Armazenado em localStorage separado ('bloc_journals') para não
+   inflar o store principal — journals podem conter base64 de fotos.
+   
+   A chave é determinística: dia (dk) + índice do bloco (bi) + data.
+   Isso vincula cada journal a um bloco específico em um dia específico.
+   ══════════════════════════════════════════════════════════════════ */
+
+const JOURNAL_STORE = 'bloc_journals';
+
+/* Carrega todos os journals */
+function loadJournals(){
+  try{return JSON.parse(localStorage.getItem(JOURNAL_STORE))||{};}catch{return{};}
+}
+function saveJournals(j){
+  try{localStorage.setItem(JOURNAL_STORE,JSON.stringify(j));}catch(e){
+    toast('Erro ao salvar — armazenamento cheio');
+  }
+}
+
+let journals = loadJournals();
+
+/* ── Chave do journal ── */
+function journalKey(dk,bi,date){return`${dk}-${bi}-${date}`;}
+
+/* ── Verifica se há entry para bloco/data ── */
+function journalHasEntry(dk,bi,date){
+  const k=journalKey(dk,bi,date);
+  const e=journals[k];
+  return !!(e&&(e.text||(e.photos&&e.photos.length)||(e.audios&&e.audios.length)));
+}
+
+/* ── Estado da tela Journal ── */
+let journalState = null; /* { dk, bi, date, key } */
+let journalAutoSaveTimer = null;
+let recorderState = { active:false, stream:null, recorder:null, chunks:[], timer:null, elapsed:0 };
+
+/* ── Abre tela Journal — via flag journalOpen, renderiza no #content ── */
+function openJournal(dk,bi){
+  const date = new Date().toLocaleDateString('pt-BR');
+  const key = journalKey(dk,bi,date);
+  journalState = { dk, bi, date, key };
+  journalOpen = true;
+  render();
+  /* Scroll ao topo */
+  const ct = document.getElementById('content');
+  if(ct) ct.scrollTop = 0;
+  /* Foca o textarea após animação */
+  setTimeout(()=>{
+    const ta = document.getElementById('journal-ta');
+    if(ta && !journals[key]?.text) ta.focus();
+  }, 280);
+  updateJournalNavDot();
+}
+
+/* ── Fecha tela Journal ── */
+function closeJournal(){
+  stopRecording(false);
+  journalAutoSave(true);
+  journalOpen = false;
+  journalState = null;
+  updateJournalNavDot();
+  render();
+}
+
+/* ── Renderiza tela Journal dentro do #content ── */
+function renderJournalScreen(){
+  if(!journalState) return '';
+  const {dk, bi, date, key} = journalState;
+  const entry = journals[key] || {};
+  const block = (blocks[dk]||[])[parseInt(bi)];
+  if(!block){ closeJournal(); return ''; }
+
+  const now = new Date();
+  const hora = now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+  const diaSem = DAYFULL[now.getDay()];
+  const today = now.toLocaleDateString('pt-BR');
+  const hasDone = history.some(h=>h.dayKey===dk&&h.date===today&&h.blockLabel===block.label);
+
+  const MOODS = [
+    {id:'great', emoji:'😄', label:'Incrível'},
+    {id:'good',  emoji:'🙂', label:'Bem'},
+    {id:'ok',    emoji:'😐', label:'Ok'},
+    {id:'bad',   emoji:'😓', label:'Difícil'},
+    {id:'worst', emoji:'💣', label:'Péssimo'},
+  ];
+
+  let h = `<div class="journal-hdr">
+    <button class="journal-back" onclick="closeJournal()">
+      <svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M9 2L4 7l5 5"/></svg>
+    </button>
+    <div class="journal-hdr-info">
+      <div class="journal-hdr-title">${block.label}</div>
+      <div class="journal-hdr-sub">${diaSem}, ${date} · ${hora}</div>
+    </div>
+    <button class="journal-save-btn" onclick="journalSaveAndClose()">Salvar</button>
+  </div>`;
+
+  /* Contexto automático */
+  h += `<div class="journal-ctx">
+    <div class="journal-ctx-item"><div class="journal-ctx-label">Tipo</div><div class="journal-ctx-val">${(BTYPES[block.type]||{l:block.type}).l}</div></div>
+    <div class="journal-ctx-item"><div class="journal-ctx-label">Dia</div><div class="journal-ctx-val">${diaSem}</div></div>
+    <div class="journal-ctx-item"><div class="journal-ctx-label">Status</div><div class="journal-ctx-val" style="color:${hasDone?'var(--green)':'var(--t2)'}">${hasDone?'✓ Feito':'Não registrado'}</div></div>
+  </div>`;
+
+  /* Humor */
+  h += `<div class="journal-section">
+    <div class="journal-section-label">Como você está</div>
+    <div class="journal-mood-row">`;
+  MOODS.forEach(m=>{
+    const sel = (entry.mood===m.id) ? ' selected' : '';
+    h += `<button class="journal-mood-opt${sel}" onclick="journalSetMood('${m.id}')">
+      <span class="journal-mood-emoji">${m.emoji}</span>
+      <span class="journal-mood-lbl">${m.label}</span>
+    </button>`;
+  });
+  h += `</div></div>`;
+
+  /* Texto */
+  h += `<div class="journal-section">
+    <div class="journal-section-label">Pensamentos</div>
+    <textarea class="journal-textarea" id="journal-ta" placeholder="Como foi esse bloco? O que sentiu? O que mudaria..." oninput="journalTextInput(this)">${entry.text||''}</textarea>
+    <div class="journal-autosave" id="journal-autosave">${entry.updatedAt?'Salvo às '+entry.updatedAt:''}</div>
+  </div>`;
+
+  /* Fotos */
+  h += `<div class="journal-section">
+    <div class="journal-section-label">Fotos</div>
+    <div class="journal-photos-grid">`;
+  (entry.photos||[]).forEach((src,pi)=>{
+    h += `<div class="journal-photo-wrap">
+      <img src="${src}" onclick="openLightbox('${src}')" loading="lazy">
+      <button class="journal-photo-del" onclick="journalDelPhoto(${pi})">✕</button>
+    </div>`;
+  });
+  if((entry.photos||[]).length < 9){
+    h += `<button class="journal-add-photo" onclick="document.getElementById('journal-file-input').click()">
+        <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M8 4v8M4 8h8"/></svg>
+        Foto
+      </button>`;
+  }
+  h += `</div>
+    <input type="file" id="journal-file-input" accept="image/*" multiple style="display:none" onchange="journalAddPhotos(this)">
+  </div>`;
+
+  /* Áudio */
+  h += `<div class="journal-section">
+    <div class="journal-section-label">Áudio</div>
+    <div class="journal-audio-ui">`;
+  if(!recorderState.active){
+    h += `<button class="journal-rec-btn" onclick="startRecording()">
+      <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-linecap="round"><rect x="5.5" y="2" width="5" height="8" rx="2.5" stroke-width="1.3"/><path d="M3 9.5a5 5 0 0010 0" stroke-width="1.3"/><path d="M8 14.5v-2.5" stroke-width="1.4"/></svg>
+      Gravar áudio
+    </button>`;
+  } else {
+    h += `<div class="journal-rec-timer" id="journal-rec-timer">0:00</div>
+    <button class="journal-rec-btn recording" onclick="stopRecording(true)">
+      <svg viewBox="0 0 16 16"><rect x="4" y="4" width="8" height="8" rx="1.5" fill="currentColor" stroke="none"/></svg>
+      Parar gravação
+    </button>`;
+  }
+  (entry.audios||[]).forEach((aud,ai)=>{
+    h += `<div class="journal-audio-item">
+      <div class="journal-audio-lbl">Áudio ${ai+1}</div>
+      <audio controls src="${aud}" style="flex:1;height:32px;min-width:0"></audio>
+      <button class="journal-audio-del" onclick="journalDelAudio(${ai})">✕</button>
+    </div>`;
+  });
+  h += `</div></div>`;
+
+  return h;
+}
+
+/* ── Input do textarea com autosave ── */
+function journalTextInput(el){
+  clearTimeout(journalAutoSaveTimer);
+  const as = document.getElementById('journal-autosave');
+  if(as) { as.textContent = 'salvando...'; as.className='journal-autosave'; }
+  journalAutoSaveTimer = setTimeout(()=>journalAutoSave(false), 1200);
+}
+
+/* ── Seleciona humor — re-render parcial para evitar perder scroll/texto ── */
+function journalSetMood(moodId){
+  if(!journalState) return;
+  const {key} = journalState;
+  /* Preserva texto atual antes do re-render */
+  const ta = document.getElementById('journal-ta');
+  const entry = journals[key] || {text:'',photos:[],audios:[],meta:{}};
+  if(ta) entry.text = ta.value;
+  entry.mood = (entry.mood === moodId) ? null : moodId;
+  entry.meta = { dk:journalState.dk, bi:journalState.bi, date:journalState.date };
+  journals[key] = entry;
+  saveJournals(journals);
+  /* Re-render preservando posição de scroll */
+  const scrollY = document.getElementById('content')?.scrollTop || 0;
+  render();
+  setTimeout(()=>{ const ct=document.getElementById('content'); if(ct) ct.scrollTop=scrollY; },0);
+}
+
+/* ── Autosave ── */
+function journalAutoSave(silent){
+  if(!journalState) return;
+  const {key} = journalState;
+  const ta = document.getElementById('journal-ta');
+  if(!ta) return;
+
+  const entry = journals[key] || {};
+  entry.text = ta.value;
+  if(!entry.photos) entry.photos = [];
+  if(!entry.audios) entry.audios = [];
+  entry.meta = { dk: journalState.dk, bi: journalState.bi, date: journalState.date };
+
+  const now = new Date();
+  entry.updatedAt = now.toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'});
+
+  journals[key] = entry;
+  saveJournals(journals);
+
+  if(!silent){
+    const as = document.getElementById('journal-autosave');
+    if(as){as.textContent='Salvo às '+entry.updatedAt;as.className='journal-autosave saved';setTimeout(()=>{if(as)as.className='journal-autosave';},2000);}
+  }
+  updateJournalNavDot();
+}
+
+/* ── Salvar e fechar ── */
+function journalSaveAndClose(){
+  journalAutoSave(true);
+  closeJournal();
+  toast('Journal salvo');
+}
+
+/* ── Fotos ── */
+function journalAddPhotos(input){
+  if(!journalState) return;
+  const {key} = journalState;
+  const files = Array.from(input.files);
+  if(!files.length) return;
+
+  const entry = journals[key] || {photos:[],audios:[],text:'',meta:{}};
+  if(!entry.photos) entry.photos = [];
+
+  /* Preserva texto atual antes do re-render */
+  const ta = document.getElementById('journal-ta');
+  if(ta) entry.text = ta.value;
+
+  let pending = files.length;
+  files.forEach(file=>{
+    if(entry.photos.length >= 9){ pending--;return; }
+    const reader = new FileReader();
+    reader.onload = e=>{
+      entry.photos.push(e.target.result);
+      journals[key] = entry;
+      saveJournals(journals);
+      pending--;
+      if(pending<=0){
+        const scrollY = document.getElementById('content')?.scrollTop || 0;
+        render();
+        setTimeout(()=>{ const ct=document.getElementById('content'); if(ct) ct.scrollTop=scrollY; },0);
+        updateJournalNavDot();
+      }
+    };
+    reader.readAsDataURL(file);
+  });
+  input.value = '';
+}
+
+function journalDelPhoto(pi){
+  if(!journalState) return;
+  const {key} = journalState;
+  if(journals[key]&&journals[key].photos){
+    const ta = document.getElementById('journal-ta');
+    if(ta && journals[key]) journals[key].text = ta.value;
+    journals[key].photos.splice(pi,1);
+    saveJournals(journals);
+    const scrollY = document.getElementById('content')?.scrollTop || 0;
+    render();
+    setTimeout(()=>{ const ct=document.getElementById('content'); if(ct) ct.scrollTop=scrollY; },0);
+  }
+}
+
+/* ── Áudio ── */
+async function startRecording(){
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    toast('Gravação não suportada neste dispositivo');return;
+  }
+  try{
+    const stream = await navigator.mediaDevices.getUserMedia({audio:true});
+    const recorder = new MediaRecorder(stream);
+    recorderState = { active:true, stream, recorder, chunks:[], timer:null, elapsed:0 };
+    recorder.ondataavailable = e=>{ if(e.data.size>0) recorderState.chunks.push(e.data); };
+    recorder.start(250);
+
+    /* Timer UI */
+    recorderState.timer = setInterval(()=>{
+      recorderState.elapsed++;
+      const m = Math.floor(recorderState.elapsed/60);
+      const s = recorderState.elapsed%60;
+      const el = document.getElementById('journal-rec-timer');
+      if(el) el.textContent = m+':'+(s<10?'0':'')+s;
+      if(recorderState.elapsed >= 300){ stopRecording(true); } /* max 5 min */
+    },1000);
+
+    /* Preserva texto e re-render */
+    if(journalState){
+      const ta = document.getElementById('journal-ta');
+      if(ta && journals[journalState.key]) journals[journalState.key].text = ta.value;
+    }
+    const scrollY = document.getElementById('content')?.scrollTop || 0;
+    render();
+    setTimeout(()=>{ const ct=document.getElementById('content'); if(ct) ct.scrollTop=scrollY; },0);
+  } catch(err){
+    toast('Acesso ao microfone negado');
+  }
+}
+
+function stopRecording(save){
+  if(!recorderState.active) return;
+  clearInterval(recorderState.timer);
+
+  const { recorder, stream, chunks } = recorderState;
+  recorderState.active = false;
+  recorderState.timer = null;
+
+  if(recorder && recorder.state !== 'inactive'){
+    recorder.onstop = ()=>{
+      stream.getTracks().forEach(t=>t.stop());
+      if(save && chunks.length > 0 && journalState){
+        const blob = new Blob(chunks, {type:'audio/webm'});
+        const reader = new FileReader();
+        reader.onload = e=>{
+          const {key} = journalState;
+          const entry = journals[key] || {photos:[],audios:[],text:'',meta:{}};
+          if(!entry.audios) entry.audios = [];
+          entry.audios.push(e.target.result);
+          journals[key] = entry;
+          saveJournals(journals);
+          render();
+          toast('Áudio salvo');
+          updateJournalNavDot();
+        };
+        reader.readAsDataURL(blob);
+      } else {
+        render();
+      }
+    };
+    recorder.stop();
+  } else {
+    stream.getTracks().forEach(t=>t.stop());
+    render();
+  }
+
+  recorderState = { active:false, stream:null, recorder:null, chunks:[], timer:null, elapsed:0 };
+}
+
+function journalDelAudio(ai){
+  if(!journalState) return;
+  const {key} = journalState;
+  if(journals[key]&&journals[key].audios){
+    const ta = document.getElementById('journal-ta');
+    if(ta && journals[key]) journals[key].text = ta.value;
+    journals[key].audios.splice(ai,1);
+    saveJournals(journals);
+    const scrollY = document.getElementById('content')?.scrollTop || 0;
+    render();
+    setTimeout(()=>{ const ct=document.getElementById('content'); if(ct) ct.scrollTop=scrollY; },0);
+  }
+}
+
+/* ── Dot de navegação (ponto azul quando há journals) ── */
+function updateJournalNavDot(){
+  const dot = document.getElementById('journal-nav-dot');
+  if(dot) dot.classList.toggle('visible', Object.keys(journals).length > 0);
+}
+
+/* ── Guia Journals — lista de todos os journals ── */
+/* ── Estado de expansão dos dias na guia Journal ── */
+let openJDays = {};
+
+function renderJournals(){
+  updateJournalNavDot();
+
+  const monthNames = ['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  const WEEKDAY_FULL = ['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
+
+  /* ── Agrupa todas as entries por data ── */
+  const byDate = {};
+  Object.keys(journals).forEach(k=>{
+    const e = journals[k];
+    const date = e.meta?.date || '';
+    if(!date) return;
+    if(!byDate[date]) byDate[date] = [];
+    byDate[date].push({ key:k, entry:e });
+  });
+
+  /* ── Busca ── */
+  const searchVal = (window._journalSearch||'').toLowerCase();
+
+  /* ── Ordena datas desc ── */
+  function toISO(d){ const p=d.split('/'); return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:''; }
+  let dates = Object.keys(byDate).sort((a,b)=>toISO(b).localeCompare(toISO(a)));
+
+  /* Filtra por busca (busca dentro de qualquer bloco do dia) */
+  if(searchVal){
+    dates = dates.filter(date=>{
+      return byDate[date].some(({key,entry})=>{
+        const blockLabel = (blocks[entry.meta?.dk]||[])[entry.meta?.bi]?.label||'';
+        return (entry.text||'').toLowerCase().includes(searchVal)
+          || blockLabel.toLowerCase().includes(searchVal)
+          || (entry.meta?.dk||'').toLowerCase().includes(searchVal);
+      });
+    });
+  }
+
+  let h = `<div class="sec">Journals</div>`;
+
+  if(Object.keys(byDate).length > 3 || searchVal){
+    h += `<input class="jsearch" type="search" placeholder="Buscar nos journals..." value="${searchVal}" oninput="window._journalSearch=this.value;render()" autocomplete="off">`;
+  }
+
+  if(!dates.length){
+    if(searchVal){
+      h += `<div class="jlist-empty"><strong>Sem resultados</strong>Tente outro termo de busca.</div>`;
+    } else {
+      h += `<div class="jlist-empty"><strong>Nenhum journal ainda</strong>Abra um bloco na guia Hoje e toque em "Escrever no journal".</div>`;
+    }
+    return h;
+  }
+
+  dates.forEach((date, dateIdx)=>{
+    const entries = byDate[date];
+    /* Só o dia mais recente abre por padrão; os demais iniciam fechados */
+    const isOpen = openJDays[date] !== undefined ? openJDays[date] : (dateIdx === 0);
+
+    /* Parse da data */
+    const parts = date.split('/');
+    const dayNum = parts[0]||'—';
+    const monthStr = parts[1] ? monthNames[parseInt(parts[1])-1] : '—';
+    const year = parts[2]||'';
+
+    /* Descobre o dia da semana a partir da data */
+    let weekdayStr = '';
+    try{
+      const [d,m,y] = parts.map(Number);
+      const dt = new Date(y, m-1, d);
+      weekdayStr = WEEKDAY_FULL[dt.getDay()];
+    }catch{}
+
+    /* Badges de resumo do dia */
+    const totalBlocks = entries.length;
+    const hasAnyPhoto = entries.some(({entry})=>(entry.photos||[]).length>0);
+    const hasAnyAudio = entries.some(({entry})=>(entry.audios||[]).length>0);
+
+    const chevSvg = `<svg viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round" style="width:14px;height:14px;transition:transform var(--dur-base) var(--ease-spring);${isOpen?'transform:rotate(180deg)':''}"><path d="M3 5L7 9L11 5"/></svg>`;
+
+    h += `<div class="jday-card${isOpen?' open':''}">
+      <div class="jday-hdr" onclick="openJDays['${date}']=!openJDays['${date}'];render()">
+        <div class="jday-date-col">
+          <div class="jday-num">${dayNum}</div>
+          <div class="jday-month">${monthStr}</div>
+        </div>
+        <div class="jday-info">
+          <div class="jday-weekday">${weekdayStr}</div>
+          <div class="jday-meta">${totalBlocks} bloco${totalBlocks!==1?'s':''} · ${year}${hasAnyPhoto?' · 📷':''}${hasAnyAudio?' · 🎙':''}</div>
+        </div>
+        <div class="jday-right">
+          ${chevSvg}
+        </div>
+      </div>`;
+
+    if(isOpen){
+      h += `<div class="jday-body">`;
+      entries.forEach(({key, entry})=>{
+        const meta = entry.meta||{};
+        const block = (blocks[meta.dk]||[])[parseInt(meta.bi)];
+        const blockLabel = block?.label || meta.dk || '—';
+        const blockType = block?.type || 'custom';
+        const preview = (entry.text||'').trim();
+        const hasPhotos = (entry.photos||[]).length > 0;
+        const hasAudio = (entry.audios||[]).length > 0;
+        const hasMood = !!entry.mood;
+
+        h += `<div class="jblock-row" onclick="viewJournalEntry('${key}')">
+          <div class="jblock-icon">${BTYPE_ICONS[blockType]||BTYPE_ICONS.custom}</div>
+          <div class="jblock-info">
+            <div class="jblock-label">${blockLabel}</div>
+            <div class="jblock-preview${!preview?' empty':''}">${preview||'Sem anotações'}</div>
+          </div>
+          <div class="jblock-badges">
+            ${hasMood?'<div class="jblock-dot mood"></div>':''}
+            ${hasPhotos?'<div class="jblock-dot photo"></div>':''}
+            ${hasAudio?'<div class="jblock-dot audio"></div>':''}
+          </div>
+        </div>`;
+      });
+      h += `</div>`;
+    }
+
+    h += `</div>`;
+  });
+
+  return h;
+}
+
+/* ── Abre journal de uma entrada passada ── */
+function viewJournalEntry(key){
+  const e = journals[key];
+  if(!e||!e.meta) return;
+  const { dk, bi, date } = e.meta;
+  journalState = { dk, bi, date, key };
+  journalOpen = true;
+  render();
+  const ct = document.getElementById('content');
+  if(ct) ct.scrollTop = 0;
+}
+
+/* ── Integração com saveLog: o autosave já cobre o fluxo de registro ── */
+
 applyAppearance();
 render();
+updateJournalNavDot();
 
 /* -------- FIX #3: viewport resize listener -------- */
 /* No iOS Safari o viewport muda ao recarregar (barra de endereço, teclado).
