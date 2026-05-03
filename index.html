@@ -161,21 +161,21 @@ body{
   font-family:var(--font-family);
   background:var(--bg);
   color:var(--tc);
-  height:100svh; /* svh: mais estável que dvh no iOS Safari durante reload */
-  height:100dvh; /* dvh como override onde suportado */
+  height:100vh;  /* fallback para browsers sem svh */
+  height:100svh; /* svh é estável no iOS Safari — não usar dvh (instável no reload) */
   max-width:430px;
   margin:0 auto;
   display:flex;
   flex-direction:column;
   position:relative;
-  overflow:hidden;
+  overflow:clip; /* clip não quebra position:sticky dos filhos, ao contrário de hidden */
 }
 
 /* ============================================================
    § HEADER
    ============================================================ */
 #hdr{
-  padding:16px var(--sp-16) 12px;
+  padding:max(16px, env(safe-area-inset-top)) var(--sp-16) 12px; /* FIX #4: notch/Dynamic Island */
   background:var(--s1);
   border-bottom:0.5px solid var(--b1);
   border-top:1px solid rgba(255,255,255,0.04); /* detalhe premium: linha de acento no topo */
@@ -183,9 +183,10 @@ body{
   align-items:center;
   justify-content:space-between;
   gap:var(--sp-8);
-  position:sticky;
-  top:0;
+  flex-shrink:0;  /* garante que o header não encolha no flex container */
   z-index:50;
+  /* position:sticky removido — não funciona dentro de overflow:clip/hidden;
+     o header já fica no topo por ser o primeiro filho do flex column */
 }
 
 .logo{
@@ -1651,6 +1652,9 @@ body{
 <!-- CONTENT -->
 <div id="content"></div>
 
+<!-- MODAL ROOT — fora do #content para não herdar overflow:auto -->
+<div id="modal-root"></div>
+
 <!-- NAVIGATION -->
 <nav id="nav">
   <button class="nb active" onclick="nav('hoje')" id="nb-hoje">
@@ -2809,12 +2813,34 @@ function render(){
   else if(page==='historico')h=renderHistorico();
   else if(page==='metas')h=renderMetas();
   const content=document.getElementById('content');
-  content.innerHTML=`<div class="page-anim">${h}</div>`+renderModal();
+  content.innerHTML=`<div class="page-anim">${h}</div>`; /* FIX #5: sem modal aqui */
+  /* Modal vai para #modal-root (fora do scroll container) para position:absolute funcionar corretamente */
+  const modalRoot=document.getElementById('modal-root');
+  if(modalRoot)modalRoot.innerHTML=renderModal();
   restoreScroll();   /* restaura scroll depois de inserir o conteúdo */
 }
 
 applyAppearance();
 render();
+
+/* -------- FIX #3: viewport resize listener -------- */
+/* No iOS Safari o viewport muda ao recarregar (barra de endereço, teclado).
+   Sem este listener, o #app fica com height errado após o reload. */
+function _fixViewportHeight(){
+  const h = window.visualViewport
+    ? window.visualViewport.height
+    : window.innerHeight;
+  document.getElementById('app').style.height = h + 'px';
+}
+if(window.visualViewport){
+  window.visualViewport.addEventListener('resize', _fixViewportHeight);
+  window.visualViewport.addEventListener('scroll', _fixViewportHeight);
+}
+window.addEventListener('resize', _fixViewportHeight);
+window.addEventListener('orientationchange', function(){
+  setTimeout(_fixViewportHeight, 100); /* pequeno delay para o browser terminar o giro */
+});
+_fixViewportHeight(); /* executa imediatamente no load */
 </script>
 </body>
 </html>
