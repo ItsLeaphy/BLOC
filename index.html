@@ -161,7 +161,8 @@ body{
   font-family:var(--font-family);
   background:var(--bg);
   color:var(--tc);
-  height:100dvh; /* min-height → height: container precisa de altura fixa para scroll funcionar */
+  height:100svh; /* svh: mais estável que dvh no iOS Safari durante reload */
+  height:100dvh; /* dvh como override onde suportado */
   max-width:430px;
   margin:0 auto;
   display:flex;
@@ -237,10 +238,12 @@ body{
    § NAVIGATION — Bottom bar
    ============================================================ */
 #nav{
-  position:sticky;
+  position:fixed;  /* fixed: ancora ao viewport, imune a overflow:hidden e dvh instável */
   bottom:0;
-  left:0;
-  right:0;
+  left:50%;        /* centraliza dentro do max-width do #app */
+  transform:translateX(-50%);
+  width:100%;
+  max-width:430px; /* espelha o max-width do #app */
   background:var(--s1);
   border-top:0.5px solid var(--b1);
   display:flex;
@@ -295,7 +298,7 @@ body{
   overflow-y:auto;
   -webkit-overflow-scrolling:touch; /* scroll inercial em iOS */
   padding:var(--sp-16);
-  padding-bottom:var(--sp-48);
+  padding-bottom:96px; /* compensa nav fixed (~64px) + safe area + folga */
   scroll-behavior:smooth;
   overscroll-behavior:contain;
   min-height:0; /* garante que flex:1 não expande além do container pai */
@@ -1997,7 +2000,7 @@ function applyAppearance(){
   root.style.setProperty('--r-lg',a.borderRadius+'px');
   const ct=document.getElementById('content');
   const p=a.compactMode?'12px':'16px';
-  ct.style.padding=p;ct.style.paddingBottom='72px';
+  ct.style.padding=p;ct.style.paddingBottom='96px';
   const speeds={fast:'0.15s',normal:'0.22s',slow:'0.38s'};
   root.style.setProperty('--anim-speed',speeds[a.animSpeed||'normal']||'0.22s');
   root.style.setProperty('--dur-base',speeds[a.animSpeed||'normal']||'0.22s');
