@@ -2461,6 +2461,38 @@ let journalOpen=false; /* flag: tela de edição de journal ativa */
 /* Estado do modo de reorganização de blocos (declarado aqui, engine mais abaixo) */
 let reorderState={active:false,dk:null};
 
+/* ── Sessão de treino — estado temporário (nunca salvo em localStorage) ──────
+   sessionDraft: sobrescritas de sets/reps/weight/time para a guia Hoje.
+   Estrutura: { "SEG-0-Supino reto": { sets, reps, weight, time } }
+
+   sessionExtraExercises: exercícios adicionados só para o treino de hoje.
+   Estrutura: { "SEG-0": [ {name,sets,reps,weight,time,media} ] }
+   Ambos são zerados ao recarregar — comportamento intencional.
+   ─────────────────────────────────────────────────────────────────────────── */
+let sessionDraft = {};
+let sessionExtraExercises = {};
+
+function draftKey(dk, bi, exName) {
+  return `${dk}-${bi}-${exName}`;
+}
+function getDraftVal(dk, bi, exName, field, fallback) {
+  const k = draftKey(dk, bi, exName);
+  return (sessionDraft[k] && sessionDraft[k][field] != null)
+    ? sessionDraft[k][field]
+    : fallback;
+}
+function setDraftVal(dk, bi, exName, field, val) {
+  const k = draftKey(dk, bi, exName);
+  if (!sessionDraft[k]) sessionDraft[k] = {};
+  sessionDraft[k][field] = parseFloat(val) || 0;
+}
+
+/* Escreve só no sessionDraft — nunca toca blocks */
+function updExDraft(dk, bi, exName, field, val) {
+  setDraftVal(dk, bi, exName, field, val);
+  /* Não chama sv(), não modifica blocks */
+}
+
 /* Preserva estado de blocos abertos entre navegações (QUICK WIN #1) */
 let openBlk=JSON.parse(sessionStorage.getItem('bloc_openBlk')||'{}');
 function persistOpenBlk(){ sessionStorage.setItem('bloc_openBlk',JSON.stringify(openBlk)); }
@@ -2619,23 +2651,29 @@ function saveLog(dk,bi){
   const today=new Date().toLocaleDateString('pt-BR');
   const b=blocks[dk][bi];
   const prs=[];
-  const exArr=b.exercises.map(e=>{
+  /* Combina exercícios do template com extras da sessão */
+  const extraEx=sessionExtraExercises[dk+'-'+bi]||[];
+  const allExercises=[...b.exercises,...extraEx];
+  const exArr=allExercises.map(e=>{
     const key=dk+String(bi)+e.name;
-    /* Lê do DOM se existir, senão do inputState (capturado antes do render) */
+    /* Prioridade: DOM → sessionDraft → inputState → base */
     const sEl=document.getElementById('s-'+key);
     const rEl=document.getElementById('r-'+key);
     const wEl=document.getElementById('w-'+key);
     const tEl=document.getElementById('t-'+key);
-    const sets=sEl?parseInt(sEl.value)||e.sets:(getInputVal('s-'+key,e.sets));
-    const reps=rEl?parseInt(rEl.value)||0:(getInputVal('r-'+key,e.reps||0));
-    const weight=wEl?parseFloat(wEl.value)||0:(getInputVal('w-'+key,e.weight||0));
-    const time=tEl?parseInt(tEl.value)||0:(getInputVal('t-'+key,e.time||0));
+    const sets  =sEl?parseInt(sEl.value)||e.sets  :(sessionDraft[draftKey(dk,bi,e.name)]?.sets   ??getInputVal('s-'+key,e.sets));
+    const reps  =rEl?parseInt(rEl.value)||0        :(sessionDraft[draftKey(dk,bi,e.name)]?.reps   ??getInputVal('r-'+key,e.reps||0));
+    const weight=wEl?parseFloat(wEl.value)||0      :(sessionDraft[draftKey(dk,bi,e.name)]?.weight ??getInputVal('w-'+key,e.weight||0));
+    const time  =tEl?parseInt(tEl.value)||0        :(sessionDraft[draftKey(dk,bi,e.name)]?.time   ??getInputVal('t-'+key,e.time||0));
     if(isPR(e.name,weight))prs.push({name:e.name,weight});
     return{name:e.name,sets,reps,weight,time};
   });
   history.unshift({date:today,dayKey:dk,day:DAYFULL[DAYS.indexOf(dk)],blockLabel:b.label,blockType:b.type,exercises:exArr});
   if(history.length>180)history=history.slice(0,180);
-  sv('bv2_history',history);sv('bv2_blocks',blocks);
+  sv('bv2_history',history);
+  /* Limpa draft do bloco registrado */
+  allExercises.forEach(e=>{ delete sessionDraft[draftKey(dk,bi,e.name)]; });
+  delete sessionExtraExercises[dk+'-'+bi];
   /* Feedback contextual rico */
   const totalVol=exArr.reduce((acc,e)=>acc+(e.sets*(e.weight||0)),0);
   if(prs.length>0){
@@ -2712,14 +2750,14 @@ function renderExRow(e,dk,bi,ei,fromSemana){
   }
   let exD='';
   if(isOpen){
-    const updFn=fromSemana?'updExBase':'updEx';
+    const updFn=fromSemana?'updExBase':'updExDraft';
     const pfx=fromSemana?'b':'';
-    /* Prefill com último valor registrado (não só o base) */
+    /* Prefill: draft (sessão) → último registro no histórico → base do template */
     const lastReg=!fromSemana?getLastRegistered(e.name):null;
-    const dispSets=lastReg?lastReg.sets:e.sets;
-    const dispReps=lastReg?(lastReg.reps||0):(e.reps||0);
-    const dispTime=lastReg?(lastReg.time||0):(e.time||0);
-    const dispWeight=lastReg?(lastReg.weight||0):(e.weight||0);
+    const dispSets  =fromSemana?e.sets  :getDraftVal(dk,bi,e.name,'sets',  lastReg?lastReg.sets  :e.sets);
+    const dispReps  =fromSemana?(e.reps||0):getDraftVal(dk,bi,e.name,'reps',  lastReg?(lastReg.reps||0)  :(e.reps||0));
+    const dispTime  =fromSemana?(e.time||0):getDraftVal(dk,bi,e.name,'time',  lastReg?(lastReg.time||0)  :(e.time||0));
+    const dispWeight=fromSemana?(e.weight||0):getDraftVal(dk,bi,e.name,'weight',lastReg?(lastReg.weight||0):(e.weight||0));
     /* Label contextual: se há histórico, mostra comparação de carga */
     let contextHint='';
     if(lastReg&&!fromSemana){
@@ -2773,12 +2811,17 @@ function renderBlockCard(b,dk,bi,prefix){
   const hasDone=history.some(h=>h.dayKey===dk&&h.date===today&&h.blockLabel===b.label);
   const colorAttr=b.accentColor?` data-color="${b.accentColor}"`:'';
   const addExFn=prefix
-    ?`openModal({t:'addEx',dk:'${dk}',bi:${bi}});setTimeout(()=>reopenDay('${dk}'),10)`
-    :`openModal({t:'addEx',dk:'${dk}',bi:${bi}})`;
+    ?`openModal({t:'addEx',dk:'${dk}',bi:${bi},fromSemana:true});setTimeout(()=>reopenDay('${dk}'),10)`
+    :`openModal({t:'addEx',dk:'${dk}',bi:${bi},fromSemana:false})`;
 
   let body='';
   if(isOpen){
     b.exercises.forEach((e,ei)=>{body+=renderExRow(e,dk,bi,ei,prefix==='sem');});
+    /* Exercícios extras adicionados só para a sessão de hoje */
+    if(!prefix){
+      const extraEx=sessionExtraExercises[dk+'-'+bi]||[];
+      extraEx.forEach((e,ei)=>{body+=renderExRow(e,dk,bi,b.exercises.length+ei,false);});
+    }
     body+=`<button class="add-b" onclick="${addExFn}">
       <svg viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke-width="2" stroke-linecap="round"/></svg>
       exercício
@@ -2916,8 +2959,17 @@ function confAddEx(){
   const v=parseInt(document.getElementById('m-ev').value)||10;
   const ex={name:n,sets:s,reps:tp==='reps'?v:0,weight:0,media:[]};
   if(tp==='time')ex.time=v;
-  blocks[modal.dk][modal.bi].exercises.push(ex);
-  sv('bv2_blocks',blocks);closeModal();
+  /* Se chamado da guia Semana (modal.fromSemana), salva no template.
+     Caso contrário, salva apenas na sessão de hoje. */
+  if(modal.fromSemana){
+    blocks[modal.dk][modal.bi].exercises.push(ex);
+    sv('bv2_blocks',blocks);
+  } else {
+    const k=modal.dk+'-'+modal.bi;
+    if(!sessionExtraExercises[k])sessionExtraExercises[k]=[];
+    sessionExtraExercises[k].push(ex);
+  }
+  closeModal();
 }
 function confAddBlock(dk,type){
   const bt=BTYPES[type];
@@ -3040,7 +3092,7 @@ function openDayDetail(dk){
       let body='';
       if(isOpen){
         b.exercises.forEach((e,ei)=>{body+=renderExRow(e,dk,bi,ei,true);});
-        body+=`<button class="add-b" onclick="openModal({t:'addEx',dk:'${dk}',bi:${bi}});setTimeout(()=>reopenDay('${dk}'),10)">
+        body+=`<button class="add-b" onclick="openModal({t:'addEx',dk:'${dk}',bi:${bi},fromSemana:true});setTimeout(()=>reopenDay('${dk}'),10)">
           <svg viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke-width="2" stroke-linecap="round"/></svg>
           exercício
         </button>`;
