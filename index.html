@@ -482,7 +482,7 @@ body{
 .ex-expand-btn:hover{background:var(--s3);color:var(--tc);border-color:var(--b2)}
 .ex-expand-btn.open-btn{transform:rotate(180deg);border-color:var(--b2);background:var(--s3);color:var(--tc)}
 
-/* Exercise detail section */
+/* ── Focus state: exercício expandido tem destaque de borda ── */
 .ex-detail{
   margin-top:var(--sp-12);
   background:var(--s2);
@@ -490,6 +490,7 @@ body{
   border:0.5px solid var(--b1);
   overflow:hidden;
   animation:slideDown var(--dur-fast) var(--ease-out);
+  border-left:2px solid var(--b2); /* âncora visual de contexto ativo */
 }
 
 .ex-inputs-row{
@@ -524,6 +525,38 @@ body{
 .inp-g input::-webkit-inner-spin-button,
 .inp-g input::-webkit-outer-spin-button{-webkit-appearance:none}
 .inp-g input:focus{border-color:var(--b2);background:var(--s4)}
+
+/* ── Stepper de kg (FASE 2) — sem teclado para ajustes comuns ── */
+.kg-g{gap:2px}
+.kg-stepper{
+  display:flex;
+  align-items:center;
+  gap:2px;
+}
+.kg-step{
+  width:22px;
+  height:32px;
+  background:var(--s4);
+  border:0.5px solid var(--b1);
+  border-radius:var(--r-sm);
+  color:var(--t2);
+  font-size:14px;
+  line-height:1;
+  cursor:pointer;
+  font-family:inherit;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  transition:background var(--dur-fast),color var(--dur-fast),transform var(--dur-fast) var(--ease-spring);
+  flex-shrink:0;
+  -webkit-user-select:none;
+  user-select:none;
+}
+.kg-step:active{background:var(--s3);color:var(--tc);transform:scale(0.9)}
+.kg-stepper input{
+  width:44px; /* ligeiramente menor para acomodar os steppers */
+  flex-shrink:0;
+}
 
 .inp-lbl{
   font-size:9px;
@@ -1141,7 +1174,20 @@ body{
 .ap-select option{background:var(--s1)}
 .ap-slider{width:90px;accent-color:var(--ac);cursor:pointer}
 
-/* ── Theme swatches (substituem preset-btn) ── */
+/* ── Session summary inline — FASE 2 (telemetria pós-registro) ── */
+.session-summary{
+  margin-top:var(--sp-8);
+  padding:6px var(--sp-12);
+  background:rgba(34,197,94,0.05);
+  border:0.5px solid rgba(34,197,94,0.15);
+  border-radius:var(--r-sm);
+  font-size:10px;
+  color:var(--green);
+  letter-spacing:0.8px;
+  font-weight:var(--fw-medium);
+  text-align:center;
+  opacity:0.85;
+}
 .theme-swatch-grid{
   display:grid;
   grid-template-columns:repeat(4,1fr);
@@ -1443,6 +1489,13 @@ body{
   box-shadow:0 4px 24px rgba(0,0,0,.6),0 1px 0 rgba(255,255,255,.04) inset;
 }
 .toast.show{opacity:1;animation:toastIn var(--dur-base) var(--ease-spring)}
+/* Toast de PR — destaque elegante em verde */
+.toast.pr-toast{
+  background:rgba(34,197,94,0.14);
+  color:var(--green);
+  border:0.5px solid rgba(34,197,94,0.28);
+  box-shadow:0 4px 24px rgba(34,197,94,.15),0 1px 0 rgba(34,197,94,.08) inset;
+}
 
 /* ============================================================
    § HISTORY MEDIA
@@ -1857,6 +1910,55 @@ let openEx={},openHist={},modal=null,dangerConfirmStep={};
 let openBlk=JSON.parse(sessionStorage.getItem('bloc_openBlk')||'{}');
 function persistOpenBlk(){ sessionStorage.setItem('bloc_openBlk',JSON.stringify(openBlk)); }
 
+/* FASE 2 — Estado de scroll por aba */
+const scrollPos={};
+function saveScroll(){
+  const ct=document.getElementById('content');
+  if(ct)scrollPos[configOpen?'config':page]=ct.scrollTop;
+}
+function restoreScroll(){
+  const ct=document.getElementById('content');
+  if(!ct)return;
+  const k=configOpen?'config':page;
+  if(scrollPos[k]!=null)ct.scrollTop=scrollPos[k];
+}
+
+/* FASE 2 — Estado dos inputs em memória (evita perda ao re-render) */
+const inputState={};
+function captureInputs(){
+  document.querySelectorAll('.inp-g input').forEach(el=>{
+    if(el.id)inputState[el.id]=el.value;
+  });
+}
+function getInputVal(id,fallback){
+  return inputState[id]!=null?parseFloat(inputState[id])||fallback:fallback;
+}
+
+/* FASE 2 — Stepper: ajusta kg direto sem abrir teclado */
+function stepWeight(id,delta){
+  const el=document.getElementById(id);
+  if(!el)return;
+  const cur=parseFloat(el.value)||0;
+  const nv=Math.max(0,Math.round((cur+delta)*4)/4);
+  el.value=nv;
+  el.dispatchEvent(new Event('change'));
+  /* feedback visual imediato */
+  el.style.transition='color 0.1s';
+  el.style.color=delta>0?'var(--green)':'var(--red)';
+  setTimeout(()=>{el.style.color='';},300);
+}
+
+/* FASE 2 — PR detection: verifica se novo peso bate recorde */
+function isPR(exName, newWeight){
+  if(!newWeight||newWeight<=0)return false;
+  const best=Math.max(0,...history.map(h=>{
+    const exList=Array.isArray(h.exercises)?h.exercises:(h.entries||[]).flatMap(b=>b.exercises||[]);
+    const found=exList.find(e=>e.name===exName);
+    return found?found.weight||0:0;
+  }));
+  return newWeight>best;
+}
+
 const todayI=new Date().getDay();
 const todayKey=DAYS[todayI];
 
@@ -1901,10 +2003,13 @@ function applyAppearance(){
   root.style.setProperty('--dur-base',speeds[a.animSpeed||'normal']||'0.22s');
 }
 
-function toast(m){
+function toast(m,variant){
   const t=document.getElementById('toast');
-  t.textContent=m;t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show'),2200);
+  t.textContent=m;
+  t.className='toast'; /* reset classes */
+  if(variant)t.classList.add(variant);
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show','pr-toast'),2400);
 }
 function ytId(url){const m=url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/);return m?m[1]:null}
 function isImg(url){return/\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(url)||url.startsWith('data:image')||/imgur\.com|i\.ibb\.co|imgbb\.com|postimg\.cc|pbs\.twimg\.com|media\.discordapp|cdn\.discordapp|gyazo\.com|prnt\.sc/.test(url)}
@@ -1953,23 +2058,35 @@ function getExHistory(exName){
 function saveLog(dk,bi){
   const today=new Date().toLocaleDateString('pt-BR');
   const b=blocks[dk][bi];
+  const prs=[];
   const exArr=b.exercises.map(e=>{
     const key=dk+String(bi)+e.name;
+    /* Lê do DOM se existir, senão do inputState (capturado antes do render) */
     const sEl=document.getElementById('s-'+key);
     const rEl=document.getElementById('r-'+key);
     const wEl=document.getElementById('w-'+key);
     const tEl=document.getElementById('t-'+key);
-    return{name:e.name,sets:sEl?parseInt(sEl.value)||e.sets:e.sets,reps:rEl?parseInt(rEl.value)||0:e.reps||0,weight:wEl?parseFloat(wEl.value)||0:e.weight||0,time:tEl?parseInt(tEl.value)||0:e.time||0};
+    const sets=sEl?parseInt(sEl.value)||e.sets:(getInputVal('s-'+key,e.sets));
+    const reps=rEl?parseInt(rEl.value)||0:(getInputVal('r-'+key,e.reps||0));
+    const weight=wEl?parseFloat(wEl.value)||0:(getInputVal('w-'+key,e.weight||0));
+    const time=tEl?parseInt(tEl.value)||0:(getInputVal('t-'+key,e.time||0));
+    if(isPR(e.name,weight))prs.push({name:e.name,weight});
+    return{name:e.name,sets,reps,weight,time};
   });
   history.unshift({date:today,dayKey:dk,day:DAYFULL[DAYS.indexOf(dk)],blockLabel:b.label,blockType:b.type,exercises:exArr});
   if(history.length>180)history=history.slice(0,180);
   sv('bv2_history',history);sv('bv2_blocks',blocks);
-  /* QUICK WIN #6: feedback rico de conclusão */
+  /* Feedback contextual rico */
   const totalVol=exArr.reduce((acc,e)=>acc+(e.sets*(e.weight||0)),0);
-  const msg=totalVol>0?`${b.label} · ${totalVol}kg vol.`:`${b.label} registrado`;
-  toast(msg);
+  if(prs.length>0){
+    const prNames=prs.map(p=>`${p.name} ${p.weight}kg`).join(', ');
+    toast(`PR — ${prNames}`,'pr-toast');
+  } else if(totalVol>0){
+    toast(`${b.label} · ${totalVol}kg`);
+  } else {
+    toast(`${b.label} registrado`);
+  }
   render();
-  /* Pulsa o done-dot após render */
   setTimeout(()=>{
     const dots=document.querySelectorAll('.done-dot');
     dots.forEach(d=>{d.style.animation='none';void d.offsetWidth;d.style.animation='donePulse 0.6s var(--ease-spring)';});
@@ -2037,20 +2154,36 @@ function renderExRow(e,dk,bi,ei,fromSemana){
   if(isOpen){
     const updFn=fromSemana?'updExBase':'updEx';
     const pfx=fromSemana?'b':'';
-    /* QUICK WIN #2: prefill com último valor registrado, não só o base */
+    /* Prefill com último valor registrado (não só o base) */
     const lastReg=!fromSemana?getLastRegistered(e.name):null;
     const dispSets=lastReg?lastReg.sets:e.sets;
     const dispReps=lastReg?(lastReg.reps||0):(e.reps||0);
     const dispTime=lastReg?(lastReg.time||0):(e.time||0);
     const dispWeight=lastReg?(lastReg.weight||0):(e.weight||0);
-    const lastHint=lastReg?`<div style="padding:4px 16px 8px;font-size:9px;color:var(--t2);letter-spacing:0.5px;display:flex;align-items:center;gap:4px;opacity:0.7"><span>↑</span>última sessão</div>`:'';
+    /* Label contextual: se há histórico, mostra comparação de carga */
+    let contextHint='';
+    if(lastReg&&!fromSemana){
+      const prevW=lastReg.weight||0;
+      const prevR=lastReg.reps||0;
+      const prevT=lastReg.time||0;
+      const valStr=prevW>0?`${prevW}kg`:(prevT>0?`${prevT}s`:`${prevR}rep`);
+      contextHint=`<div style="padding:5px 16px 8px;font-size:9px;color:var(--t2);letter-spacing:0.4px;display:flex;align-items:center;gap:5px;border-top:0.5px solid var(--t4)"><span style="opacity:0.5;font-size:8px">↑</span>última: ${valStr}</div>`;
+    }
+    const wId=`w${pfx}-${dk+bi+e.name}`;
     exD+=`<div class="ex-inputs-row">
       <div class="inp-g"><input id="s${pfx}-${dk+bi+e.name}" type="number" value="${dispSets}" min="1" onchange="${updFn}('${dk}',${bi},'${e.name}','sets',this.value)"><div class="inp-lbl">séries</div></div>
       ${hasTime
         ?`<div class="inp-g"><input id="t${pfx}-${dk+bi+e.name}" type="number" value="${dispTime}" min="0" onchange="${updFn}('${dk}',${bi},'${e.name}','time',this.value)"><div class="inp-lbl">seg</div></div>`
         :`<div class="inp-g"><input id="r${pfx}-${dk+bi+e.name}" type="number" value="${dispReps}" min="0" onchange="${updFn}('${dk}',${bi},'${e.name}','reps',this.value)"><div class="inp-lbl">reps</div></div>`}
-      <div class="inp-g"><input id="w${pfx}-${dk+bi+e.name}" type="number" value="${dispWeight}" min="0" step="2.5" onchange="${updFn}('${dk}',${bi},'${e.name}','weight',this.value)"><div class="inp-lbl">kg</div></div>
-    </div>${lastHint}`;
+      <div class="inp-g kg-g">
+        <div class="kg-stepper">
+          <button class="kg-step" onclick="stepWeight('${wId}',-2.5)" ontouchstart="event.preventDefault();stepWeight('${wId}',-2.5)">−</button>
+          <input id="${wId}" type="number" value="${dispWeight}" min="0" step="2.5" onchange="${updFn}('${dk}',${bi},'${e.name}','weight',this.value)">
+          <button class="kg-step" onclick="stepWeight('${wId}',2.5)" ontouchstart="event.preventDefault();stepWeight('${wId}',2.5)">+</button>
+        </div>
+        <div class="inp-lbl">kg</div>
+      </div>
+    </div>${contextHint}`;
     if(fromSemana){
       exD+=`<div style="padding:8px 16px;font-size:10px;color:var(--t2);border-top:0.5px solid var(--t4);letter-spacing:0.3px">Alterações salvas como padrão</div>`;
     }
@@ -2090,6 +2223,16 @@ function renderBlockCard(b,dk,bi,prefix){
       <svg viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke-width="2" stroke-linecap="round"/></svg>
       exercício
     </button>`;
+    /* Sumário inline quando bloco já foi registrado hoje (FASE 2) */
+    if(hasDone){
+      const lastEntry=history.find(h=>h.dayKey===dk&&h.date===new Date().toLocaleDateString('pt-BR')&&h.blockLabel===b.label);
+      if(lastEntry){
+        const vol=lastEntry.exercises.reduce((a,e)=>a+(e.sets*(e.weight||0)),0);
+        const exCount=lastEntry.exercises.length;
+        const volStr=vol>0?` · ${vol}kg`:'';
+        body+=`<div class="session-summary">${exCount} ex${volStr}</div>`;
+      }
+    }
     body+=`<button class="sreg btn-ripple${hasDone?' done':''}" onclick="saveLog('${dk}',${bi})">
       ${hasDone?'✓ Registrado — atualizar':'Registrar bloco'}
     </button>`;
@@ -2097,12 +2240,22 @@ function renderBlockCard(b,dk,bi,prefix){
 
   const chevSvg=`<svg viewBox="0 0 14 14"><path d="M3 5L7 9L11 5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
 
+  /* Subtítulo contextual: quando done mostra volume do dia */
+  let subtitle=`${b.exercises.length} exercício${b.exercises.length!==1?'s':''}`;
+  if(hasDone){
+    const lastEntry=history.find(h=>h.dayKey===dk&&h.date===new Date().toLocaleDateString('pt-BR')&&h.blockLabel===b.label);
+    if(lastEntry){
+      const vol=lastEntry.exercises.reduce((a,e)=>a+(e.sets*(e.weight||0)),0);
+      subtitle=vol>0?`${vol}kg registrado`:'registrado';
+    }
+  }
+
   return`<div class="bc${isOpen?' open':''}${hasDone?' done-block':''}${colorAttr}">
     <div class="bh" onclick="toggleBlk('${key}')">
       <div class="bl-icon">${blockIcon(b)}</div>
       <div class="bh-info">
         <div class="bn">${b.label}</div>
-        <div class="bs">${b.exercises.length} exercício${b.exercises.length!==1?'s':''}</div>
+        <div class="bs">${subtitle}</div>
       </div>
       <div class="bh-right">
         ${hasDone?'<div class="done-dot"></div>':''}
@@ -2246,6 +2399,7 @@ function delGoal(i){goals.splice(i,1);sv('bv2_goals',goals);render()}
 
 /* -------- NAVIGATION -------- */
 function nav(p){
+  saveScroll();   /* salva scroll da aba atual antes de trocar */
   page=p;configOpen=false;
   document.getElementById('gear-btn').classList.remove('active');
   document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
@@ -2640,6 +2794,8 @@ function confirmDanger(action){
 
 /* -------- MAIN RENDER -------- */
 function render(){
+  captureInputs();   /* captura estado dos inputs ANTES de destruir o DOM */
+  saveScroll();      /* salva posição de scroll por aba */
   let h='';
   if(configOpen)h=renderConfig();
   else if(page==='hoje')h=renderHoje();
@@ -2648,6 +2804,7 @@ function render(){
   else if(page==='metas')h=renderMetas();
   const content=document.getElementById('content');
   content.innerHTML=`<div class="page-anim">${h}</div>`+renderModal();
+  restoreScroll();   /* restaura scroll depois de inserir o conteúdo */
 }
 
 applyAppearance();
