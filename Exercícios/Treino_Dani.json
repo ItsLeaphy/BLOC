@@ -1,976 +1,261 @@
 {
-  "version": 1,
-  "blocks": {
-    "SEG": [
-      {
-        "type": "aquecimento",
-        "label": "Aquecimento — Push",
-        "notes": "Preparar ombro, escápula e torácica antes dos presses.",
-        "accentColor": "blue",
-        "exercises": [
-          {
-            "name": "Mobilidade torácica",
-            "sets": 2,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Shoulder circles",
-            "sets": 2,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Wall slides",
-            "sets": 2,
-            "reps": 12,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Band pull-apart",
-            "sets": 2,
-            "reps": 15,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Scapular push-up",
-            "sets": 2,
-            "reps": 12,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "academia",
-        "label": "Push Power",
-        "notes": "Compostos pesados com foco em upper chest e ombro.",
-        "accentColor": "pink",
-        "exercises": [
-          {
-            "name": "Supino inclinado",
-            "sets": 4,
-            "reps": 8,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Supino reto",
-            "sets": 3,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Desenvolvimento com halteres",
-            "sets": 3,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Elevação lateral",
-            "sets": 3,
-            "reps": 15,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Crossover/Fly",
-            "sets": 2,
-            "reps": 12,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Tríceps corda",
-            "sets": 2,
-            "reps": 12,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "skill",
-        "label": "Skill — Handstand",
-        "notes": "Controle escapular e alinhamento.",
-        "accentColor": "purple",
-        "customIcon": "🤸",
-        "exercises": [
-          {
-            "name": "Handstand na parede",
-            "sets": 4,
-            "reps": 0,
-            "weight": 0,
-            "time": 30,
-            "media": []
-          },
-          {
-            "name": "Pike push-up",
-            "sets": 3,
-            "reps": 8,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "core",
-        "label": "Core",
-        "notes": "Estabilidade sem destruir recuperação.",
-        "accentColor": "",
-        "exercises": [
-          {
-            "name": "Hollow body hold",
-            "sets": 3,
-            "reps": 0,
-            "weight": 0,
-            "time": 30,
-            "media": []
-          },
-          {
-            "name": "Prancha",
-            "sets": 3,
-            "reps": 0,
-            "weight": 0,
-            "time": 45,
-            "media": []
-          }
-        ]
-      }
-    ],
-    "TER": [
-      {
-        "type": "aquecimento",
-        "label": "Aquecimento — Pull",
-        "notes": "Ativar escápula e dorsal.",
-        "accentColor": "green",
-        "exercises": [
-          {
-            "name": "Mobilidade torácica",
-            "sets": 2,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Shoulder dislocates",
-            "sets": 2,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Scapular pull-up",
-            "sets": 2,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Face pull leve",
-            "sets": 2,
-            "reps": 15,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "academia",
-        "label": "Pull Power",
-        "notes": "Foco em largura dorsal, densidade e pegada.",
-        "accentColor": "green",
-        "exercises": [
-          {
-            "name": "Barra fixa / Graviton",
-            "sets": 4,
-            "reps": 8,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Remada curvada",
-            "sets": 3,
-            "reps": 8,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Puxada aberta",
-            "sets": 3,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Remada unilateral",
-            "sets": 2,
-            "reps": 12,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Facepull",
-            "sets": 3,
-            "reps": 15,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Rosca martelo",
-            "sets": 2,
-            "reps": 12,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Rosca direta",
-            "sets": 2,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "calistenia",
-        "label": "Controle Corporal",
-        "notes": "Força relativa e consciência corporal.",
-        "accentColor": "purple",
-        "exercises": [
-          {
-            "name": "Active hang",
-            "sets": 3,
-            "reps": 0,
-            "weight": 0,
-            "time": 30,
-            "media": []
-          },
-          {
-            "name": "Barra controlada",
-            "sets": 3,
-            "reps": 6,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "core",
-        "label": "Core leve",
-        "notes": "",
-        "accentColor": "",
-        "exercises": [
-          {
-            "name": "Hanging knee raise",
-            "sets": 3,
-            "reps": 12,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "grip",
-        "label": "Grip / Pegada",
-        "notes": "",
-        "accentColor": "orange",
-        "exercises": [
-          {
-            "name": "Farmer carry",
-            "sets": 3,
-            "reps": 0,
-            "weight": 0,
-            "time": 25,
-            "media": []
-          },
-          {
-            "name": "Dead hang",
-            "sets": 3,
-            "reps": 0,
-            "weight": 0,
-            "time": 30,
-            "media": []
-          }
-        ]
-      }
-    ],
-    "QUA": [
-      {
-        "type": "aquecimento",
-        "label": "Aquecimento — Legs",
-        "notes": "Quadril, tornozelo e posterior.",
-        "accentColor": "yellow",
-        "exercises": [
-          {
-            "name": "Mobilidade de quadril",
-            "sets": 2,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Mobilidade de tornozelo",
-            "sets": 2,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Glute bridge",
-            "sets": 2,
-            "reps": 15,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Bodyweight squat",
-            "sets": 2,
-            "reps": 15,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "academia",
-        "label": "Legs + Base Estrutural",
-        "notes": "Perna completa. Sem negligenciar posterior.",
-        "accentColor": "yellow",
-        "exercises": [
-          {
-            "name": "Agachamento livre",
-            "sets": 4,
-            "reps": 8,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Leg press",
-            "sets": 3,
-            "reps": 12,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Romanian deadlift",
-            "sets": 3,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Cadeira flexora",
-            "sets": 2,
-            "reps": 12,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Elevação pélvica",
-            "sets": 3,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Panturrilha em pé",
-            "sets": 4,
-            "reps": 15,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Panturrilha sentado",
-            "sets": 3,
-            "reps": 20,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "skill",
-        "label": "Skill — Lower Body",
-        "notes": "",
-        "accentColor": "purple",
-        "exercises": [
-          {
-            "name": "Pistol squat progression",
-            "sets": 3,
-            "reps": 6,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "core",
-        "label": "Core pesado",
-        "notes": "",
-        "accentColor": "",
-        "exercises": [
-          {
-            "name": "Dragon flag progression",
-            "sets": 3,
-            "reps": 6,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "L-sit progression",
-            "sets": 3,
-            "reps": 0,
-            "weight": 0,
-            "time": 20,
-            "media": []
-          },
-          {
-            "name": "Leg raises",
-            "sets": 3,
-            "reps": 12,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      }
-    ],
-    "QUI": [
-      {
-        "type": "aquecimento",
-        "label": "Aquecimento — Upper Atlético",
-        "notes": "",
-        "accentColor": "teal",
-        "exercises": [
-          {
-            "name": "Wall slides",
-            "sets": 2,
-            "reps": 12,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Band pull-apart",
-            "sets": 2,
-            "reps": 15,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Mobilidade escapular",
-            "sets": 2,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "academia",
-        "label": "Upper Atlético",
-        "notes": "Refinamento estético do shape em V.",
-        "accentColor": "teal",
-        "exercises": [
-          {
-            "name": "Elevação lateral",
-            "sets": 4,
-            "reps": 15,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Desenvolvimento máquina/halter",
-            "sets": 3,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Pull-over",
-            "sets": 3,
-            "reps": 12,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Crucifixo inverso",
-            "sets": 3,
-            "reps": 15,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Encolhimento",
-            "sets": 3,
-            "reps": 12,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "skill",
-        "label": "Skill — Controle",
-        "notes": "",
-        "accentColor": "purple",
-        "exercises": [
-          {
-            "name": "Handstand",
-            "sets": 4,
-            "reps": 0,
-            "weight": 0,
-            "time": 30,
-            "media": []
-          },
-          {
-            "name": "Scapular control drills",
-            "sets": 3,
-            "reps": 12,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Pike push-up",
-            "sets": 3,
-            "reps": 8,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "core",
-        "label": "Core técnico",
-        "notes": "",
-        "accentColor": "",
-        "exercises": [
-          {
-            "name": "Vacuum",
-            "sets": 3,
-            "reps": 0,
-            "weight": 0,
-            "time": 30,
-            "media": []
-          },
-          {
-            "name": "Side plank",
-            "sets": 3,
-            "reps": 0,
-            "weight": 0,
-            "time": 30,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "neck",
-        "label": "Neck",
-        "notes": "Presença física e estabilidade cervical.",
-        "accentColor": "",
-        "exercises": [
-          {
-            "name": "Neck curls",
-            "sets": 3,
-            "reps": 15,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Neck extension",
-            "sets": 3,
-            "reps": 15,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      }
-    ],
-    "SEX": [
-      {
-        "type": "aquecimento",
-        "label": "Aquecimento — Performance",
-        "notes": "Preparação corporal completa.",
-        "accentColor": "red",
-        "exercises": [
-          {
-            "name": "Mobilidade dinâmica full body",
-            "sets": 1,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Polichinelo",
-            "sets": 1,
-            "reps": 0,
-            "weight": 0,
-            "time": 60,
-            "media": []
-          },
-          {
-            "name": "Ativação escapular",
-            "sets": 2,
-            "reps": 12,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "academia",
-        "label": "Full Body Performance",
-        "notes": "Integração corporal e potência.",
-        "accentColor": "red",
-        "exercises": [
-          {
-            "name": "Dips",
-            "sets": 3,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Barra fixa",
-            "sets": 3,
-            "reps": 8,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Agachamento frontal",
-            "sets": 3,
-            "reps": 8,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Desenvolvimento explosivo",
-            "sets": 3,
-            "reps": 6,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "calistenia",
-        "label": "Calistenia Performance",
-        "notes": "Controle, explosão e força relativa.",
-        "accentColor": "purple",
-        "exercises": [
-          {
-            "name": "Flexão explosiva",
-            "sets": 3,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "L-sit",
-            "sets": 4,
-            "reps": 0,
-            "weight": 0,
-            "time": 20,
-            "media": []
-          },
-          {
-            "name": "Muscle-up progression",
-            "sets": 3,
-            "reps": 5,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Pull-up controlado",
-            "sets": 3,
-            "reps": 6,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "core",
-        "label": "Core",
-        "notes": "",
-        "accentColor": "",
-        "exercises": [
-          {
-            "name": "Hanging leg raise",
-            "sets": 3,
-            "reps": 12,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Hollow hold",
-            "sets": 3,
-            "reps": 0,
-            "weight": 0,
-            "time": 30,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "grip",
-        "label": "Grip / Antebraço",
-        "notes": "",
-        "accentColor": "orange",
-        "exercises": [
-          {
-            "name": "Wrist curls",
-            "sets": 3,
-            "reps": 15,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Dead hangs",
-            "sets": 3,
-            "reps": 0,
-            "weight": 0,
-            "time": 40,
-            "media": []
-          }
-        ]
-      }
-    ],
-    "SAB": [
-      {
-        "type": "mobilidade",
-        "label": "Mobilidade",
-        "notes": "Recuperação ativa e refinamento corporal.",
-        "accentColor": "blue",
-        "exercises": [
-          {
-            "name": "Mobilidade torácica",
-            "sets": 2,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Mobilidade de ombro",
-            "sets": 2,
-            "reps": 10,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Hip 90/90",
-            "sets": 2,
-            "reps": 0,
-            "weight": 0,
-            "time": 45,
-            "media": []
-          },
-          {
-            "name": "Alongamento posterior",
-            "sets": 2,
-            "reps": 0,
-            "weight": 0,
-            "time": 45,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "skill",
-        "label": "Skill Day",
-        "notes": "Treino leve e técnico.",
-        "accentColor": "purple",
-        "exercises": [
-          {
-            "name": "Handstand leve",
-            "sets": 4,
-            "reps": 0,
-            "weight": 0,
-            "time": 20,
-            "media": []
-          },
-          {
-            "name": "L-sit practice",
-            "sets": 4,
-            "reps": 0,
-            "weight": 0,
-            "time": 20,
-            "media": []
-          },
-          {
-            "name": "Scapular control",
-            "sets": 3,
-            "reps": 12,
-            "weight": 0,
-            "time": 0,
-            "media": []
-          },
-          {
-            "name": "Hangs leves",
-            "sets": 3,
-            "reps": 0,
-            "weight": 0,
-            "time": 30,
-            "media": []
-          }
-        ]
-      },
-      {
-        "type": "recovery",
-        "label": "Recovery",
-        "notes": "Recuperar sem ficar parado.",
-        "accentColor": "",
-        "exercises": [
-          {
-            "name": "Respiração diafragmática",
-            "sets": 3,
-            "reps": 0,
-            "weight": 0,
-            "time": 60,
-            "media": []
-          },
-          {
-            "name": "Caminhada leve",
-            "sets": 1,
-            "reps": 0,
-            "weight": 0,
-            "time": 900,
-            "media": []
-          }
-        ]
-      }
-    ],
-    "DOM": [
-      {
-        "type": "recovery",
-        "label": "Descanso Real",
-        "notes": "Sem inventar moda. Recuperação também constrói físico.",
-        "accentColor": "",
-        "exercises": [
-          {
-            "name": "Alongamento leve",
-            "sets": 1,
-            "reps": 0,
-            "weight": 0,
-            "time": 300,
-            "media": []
-          },
-          {
-            "name": "Respiração profunda",
-            "sets": 3,
-            "reps": 0,
-            "weight": 0,
-            "time": 60,
-            "media": []
-          }
-        ]
-      }
-    ]
-  },
-  "history": [],
-  "goals": [
+  "SEG": [
     {
-      "name": "Shape em V",
-      "progress": 15,
-      "note": "Prioridade máxima"
+      "type": "academia",
+      "label": "Push — Peito, Ombro, Tríceps",
+      "notes": "RIR 2. Foco em execução no supino inclinado.",
+      "accentColor": "blue",
+      "exercises": [
+        { "name": "Supino inclinado", "sets": 4, "reps": 8, "weight": 0, "time": 0, "media": [] },
+        { "name": "Supino reto", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Desenvolvimento", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Elevação lateral", "sets": 3, "reps": 15, "weight": 0, "time": 0, "media": [] },
+        { "name": "Crossover / Fly", "sets": 2, "reps": 12, "weight": 0, "time": 0, "media": [] },
+        { "name": "Tríceps corda", "sets": 2, "reps": 12, "weight": 0, "time": 0, "media": [] }
+      ]
     },
     {
-      "name": "Handstand sólido",
-      "progress": 10,
-      "note": "Controle corporal"
+      "type": "skill",
+      "label": "Skill",
+      "notes": "",
+      "accentColor": "purple",
+      "exercises": [
+        { "name": "Handstand na parede", "sets": 4, "reps": 0, "weight": 0, "time": 30, "media": [] },
+        { "name": "Pike push-up", "sets": 3, "reps": 8, "weight": 0, "time": 0, "media": [] }
+      ]
     },
     {
-      "name": "Muscle-up",
-      "progress": 5,
-      "note": "Força relativa"
-    },
-    {
-      "name": "Mobilidade atlética",
-      "progress": 10,
-      "note": "Movimento fluido"
-    },
-    {
-      "name": "Presença física cinematográfica",
-      "progress": 5,
-      "note": "Estética + postura + controle"
+      "type": "core",
+      "label": "Core",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Hollow hold", "sets": 3, "reps": 0, "weight": 0, "time": 30, "media": [] },
+        { "name": "Prancha", "sets": 3, "reps": 0, "weight": 0, "time": 45, "media": [] }
+      ]
     }
   ],
-  "appearance": {
-    "theme": "carbon",
-    "accentColor": "#ffffff",
-    "font": "helvetica",
-    "borderRadius": 14,
-    "compactMode": false,
-    "animSpeed": "normal"
-  }
+  "TER": [
+    {
+      "type": "academia",
+      "label": "Pull — Costas, Bíceps",
+      "notes": "Foco em retração escapular. Barra fixa é o exercício principal.",
+      "accentColor": "green",
+      "exercises": [
+        { "name": "Barra fixa / Graviton", "sets": 4, "reps": 8, "weight": 0, "time": 0, "media": [] },
+        { "name": "Remada curvada", "sets": 3, "reps": 8, "weight": 0, "time": 0, "media": [] },
+        { "name": "Puxada aberta", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Remada unilateral", "sets": 2, "reps": 12, "weight": 0, "time": 0, "media": [] },
+        { "name": "Facepull", "sets": 3, "reps": 15, "weight": 0, "time": 0, "media": [] },
+        { "name": "Rosca martelo", "sets": 2, "reps": 12, "weight": 0, "time": 0, "media": [] },
+        { "name": "Rosca direta", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "calistenia",
+      "label": "Controle",
+      "notes": "",
+      "accentColor": "teal",
+      "exercises": [
+        { "name": "Active hang", "sets": 3, "reps": 0, "weight": 0, "time": 30, "media": [] },
+        { "name": "Barra controlada", "sets": 3, "reps": 6, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "core",
+      "label": "Core",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Hanging knee raise", "sets": 3, "reps": 12, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "grip",
+      "label": "Grip",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Farmer carry", "sets": 3, "reps": 0, "weight": 0, "time": 25, "media": [] },
+        { "name": "Dead hang", "sets": 3, "reps": 0, "weight": 0, "time": 30, "media": [] }
+      ]
+    }
+  ],
+  "QUA": [
+    {
+      "type": "academia",
+      "label": "Perna — Base estrutural",
+      "notes": "Agachamento livre é o foco. Não negligencie panturrilha.",
+      "accentColor": "orange",
+      "exercises": [
+        { "name": "Agachamento livre", "sets": 4, "reps": 8, "weight": 0, "time": 0, "media": [] },
+        { "name": "Leg press", "sets": 3, "reps": 12, "weight": 0, "time": 0, "media": [] },
+        { "name": "Romanian deadlift", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Cadeira flexora", "sets": 2, "reps": 12, "weight": 0, "time": 0, "media": [] },
+        { "name": "Elevação pélvica", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Panturrilha em pé", "sets": 4, "reps": 15, "weight": 0, "time": 0, "media": [] },
+        { "name": "Panturrilha sentado", "sets": 3, "reps": 20, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "skill",
+      "label": "Skill",
+      "notes": "",
+      "accentColor": "purple",
+      "exercises": [
+        { "name": "Pistol squat progressão", "sets": 3, "reps": 6, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "core",
+      "label": "Core pesado",
+      "notes": "",
+      "accentColor": "red",
+      "exercises": [
+        { "name": "Dragon flag progressão", "sets": 3, "reps": 6, "weight": 0, "time": 0, "media": [] },
+        { "name": "L-sit", "sets": 3, "reps": 0, "weight": 0, "time": 20, "media": [] },
+        { "name": "Leg raises", "sets": 3, "reps": 12, "weight": 0, "time": 0, "media": [] }
+      ]
+    }
+  ],
+  "QUI": [
+    {
+      "type": "academia",
+      "label": "Upper Atlético — Ombro, Costas",
+      "notes": "Volume de ombro alto. Foco estético e postural.",
+      "accentColor": "pink",
+      "exercises": [
+        { "name": "Elevação lateral", "sets": 4, "reps": 15, "weight": 0, "time": 0, "media": [] },
+        { "name": "Desenvolvimento", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Pull-over", "sets": 3, "reps": 12, "weight": 0, "time": 0, "media": [] },
+        { "name": "Crucifixo inverso", "sets": 3, "reps": 15, "weight": 0, "time": 0, "media": [] },
+        { "name": "Encolhimento", "sets": 3, "reps": 12, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "skill",
+      "label": "Skill",
+      "notes": "",
+      "accentColor": "purple",
+      "exercises": [
+        { "name": "Handstand", "sets": 4, "reps": 0, "weight": 0, "time": 30, "media": [] },
+        { "name": "Scapular control", "sets": 3, "reps": 12, "weight": 0, "time": 0, "media": [] },
+        { "name": "Pike push-up", "sets": 3, "reps": 8, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "core",
+      "label": "Core",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Vacuum", "sets": 3, "reps": 0, "weight": 0, "time": 30, "media": [] },
+        { "name": "Side plank", "sets": 3, "reps": 0, "weight": 0, "time": 30, "media": [] }
+      ]
+    },
+    {
+      "type": "neck",
+      "label": "Neck",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Neck curls", "sets": 3, "reps": 15, "weight": 0, "time": 0, "media": [] },
+        { "name": "Neck extension", "sets": 3, "reps": 15, "weight": 0, "time": 0, "media": [] }
+      ]
+    }
+  ],
+  "SEX": [
+    {
+      "type": "academia",
+      "label": "Full Body Performance",
+      "notes": "Foco em potência e controle. Qualidade > quantidade.",
+      "accentColor": "yellow",
+      "exercises": [
+        { "name": "Dips", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Barra fixa", "sets": 3, "reps": 8, "weight": 0, "time": 0, "media": [] },
+        { "name": "Agachamento frontal", "sets": 3, "reps": 8, "weight": 0, "time": 0, "media": [] },
+        { "name": "Desenvolvimento explosivo", "sets": 3, "reps": 6, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "calistenia",
+      "label": "Calistenia",
+      "notes": "",
+      "accentColor": "teal",
+      "exercises": [
+        { "name": "Flexão explosiva", "sets": 3, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "L-sit", "sets": 4, "reps": 0, "weight": 0, "time": 20, "media": [] },
+        { "name": "Muscle-up progressão", "sets": 3, "reps": 5, "weight": 0, "time": 0, "media": [] },
+        { "name": "Pull-up controlado", "sets": 3, "reps": 6, "weight": 0, "time": 0, "media": [] }
+      ]
+    },
+    {
+      "type": "core",
+      "label": "Core",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Hanging leg raise", "sets": 3, "reps": 12, "weight": 0, "time": 0, "media": [] },
+        { "name": "Hollow hold", "sets": 3, "reps": 0, "weight": 0, "time": 30, "media": [] }
+      ]
+    },
+    {
+      "type": "grip",
+      "label": "Grip",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Wrist curls", "sets": 3, "reps": 15, "weight": 0, "time": 0, "media": [] },
+        { "name": "Dead hang", "sets": 3, "reps": 0, "weight": 0, "time": 40, "media": [] }
+      ]
+    }
+  ],
+  "SAB": [
+    {
+      "type": "mobilidade",
+      "label": "Mobilidade",
+      "notes": "",
+      "accentColor": "blue",
+      "exercises": [
+        { "name": "Mobilidade torácica", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Mobilidade ombro", "sets": 2, "reps": 10, "weight": 0, "time": 0, "media": [] },
+        { "name": "Hip 90/90", "sets": 2, "reps": 0, "weight": 0, "time": 45, "media": [] },
+        { "name": "Alongamento posterior", "sets": 2, "reps": 0, "weight": 0, "time": 45, "media": [] }
+      ]
+    },
+    {
+      "type": "skill",
+      "label": "Skill leve",
+      "notes": "",
+      "accentColor": "purple",
+      "exercises": [
+        { "name": "Handstand leve", "sets": 4, "reps": 0, "weight": 0, "time": 20, "media": [] },
+        { "name": "L-sit prática", "sets": 4, "reps": 0, "weight": 0, "time": 20, "media": [] },
+        { "name": "Scapular control", "sets": 3, "reps": 12, "weight": 0, "time": 0, "media": [] },
+        { "name": "Hangs leves", "sets": 3, "reps": 0, "weight": 0, "time": 30, "media": [] }
+      ]
+    },
+    {
+      "type": "recovery",
+      "label": "Recovery",
+      "notes": "",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Respiração diafragmática", "sets": 3, "reps": 0, "weight": 0, "time": 60, "media": [] },
+        { "name": "Caminhada leve", "sets": 1, "reps": 0, "weight": 0, "time": 900, "media": [] }
+      ]
+    }
+  ],
+  "DOM": [
+    {
+      "type": "recovery",
+      "label": "Descanso",
+      "notes": "Dia de recuperação. Sem intensidade.",
+      "accentColor": "",
+      "exercises": [
+        { "name": "Alongamento leve", "sets": 1, "reps": 0, "weight": 0, "time": 300, "media": [] },
+        { "name": "Respiração diafragmática", "sets": 3, "reps": 0, "weight": 0, "time": 60, "media": [] }
+      ]
+    }
+  ]
 }
