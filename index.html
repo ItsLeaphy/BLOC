@@ -1634,52 +1634,159 @@ const THEMES={
   sage:    {bg:'#f2f5f0',s1:'#ffffff',s2:'#e8ede4',s3:'#dce4d6',s4:'#cfdac8',tc:'#1e2d1a',t2:'#4a6038',t3:'#90a880',ac:'#2d6020'},
 };
 
-const ld=(k,d)=>{try{return JSON.parse(localStorage.getItem(k))??d}catch{return d}};
-const sv=(k,v)=>localStorage.setItem(k,JSON.stringify(v));
+// ─────────────────────────────────────────────────────────────────────────────
+// SISTEMA DE DADOS PERSISTENTES COM MIGRAÇÃO VERSIONADA
+// Como funciona:
+//   DATA_VERSION: bumpe este número cada vez que mudar a estrutura dos dados.
+//   MIGRATIONS: array ordenado de funções, uma por versão.
+//   Ao iniciar, o app lê a versão salva. Se for menor que DATA_VERSION,
+//   roda apenas as migrações faltantes — sem apagar dados do usuário.
+//   Dados de primeira vez (null) recebem os defaults e vão direto pra versão atual.
+// ─────────────────────────────────────────────────────────────────────────────
 
-let blocks=ld('bv2_blocks',{
+const DATA_VERSION = 1; // ← bumpe aqui ao mudar estrutura de dados
+const STORE = 'bloc_data'; // chave única no localStorage
+
+const DEFAULT_BLOCKS = {
   SEG:[
-    {type:'academia',label:'Academia — Push',notes:'',exercises:[{name:'Supino reto',sets:4,reps:10,weight:0,media:[]},{name:'Desenvolvimento',sets:3,reps:12,weight:0,media:[]},{name:'Crossover',sets:3,reps:15,weight:0,media:[]}]},
-    {type:'skill',label:'Skill',notes:'',exercises:[{name:'Handstand',sets:3,reps:0,time:30,media:[]}]},
-    {type:'core',label:'Core leve',notes:'',exercises:[{name:'Prancha',sets:3,reps:0,time:45,media:[]},{name:'Hollow body',sets:3,reps:0,time:30,media:[]}]}
+    {type:'academia',label:'Academia — Push',notes:'',exercises:[{name:'Supino reto',sets:4,reps:10,weight:0,time:0,media:[]},{name:'Desenvolvimento',sets:3,reps:12,weight:0,time:0,media:[]},{name:'Crossover',sets:3,reps:15,weight:0,time:0,media:[]}]},
+    {type:'skill',label:'Skill',notes:'',exercises:[{name:'Handstand',sets:3,reps:0,time:30,weight:0,media:[]}]},
+    {type:'core',label:'Core leve',notes:'',exercises:[{name:'Prancha',sets:3,reps:0,time:45,weight:0,media:[]},{name:'Hollow body',sets:3,reps:0,time:30,weight:0,media:[]}]}
   ],
   TER:[
-    {type:'academia',label:'Academia — Pull',notes:'',exercises:[{name:'Barra fixa',sets:4,reps:8,weight:0,media:[]},{name:'Remada curvada',sets:3,reps:10,weight:0,media:[]}]},
-    {type:'calistenia',label:'Calistenia',notes:'',exercises:[{name:'Muscle-up negativo',sets:3,reps:5,weight:0,media:[]}]},
-    {type:'core',label:'Core leve',notes:'',exercises:[{name:'Ab wheel',sets:3,reps:10,weight:0,media:[]}]}
+    {type:'academia',label:'Academia — Pull',notes:'',exercises:[{name:'Barra fixa',sets:4,reps:8,weight:0,time:0,media:[]},{name:'Remada curvada',sets:3,reps:10,weight:0,time:0,media:[]}]},
+    {type:'calistenia',label:'Calistenia',notes:'',exercises:[{name:'Muscle-up negativo',sets:3,reps:5,weight:0,time:0,media:[]}]},
+    {type:'core',label:'Core leve',notes:'',exercises:[{name:'Ab wheel',sets:3,reps:10,weight:0,time:0,media:[]}]}
   ],
   QUA:[
-    {type:'academia',label:'Academia — Perna',notes:'',exercises:[{name:'Agachamento',sets:4,reps:10,weight:0,media:[]},{name:'Leg press',sets:3,reps:12,weight:0,media:[]},{name:'Panturrilha',sets:4,reps:15,weight:0,media:[]}]},
-    {type:'core',label:'Core pesado',notes:'',exercises:[{name:'Dragon flag',sets:3,reps:6,weight:0,media:[]},{name:'Levantamento de pernas',sets:3,reps:12,weight:0,media:[]}]}
+    {type:'academia',label:'Academia — Perna',notes:'',exercises:[{name:'Agachamento',sets:4,reps:10,weight:0,time:0,media:[]},{name:'Leg press',sets:3,reps:12,weight:0,time:0,media:[]},{name:'Panturrilha',sets:4,reps:15,weight:0,time:0,media:[]}]},
+    {type:'core',label:'Core pesado',notes:'',exercises:[{name:'Dragon flag',sets:3,reps:6,weight:0,time:0,media:[]},{name:'Levantamento de pernas',sets:3,reps:12,weight:0,time:0,media:[]}]}
   ],
   QUI:[
-    {type:'academia',label:'Academia — Ombro',notes:'',exercises:[{name:'Desenvolvimento militar',sets:4,reps:10,weight:0,media:[]},{name:'Elevação lateral',sets:3,reps:15,weight:0,media:[]}]},
-    {type:'skill',label:'Skill',notes:'',exercises:[{name:'L-sit',sets:4,reps:0,time:20,media:[]}]},
-    {type:'neck',label:'Neck',notes:'',exercises:[{name:'Flexão cervical',sets:2,reps:15,weight:0,media:[]}]}
+    {type:'academia',label:'Academia — Ombro',notes:'',exercises:[{name:'Desenvolvimento militar',sets:4,reps:10,weight:0,time:0,media:[]},{name:'Elevação lateral',sets:3,reps:15,weight:0,time:0,media:[]}]},
+    {type:'skill',label:'Skill',notes:'',exercises:[{name:'L-sit',sets:4,reps:0,time:20,weight:0,media:[]}]},
+    {type:'neck',label:'Neck',notes:'',exercises:[{name:'Flexão cervical',sets:2,reps:15,weight:0,time:0,media:[]}]}
   ],
   SEX:[
-    {type:'academia',label:'Academia — Braço',notes:'',exercises:[{name:'Rosca direta',sets:3,reps:12,weight:0,media:[]},{name:'Tríceps corda',sets:3,reps:12,weight:0,media:[]},{name:'Martelo',sets:3,reps:10,weight:0,media:[]}]},
-    {type:'core',label:'Core técnico',notes:'',exercises:[{name:'Dead bug',sets:3,reps:10,weight:0,media:[]},{name:'Pallof press',sets:3,reps:12,weight:0,media:[]}]}
+    {type:'academia',label:'Academia — Braço',notes:'',exercises:[{name:'Rosca direta',sets:3,reps:12,weight:0,time:0,media:[]},{name:'Tríceps corda',sets:3,reps:12,weight:0,time:0,media:[]},{name:'Martelo',sets:3,reps:10,weight:0,time:0,media:[]}]},
+    {type:'core',label:'Core técnico',notes:'',exercises:[{name:'Dead bug',sets:3,reps:10,weight:0,time:0,media:[]},{name:'Pallof press',sets:3,reps:12,weight:0,time:0,media:[]}]}
   ],
   SAB:[
-    {type:'calistenia',label:'Calistenia full',notes:'',exercises:[{name:'Barra fixa',sets:5,reps:8,weight:0,media:[]},{name:'Dips',sets:4,reps:10,weight:0,media:[]},{name:'Flexões',sets:3,reps:20,weight:0,media:[]}]},
-    {type:'core',label:'Core moderado',notes:'',exercises:[{name:'Prancha lateral',sets:3,reps:0,time:30,media:[]}]}
+    {type:'calistenia',label:'Calistenia full',notes:'',exercises:[{name:'Barra fixa',sets:5,reps:8,weight:0,time:0,media:[]},{name:'Dips',sets:4,reps:10,weight:0,time:0,media:[]},{name:'Flexões',sets:3,reps:20,weight:0,time:0,media:[]}]},
+    {type:'core',label:'Core moderado',notes:'',exercises:[{name:'Prancha lateral',sets:3,reps:0,time:30,weight:0,media:[]}]}
   ],
-  DOM:[{type:'mobilidade',label:'Recuperação',notes:'',exercises:[{name:'Alongamento full body',sets:1,reps:0,time:600,media:[]}]}],
-});
+  DOM:[{type:'mobilidade',label:'Recuperação',notes:'',exercises:[{name:'Alongamento full body',sets:1,reps:0,time:600,weight:0,media:[]}]}],
+};
 
-let history=ld('bv2_history',[]);
-let goals=ld('bv2_goals',[
+const DEFAULT_GOALS = [
   {name:'Shape em V',progress:20,note:'Foco em ombro e lat'},
   {name:'Handstand 10s',progress:35,note:'Praticar equilíbrio'},
   {name:'Muscle-up',progress:15,note:'Força de barra'},
-  {name:'Core definido',progress:40,note:'Core técnico'},
-]);
+  {name:'Core definido',progress:40,note:''},
+];
 
-let appearance=ld('bv2_appearance',{
+const DEFAULT_APPEARANCE = {
   theme:'dark',accentColor:'#ffffff',font:'helvetica',
   borderRadius:14,compactMode:false,animSpeed:'normal',
-});
+};
+
+// ── Migrações incrementais ─────────────────────────────────────────────────
+// Cada entrada corresponde a uma versão (índice 0 = migração para versão 1, etc.)
+// Recebe o store inteiro e retorna o store modificado.
+// NUNCA apague entradas antigas — apenas adicione novas no final.
+const MIGRATIONS = [
+  // v0 → v1: garante que todo exercício tem o campo 'time' e 'weight'
+  (store) => {
+    const days = store.blocks || {};
+    Object.values(days).forEach(dayBlocks => {
+      (dayBlocks || []).forEach(block => {
+        (block.exercises || []).forEach(ex => {
+          if (ex.time === undefined) ex.time = 0;
+          if (ex.weight === undefined) ex.weight = 0;
+          if (!Array.isArray(ex.media)) ex.media = [];
+        });
+      });
+    });
+    // garante que todo entry do histórico tem exercícios com campos completos
+    (store.history || []).forEach(entry => {
+      const exList = Array.isArray(entry.exercises) ? entry.exercises
+        : (entry.entries || []).flatMap(b => b.exercises || []);
+      exList.forEach(ex => {
+        if (ex.time === undefined) ex.time = 0;
+        if (ex.weight === undefined) ex.weight = 0;
+      });
+    });
+    return store;
+  },
+  // v1 → v2: (exemplo futuro) adicione aqui quando precisar
+  // (store) => { ... return store; },
+];
+
+// ── Leitura e migração ─────────────────────────────────────────────────────
+function loadStore() {
+  let raw = null;
+  try { raw = JSON.parse(localStorage.getItem(STORE)); } catch {}
+
+  // Usuário novo: inicializa com defaults na versão atual
+  if (!raw) {
+    return {
+      version: DATA_VERSION,
+      blocks: JSON.parse(JSON.stringify(DEFAULT_BLOCKS)),
+      history: [],
+      goals: JSON.parse(JSON.stringify(DEFAULT_GOALS)),
+      appearance: JSON.parse(JSON.stringify(DEFAULT_APPEARANCE)),
+    };
+  }
+
+  // Compatibilidade retroativa: dados no formato antigo (múltiplas chaves)
+  // Se não tem 'version', vieram das chaves bv2_* antigas — consolida
+  if (raw.version === undefined) {
+    try {
+      const oldBlocks = JSON.parse(localStorage.getItem('bv2_blocks'));
+      const oldHistory = JSON.parse(localStorage.getItem('bv2_history'));
+      const oldGoals = JSON.parse(localStorage.getItem('bv2_goals'));
+      const oldAppearance = JSON.parse(localStorage.getItem('bv2_appearance'));
+      raw = {
+        version: 0,
+        blocks: oldBlocks || JSON.parse(JSON.stringify(DEFAULT_BLOCKS)),
+        history: oldHistory || [],
+        goals: oldGoals || JSON.parse(JSON.stringify(DEFAULT_GOALS)),
+        appearance: oldAppearance || JSON.parse(JSON.stringify(DEFAULT_APPEARANCE)),
+      };
+    } catch {
+      raw = { version: 0, blocks: JSON.parse(JSON.stringify(DEFAULT_BLOCKS)), history: [], goals: JSON.parse(JSON.stringify(DEFAULT_GOALS)), appearance: JSON.parse(JSON.stringify(DEFAULT_APPEARANCE)) };
+    }
+  }
+
+  // Roda apenas as migrações que faltam
+  let v = raw.version || 0;
+  while (v < DATA_VERSION) {
+    if (MIGRATIONS[v]) raw = MIGRATIONS[v](raw);
+    v++;
+  }
+  raw.version = DATA_VERSION;
+
+  // Salva de volta já migrado
+  localStorage.setItem(STORE, JSON.stringify(raw));
+  return raw;
+}
+
+function saveStore() {
+  const store = { version: DATA_VERSION, blocks, history, goals, appearance };
+  localStorage.setItem(STORE, JSON.stringify(store));
+}
+
+// Função de compatibilidade: salva e mantém chaves antigas sincronizadas
+// (para não quebrar import/export antigo)
+const sv = (k, v) => { saveStore(); };
+const ld = (k, d) => d; // não usada diretamente mais, mas mantida por segurança
+
+// ── Inicialização ──────────────────────────────────────────────────────────
+const _store = loadStore();
+let blocks    = _store.blocks;
+let history   = _store.history;
+let goals     = _store.goals;
+let appearance = _store.appearance;
 
 let page='hoje',configOpen=false,configTab='blocos';
 let openBlk={},openEx={},openHist={},modal=null,dangerConfirmStep={};
@@ -2332,7 +2439,8 @@ function renderConfigDados(){
   h+=`<div class="prog-c">
     <div class="prog-n">Exportar dados</div>
     <div class="prog-sub">${history.length} treinos · ${Object.values(blocks).flat().length} blocos · ${goals.length} metas</div>
-    <button class="data-btn" style="margin-top:12px" onclick="exportData()">↓ Baixar JSON</button>
+    <div style="font-size:10px;color:var(--t3);margin-top:8px;font-family:monospace;letter-spacing:0.5px">schema v${DATA_VERSION} · ${history.length} registros · ${Object.values(blocks).flat().length} blocos</div>
+    <button class="data-btn" style="margin-top:10px" onclick="exportData()">↓ Baixar JSON</button>
   </div>`;
   h+=`<div class="prog-c">
     <div class="prog-n">Importar dados</div>
@@ -2388,10 +2496,14 @@ function resetAppearance(){
 
 /* -------- DATA -------- */
 function exportData(){
-  const d=JSON.stringify({blocks,history,goals},null,2);
+  // Exporta o store completo incluindo versão — compatível com importData
+  const d=JSON.stringify({version:DATA_VERSION,blocks,history,goals,appearance},null,2);
   const b=new Blob([d],{type:'application/json'});
-  const a=document.createElement('a');a.href=URL.createObjectURL(b);a.download='bloc-data.json';a.click();
-  toast('Exportado');
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(b);
+  a.download='bloc-backup-v'+DATA_VERSION+'-'+new Date().toISOString().slice(0,10)+'.json';
+  a.click();
+  toast('Backup exportado');
 }
 function importData(input){
   const file=input.files[0];if(!file)return;
@@ -2399,12 +2511,21 @@ function importData(input){
   reader.onload=(e)=>{
     try{
       const data=JSON.parse(e.target.result);
-      if(data.blocks)blocks=data.blocks;
-      if(data.history)history=data.history;
-      if(data.goals)goals=data.goals;
-      sv('bv2_blocks',blocks);sv('bv2_history',history);sv('bv2_goals',goals);
+      // Aceita tanto formato novo (com version) quanto antigo (sem)
+      if(data.blocks)  blocks=data.blocks;
+      if(data.history) history=data.history;
+      if(data.goals)   goals=data.goals;
+      if(data.appearance) appearance=data.appearance;
+      // Roda migrações se necessário
+      let v=data.version||0;
+      const tempStore={version:v,blocks,history,goals,appearance};
+      let s=tempStore;
+      while(v<DATA_VERSION){if(MIGRATIONS[v])s=MIGRATIONS[v](s);v++;}
+      blocks=s.blocks;history=s.history;goals=s.goals;
+      saveStore();
+      applyAppearance();
       toast('Dados importados');render();
-    }catch(err){toast('Erro ao importar');}
+    }catch(err){toast('Erro ao importar — arquivo inválido');}
   };
   reader.readAsText(file);input.value='';
 }
@@ -2418,8 +2539,8 @@ function confirmDanger(action){
   if(action==='history'&&val!=='APAGAR'){toast('Digite APAGAR para confirmar');return;}
   if(action==='reset'&&val!=='RESETAR'){toast('Digite RESETAR para confirmar');return;}
   delete dangerConfirmStep[action];
-  if(action==='history'){history=[];sv('bv2_history',history);toast('Histórico apagado');render();}
-  if(action==='reset'){localStorage.clear();location.reload();}
+  if(action==='history'){history=[];saveStore();toast('Histórico apagado');render();}
+  if(action==='reset'){localStorage.removeItem(STORE);location.reload();}
 }
 
 /* -------- MAIN RENDER -------- */
