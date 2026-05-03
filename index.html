@@ -2000,7 +2000,10 @@ function applyAppearance(){
   root.style.setProperty('--r-lg',a.borderRadius+'px');
   const ct=document.getElementById('content');
   const p=a.compactMode?'12px':'16px';
-  ct.style.paddingTop=p;ct.style.paddingLeft=p;ct.style.paddingRight=p;ct.style.paddingBottom='96px';
+  ct.style.paddingTop=p;
+  ct.style.paddingLeft=p;
+  ct.style.paddingRight=p;
+  ct.style.paddingBottom='96px';
   const speeds={fast:'0.15s',normal:'0.22s',slow:'0.38s'};
   root.style.setProperty('--anim-speed',speeds[a.animSpeed||'normal']||'0.22s');
   root.style.setProperty('--dur-base',speeds[a.animSpeed||'normal']||'0.22s');
