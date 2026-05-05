@@ -411,6 +411,131 @@ body{
   box-shadow:0 0 6px rgba(34,197,94,0.4);
 }
 
+/* ============================================================
+   § EXERCISE STATUS SYSTEM
+   ────────────────────────────────────────────────────────────
+   Estados visuais individuais por exercício na guia Hoje.
+   
+   REGRA ARQUITETURAL:
+   - Esses estados pertencem SOMENTE a sessionExStatus (memória)
+     e ao snapshot do histórico. Nunca tocam blocks (template).
+   - "done"    → verde: exercício concluído na sessão atual
+   - "skipped" → amarelo/opaco: exercício explicitamente pulado
+   - null/ausente → aparência padrão (neutro)
+   
+   UX: os botões de status ficam no header da ex-row,
+   visíveis sem precisar expandir o exercício.
+   ============================================================ */
+
+/* Botões de status inline na ex-row */
+.ex-status-btns{
+  display:flex;
+  gap:var(--sp-4);
+  align-items:center;
+  flex-shrink:0;
+}
+
+.ex-status-btn{
+  width:22px;
+  height:22px;
+  border-radius:var(--r-sm);
+  border:0.5px solid var(--b1);
+  background:transparent;
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  cursor:pointer;
+  flex-shrink:0;
+  transition:background var(--dur-fast) var(--ease-sharp),
+             border-color var(--dur-fast) var(--ease-sharp),
+             transform var(--dur-base) var(--ease-spring),
+             opacity var(--dur-fast) var(--ease-sharp);
+  color:var(--t3);
+  font-size:11px;
+  line-height:1;
+}
+.ex-status-btn:active{ transform:scale(0.88) }
+
+/* Botão "feito" — ativo quando status === 'done' */
+.ex-status-btn.done-btn.active{
+  background:rgba(34,197,94,0.15);
+  border-color:rgba(34,197,94,0.35);
+  color:var(--green);
+  box-shadow:0 0 0 1px rgba(34,197,94,0.12);
+}
+.ex-status-btn.done-btn:not(.active):hover{
+  background:rgba(34,197,94,0.07);
+  border-color:rgba(34,197,94,0.2);
+  color:rgba(34,197,94,0.6);
+}
+
+/* Botão "pulado" — ativo quando status === 'skipped' */
+.ex-status-btn.skip-btn.active{
+  background:rgba(245,158,11,0.15);
+  border-color:rgba(245,158,11,0.35);
+  color:var(--yellow);
+  box-shadow:0 0 0 1px rgba(245,158,11,0.12);
+}
+.ex-status-btn.skip-btn:not(.active):hover{
+  background:rgba(245,158,11,0.07);
+  border-color:rgba(245,158,11,0.2);
+  color:rgba(245,158,11,0.6);
+}
+
+/* ── Estado visual da ex-row inteira ── */
+
+/* "feito": nome em verde suave + leve destaque */
+.ex-row.status-done .ex-name{
+  color:rgba(34,197,94,0.75);
+  text-decoration:line-through;
+  text-decoration-color:rgba(34,197,94,0.3);
+}
+.ex-row.status-done .ex-tag{
+  opacity:0.45;
+}
+
+/* "pulado": opacidade reduzida + nome amarelado + strikethrough */
+.ex-row.status-skipped{
+  opacity:0.55;
+}
+.ex-row.status-skipped .ex-name{
+  color:rgba(245,158,11,0.75);
+  text-decoration:line-through;
+  text-decoration-color:rgba(245,158,11,0.3);
+}
+
+/* Badge de status no histórico */
+.hist-ex-status{
+  font-size:9px;
+  font-weight:var(--fw-medium);
+  letter-spacing:0.8px;
+  text-transform:uppercase;
+  padding:1px 5px;
+  border-radius:var(--r-sm);
+  flex-shrink:0;
+}
+.hist-ex-status.done{
+  background:rgba(34,197,94,0.12);
+  color:rgba(34,197,94,0.7);
+  border:0.5px solid rgba(34,197,94,0.2);
+}
+.hist-ex-status.skipped{
+  background:rgba(245,158,11,0.12);
+  color:rgba(245,158,11,0.65);
+  border:0.5px solid rgba(245,158,11,0.2);
+}
+
+/* Animação leve ao marcar status */
+@keyframes statusPop{
+  0%{transform:scale(1)}
+  40%{transform:scale(1.28)}
+  70%{transform:scale(0.92)}
+  100%{transform:scale(1)}
+}
+.ex-status-btn.pop{
+  animation:statusPop var(--dur-base) var(--ease-spring);
+}
+
 /* Chevron */
 .bchev{
   color:var(--t3);
@@ -2636,6 +2761,62 @@ let reorderState={active:false,dk:null};
 let sessionDraft = {};
 let sessionExtraExercises = {};
 
+/* ── sessionExStatus — SISTEMA DE STATUS INDIVIDUAL POR EXERCÍCIO ─────────────
+   Armazena o estado visual de cada exercício durante a sessão atual.
+
+   ESTRUTURA: { "SEG-0-Supino reto": "done" | "skipped" }
+   Chave: `${dk}-${bi}-${exName}` (mesmo padrão do draftKey)
+
+   REGRAS ARQUITETURAIS (CRÍTICO — não violar):
+   ❌  Nunca persistido em localStorage — pertence SOMENTE à sessão.
+   ❌  Nunca referenciado por código da guia Semana/Config.
+   ❌  Nunca muta blocks (o template permanente).
+   ✅  Lido por renderExRow() (fromSemana=false) para aplicar classes visuais.
+   ✅  Lido por saveLog() para incluir o campo 'status' no snapshot do histórico.
+   ✅  Zerado automaticamente ao recarregar a página (é var em memória).
+
+   VALORES:
+   - "done"    → exercício marcado como concluído (feedback visual verde)
+   - "skipped" → exercício explicitamente pulado (feedback visual amarelo/opaco)
+   - ausente   → status neutro (aparência padrão, sem marcação)
+
+   OBJETIVO FUTURO:
+   O campo 'status' nos snapshots do histórico permite analytics como:
+   - exercícios frequentemente pulados
+   - taxa de adesão por bloco/exercício
+   - padrões de skip (ex: "você pula posterior de coxa há 3 semanas")
+   ─────────────────────────────────────────────────────────────────────────── */
+let sessionExStatus = {};
+
+/* Retorna a chave de status para um exercício */
+function exStatusKey(dk, bi, exName) {
+  return `${dk}-${bi}-${exName}`;
+}
+
+/* Alterna o status de um exercício. Se clicar no mesmo status ativo, remove-o (toggle).
+   Aceita: 'done' | 'skipped' */
+function toggleExStatus(dk, bi, exName, newStatus) {
+  const k = exStatusKey(dk, bi, exName);
+  if (sessionExStatus[k] === newStatus) {
+    delete sessionExStatus[k]; /* toggle off */
+  } else {
+    sessionExStatus[k] = newStatus;
+  }
+  render();
+  /* Micro-animação no botão clicado — dispara após render */
+  setTimeout(() => {
+    const safeName = (dk+bi+exName).replace(/[^a-zA-Z0-9]/g,'_');
+    const btnId = `exs-${newStatus.slice(0,4)}-${safeName}`;
+    const btn = document.getElementById(btnId);
+    if (btn) {
+      btn.classList.remove('pop');
+      void btn.offsetWidth;
+      btn.classList.add('pop');
+      setTimeout(() => btn.classList.remove('pop'), 400);
+    }
+  }, 20);
+}
+
 function draftKey(dk, bi, exName) {
   return `${dk}-${bi}-${exName}`;
 }
@@ -2858,7 +3039,14 @@ function saveLog(dk,bi){
     /* todaySession já contém os valores editados pelo usuário via updExToday.
        Não há fallback em blocks — o que está aqui é o que o usuário treinou. */
     if(isPR(e.name,e.weight||0))prs.push({name:e.name,weight:e.weight||0});
-    return{name:e.name,sets:e.sets,reps:e.reps||0,weight:e.weight||0,time:e.time||0};
+    /* Captura o status individual do exercício (done/skipped/undefined).
+       O status pertence à sessionExStatus (memória de sessão) e é gravado
+       no snapshot do histórico para analytics futuros.
+       NUNCA altera blocks nem todaySession — é append-only no histórico. */
+    const exStatus = sessionExStatus[exStatusKey(dk, bi, e.name)];
+    const entry = {name:e.name,sets:e.sets,reps:e.reps||0,weight:e.weight||0,time:e.time||0};
+    if (exStatus) entry.status = exStatus; /* só inclui se houver marcação explícita */
+    return entry;
   });
   history.unshift({date:today,dayKey:dk,day:DAYFULL[DAYS.indexOf(dk)],blockLabel:b.label,blockType:b.type,exercises:exArr});
   if(history.length>180)history=history.slice(0,180);
@@ -2939,6 +3127,33 @@ function renderExRow(e,dk,bi,ei,fromSemana){
     const t=trend(val.c,val.p);
     trndHtml=`<span class="trnd ${t.cls}">${t.sym} ${t.txt}</span>`;
   }
+
+  /* ── STATUS INDIVIDUAL (só na guia Hoje, nunca em fromSemana) ──────────────
+     Lê o status de sessionExStatus sem tocar blocks ou todaySession.
+     O status é aplicado como classe CSS na ex-row para feedback visual imediato.
+     Ele também é enviado ao histórico via saveLog() (campo 'status' no snapshot).
+  ─────────────────────────────────────────────────────────────────────────── */
+  const exStatus = !fromSemana ? (sessionExStatus[exStatusKey(dk, bi, e.name)] || null) : null;
+  const safeName = (dk+bi+e.name).replace(/[^a-zA-Z0-9]/g,'_');
+  const statusClass = exStatus ? ` status-${exStatus}` : '';
+
+  /* Ícones SVG para os botões de status */
+  const checkSvg = `<svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6l3 3 5-5"/></svg>`;
+  const skipSvg  = `<svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h8M7 3l3 3-3 3"/></svg>`;
+
+  const statusBtns = !fromSemana ? `<div class="ex-status-btns">
+    <button id="exs-done-${safeName}"
+      class="ex-status-btn done-btn${exStatus==='done'?' active':''}"
+      onclick="event.stopPropagation();toggleExStatus('${dk}',${bi},'${e.name}','done')"
+      title="${exStatus==='done'?'Desmarcar como feito':'Marcar como feito'}"
+    >${checkSvg}</button>
+    <button id="exs-skip-${safeName}"
+      class="ex-status-btn skip-btn${exStatus==='skipped'?' active':''}"
+      onclick="event.stopPropagation();toggleExStatus('${dk}',${bi},'${e.name}','skipped')"
+      title="${exStatus==='skipped'?'Desmarcar como pulado':'Marcar como pulado'}"
+    >${skipSvg}</button>
+  </div>` : '';
+
   let exD='';
   if(isOpen){
     const updFn=fromSemana?'updExBase':'updExToday';
@@ -2981,13 +3196,14 @@ function renderExRow(e,dk,bi,ei,fromSemana){
   }
   const toggleFn=fromSemana?`toggleExSem('${xkey}','${dk}')`:`toggleEx('${xkey}')`;
   const chevSvg=`<svg viewBox="0 0 10 10"><path d="M2 3.5L5 6.5L8 3.5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-  return`<div class="ex-row">
+  return`<div class="ex-row${statusClass}">
     <div class="ex-top" onclick="${toggleFn}">
       <div class="ex-name">${e.name}</div>
       <div class="ex-meta">
         ${trndHtml}
         <span class="ex-tag">${e.sets}×${hasTime?(e.time+'s'):(e.reps+' reps')}</span>
         ${e.weight?`<span class="ex-tag">${e.weight}kg</span>`:''}
+        ${statusBtns}
         <div class="ex-expand-btn${isOpen?' open-btn':''}">${chevSvg}</div>
       </div>
     </div>
@@ -3651,7 +3867,15 @@ function renderHistorico(){
             if(e.time&&e.time>0&&(!e.reps||e.reps===0)){val=`${e.sets}×${e.time}s`;}
             else if(e.weight&&e.weight>0){val=`${e.sets}×${e.reps} · ${e.weight}kg`;}
             else{val=`${e.sets}×${e.reps}`;}
-            body+=`<div class="h-ex-row"><span class="h-ex-name">${e.name}</span><span class="h-ex-val">${val}</span></div>`;
+            /* Renderiza badge de status se o exercício foi marcado como done ou skipped.
+               O campo 'status' é gravado pelo saveLog() a partir de sessionExStatus.
+               null/undefined = nenhuma marcação explícita (exercício neutro). */
+            const statusBadge = e.status === 'done'
+              ? `<span class="hist-ex-status done">feito</span>`
+              : e.status === 'skipped'
+              ? `<span class="hist-ex-status skipped">pulado</span>`
+              : '';
+            body+=`<div class="h-ex-row"><span class="h-ex-name">${e.name}</span>${statusBadge}<span class="h-ex-val">${val}</span></div>`;
           });
           body+=`</div>`;
         });
