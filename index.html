@@ -2437,20 +2437,184 @@ function loadStore() {
   return raw;
 }
 
+/* ════════════════════════════════════════════════════════════════════════════
+   ARQUITETURA DE ESTADO — BLOC
+   Leia antes de qualquer alteração nas variáveis ou funções desta seção.
+   ════════════════════════════════════════════════════════════════════════════
+
+   VISÃO GERAL
+   ───────────
+   O app tem três camadas de estado com papéis distintos e fronteiras rígidas:
+
+     1. TEMPLATE PERMANENTE  →  blocks        (localStorage, persiste entre sessões)
+     2. SESSÃO DE HOJE       →  todaySession  (só memória, clone independente)
+     3. HISTÓRICO            →  history       (localStorage, snapshots imutáveis)
+
+   O fluxo de dados é UNIDIRECIONAL e NÃO pode ser invertido:
+
+     blocks[todayKey]
+         │
+         │  deep clone ao iniciar (JSON.parse/stringify)
+         ▼
+     todaySession  ──────────────────────────────────────────────┐
+         │  edições do usuário via updExToday()                   │
+         │  (guia Hoje)                                           │
+         ▼                                                        │
+     saveLog()  →  history.unshift(snapshot)                     │
+                                                                  │
+     blocks[todayKey]  ←──  NUNCA recebe dados de todaySession ──┘
+
+   ════════════════════════════════════════════════════════════════════════════
+   VARIÁVEIS DE ESTADO — O QUE PODE E O QUE NÃO PODE SER MUTADO
+   ════════════════════════════════════════════════════════════════════════════
+
+   blocks  [TEMPLATE PERMANENTE — MUTAÇÃO CONTROLADA]
+   ────────────────────────────────────────────────────────────────────────────
+   • Estrutura: { "SEG": [BlockObj, ...], "TER": [...], ... }
+   • Persiste em localStorage via saveStore() / sv().
+   • Representa a SEMANA PADRÃO do usuário — o plano, não a execução.
+   • PODE ser mutado SOMENTE pelas funções da guia Semana/Config:
+       updExBase, setBlockColor, setBlockType, setBlockIcon,
+       confEditBlock, confAddBlock, confAddEx (quando fromSemana=true),
+       addMedia, delMedia, delEx, delBlock, reorderBlocks.
+   • NUNCA deve ser mutado por código da guia Hoje.
+   • TODA função que muta blocks[todayKey] DEVE chamar
+     resetTodaySession() imediatamente após o sv() — sem exceção.
+   • A guia Hoje lê todaySession, não blocks[todayKey]. Qualquer
+     leitura direta de blocks[todayKey] na guia Hoje é um bug.
+
+   history  [SNAPSHOTS IMUTÁVEIS — APPEND-ONLY]
+   ────────────────────────────────────────────────────────────────────────────
+   • Estrutura: Array de entradas, mais recente primeiro.
+     Cada entrada: { date, dayKey, day, blockLabel, blockType, exercises[] }
+     exercises[]: [{ name, sets, reps, weight, time }]  ← valores reais do treino
+   • Persiste em localStorage via sv('bv2_history', history).
+   • Gerado por saveLog() a partir de todaySession — NUNCA a partir de blocks.
+   • Entradas nunca são editadas após inserção (append-only).
+   • Limite: 180 entradas (history.slice(0,180)).
+   • Usado para: cálculo de PRs (isPR), tendências (getExHistory, trend),
+     indicadores de "feito hoje" (hasDone em renderBlockCard), sumário
+     de volume pós-registro.
+   • CRÍTICO: history é fonte de verdade para métricas e PRs. Se saveLog()
+     ler de blocks em vez de todaySession, PRs e histórico ficam errados.
+
+   todaySession  [CLONE MUTÁVEL DA SESSÃO — SÓ MEMÓRIA]
+   ────────────────────────────────────────────────────────────────────────────
+   • Estrutura: Array de BlockObj — mesma forma que blocks[todayKey].
+   • Criado via JSON.parse(JSON.stringify(blocks[todayKey])) ao iniciar.
+   • NUNCA salvo em localStorage. Zerado ao recarregar a página.
+   • É o único objeto que a guia Hoje pode ler e mutar.
+   • Mutado exclusivamente por updExToday() quando o usuário edita
+     séries/reps/peso/tempo na guia Hoje.
+   • Quando blocks[todayKey] muda (via guia Semana), resetTodaySession()
+     re-sincroniza — mas SÓ se todaySessionDirty === false.
+
+   todaySessionDirty  [FLAG DE PROTEÇÃO]
+   ────────────────────────────────────────────────────────────────────────────
+   • boolean, inicia false.
+   • Vira true quando updExToday() é chamado pela primeira vez.
+   • Enquanto true, resetTodaySession() é um no-op — protege edições
+     em andamento de serem sobrescritas por mudanças no template.
+   • Não é resetado durante a sessão (fica true até o app ser recarregado).
+
+   sessionExtraExercises  [EXERCÍCIOS EXTRAS DA SESSÃO — SÓ MEMÓRIA]
+   ────────────────────────────────────────────────────────────────────────────
+   • Estrutura: { "SEG-0": [ExObj, ...], "SEG-1": [...], ... }
+   • Exercícios adicionados por confAddEx() quando fromSemana=false.
+     Não entram em blocks nem em todaySession — existem só para a sessão.
+   • Incluídos em saveLog() via allExercises = [...b.exercises, ...extraEx].
+   • Removidos de sessionExtraExercises após saveLog() para o bloco.
+   • Zerados ao recarregar a página.
+
+   sessionDraft  [DEPRECATED — NÃO USAR]
+   ────────────────────────────────────────────────────────────────────────────
+   • Existia para sobrescritas temporárias de sets/reps/weight/time.
+   • Foi substituído pelo sistema todaySession + updExToday (Mudança 3).
+   • As funções getDraftVal, setDraftVal, updExDraft ainda existem no
+     código mas não são mais chamadas pelos inputs da guia Hoje.
+   • Não remover até confirmar que nenhum caminho de código ainda as usa.
+
+   ════════════════════════════════════════════════════════════════════════════
+   FLUXO COMPLETO — SEMANA → HOJE → HISTÓRICO
+   ════════════════════════════════════════════════════════════════════════════
+
+   [GUIA SEMANA]
+   O usuário edita blocos e exercícios do plano semanal.
+   Funções: updExBase, setBlockColor/Type/Icon, confEditBlock, etc.
+   Destino: blocks (template) → localStorage.
+   Efeito colateral obrigatório: resetTodaySession() se dk === todayKey.
+
+   [GUIA HOJE]
+   renderHoje() lê todaySession (clone independente, não blocks[todayKey]).
+   renderBlockCard() recebe objetos de todaySession como parâmetro b.
+   renderExRow() com fromSemana=false:
+     • Lê valores de e (que vem de todaySession) para exibir nos inputs.
+     • onchange dos inputs chama updExToday() → muta todaySession diretamente.
+     • updExToday() marca todaySessionDirty = true.
+   O usuário aperta "Registrar bloco" → saveLog(dk, bi).
+
+   [saveLog]  ← CRÍTICO — não alterar a fonte de leitura
+   1. Lê todaySession[bi] (NÃO blocks[dk][bi]).
+   2. Combina com sessionExtraExercises[dk+'-'+bi].
+   3. Monta exArr com os valores reais do treino.
+   4. Detecta PRs via isPR() (compara com history).
+   5. Insere snapshot em history[0] via history.unshift().
+   6. Persiste history no localStorage.
+   7. Limpa sessionExtraExercises[dk+'-'+bi].
+   8. Dispara toast de feedback (PR / volume / simples).
+   9. Chama render() — a guia Hoje atualiza para mostrar "done".
+
+   [HISTÓRICO]
+   history é append-only. Leituras: renderHistorico(), getExHistory(),
+   isPR(), hasDone (em renderBlockCard), sumário de volume pós-registro.
+
+   ════════════════════════════════════════════════════════════════════════════
+   REGRAS CRÍTICAS — NÃO VIOLAR
+   ════════════════════════════════════════════════════════════════════════════
+
+   ❌  Nunca ler blocks[todayKey] dentro de renderHoje() ou renderBlockCard()
+       quando chamado com prefix='hoje'. Use todaySession.
+
+   ❌  Nunca chamar sv('bv2_blocks',...) de código da guia Hoje.
+       Apenas código da guia Semana/Config pode mutar blocks.
+
+   ❌  Nunca passar blocks[dk][bi] para saveLog(). saveLog() usa todaySession[bi].
+
+   ❌  Nunca salvar todaySession em localStorage.
+       É um objeto de sessão — deve ser zerado ao recarregar.
+
+   ❌  Nunca chamar resetTodaySession() depois de updExToday() já ter sido
+       chamado (todaySessionDirty=true protege disso automaticamente, mas não
+       chamar explicitamente é igualmente importante).
+
+   ✅  Toda função que chama sv() e toca blocks[todayKey] DEVE chamar
+       resetTodaySession() imediatamente após. Sem exceção.
+
+   ✅  saveLog() deve sempre ler de todaySession. Se precisar de fallback,
+       o fallback correto é todaySession — nunca blocks.
+
+   ✅  renderExRow() com fromSemana=false deve sempre usar updExToday como
+       updFn. Se fromSemana=true, usa updExBase (muta blocks, não todaySession).
+
+   ════════════════════════════════════════════════════════════════════════════ */
+
 function saveStore() {
   const store = { version: DATA_VERSION, blocks, history, goals, appearance };
   localStorage.setItem(STORE, JSON.stringify(store));
 }
 
-// Função de compatibilidade: salva e mantém chaves antigas sincronizadas
-// (para não quebrar import/export antigo)
+// sv() — wrapper de persistência. Sempre salva o store completo.
+// Chamada após toda mutação de blocks, history ou goals.
+// NÃO chamar para todaySession — ela nunca vai para localStorage.
 const sv = (k, v) => { saveStore(); };
-const ld = (k, d) => d; // não usada diretamente mais, mas mantida por segurança
+const ld = (k, d) => d; // não usada diretamente mais, mas mantida por compatibilidade
 
-// ── Inicialização ──────────────────────────────────────────────────────────
+// ── Inicialização do estado persistido ────────────────────────────────────
+// _store é carregado UMA VEZ. Após isso, blocks/history/goals são as fontes
+// de verdade em memória. localStorage só é atualizado via sv().
 const _store = loadStore();
-let blocks    = _store.blocks;
-let history   = _store.history;
+let blocks    = _store.blocks;    // TEMPLATE — ver documentação acima
+let history   = _store.history;   // SNAPSHOTS — ver documentação acima
 let goals     = _store.goals;
 let appearance = _store.appearance;
 
@@ -2491,6 +2655,18 @@ function setDraftVal(dk, bi, exName, field, val) {
 function updExDraft(dk, bi, exName, field, val) {
   setDraftVal(dk, bi, exName, field, val);
   /* Não chama sv(), não modifica blocks */
+}
+
+/* MUDANÇA 3 — Atualiza todaySession diretamente, sem tocar blocks nem localStorage.
+   Chamada exclusivamente pelos inputs da guia Hoje.
+   Marca todaySessionDirty=true para proteger o clone de um reset acidental. */
+function updExToday(dk, bi, exName, field, val) {
+  const ex = todaySession[bi]?.exercises.find(e => e.name === exName);
+  if (ex) {
+    ex[field] = parseFloat(val) || 0;
+    todaySessionDirty = true;
+  }
+  /* NÃO chama sv() — todaySession nunca vai para localStorage */
 }
 
 /* Preserva estado de blocos abertos entre navegações (QUICK WIN #1) */
@@ -2548,6 +2724,28 @@ function isPR(exName, newWeight){
 
 const todayI=new Date().getDay();
 const todayKey=DAYS[todayI];
+
+/* ── todaySession — MUDANÇA 1 ────────────────────────────────────────────────
+   Cópia profunda e independente de blocks[todayKey] para uso exclusivo na
+   guia Hoje. Alterações neste objeto NUNCA tocam blocks (o template permanente).
+
+   Regras:
+   - todaySession é inicializado uma vez ao carregar o app.
+   - Se o usuário editar o template via guia Semana/Config, chamar
+     resetTodaySession() para re-sincronizar — mas somente se nenhuma
+     edição de sessão foi feita ainda (flag todaySessionDirty).
+   - todaySession NUNCA é salvo em localStorage.
+   ─────────────────────────────────────────────────────────────────────────── */
+let todaySession = JSON.parse(JSON.stringify(blocks[todayKey] || []));
+let todaySessionDirty = false; /* true após qualquer edição via guia Hoje */
+
+/* Re-clona a partir do template quando o template muda E a sessão ainda não
+   foi editada pelo usuário. Chamar após qualquer mutação em blocks[todayKey]. */
+function resetTodaySession() {
+  if (!todaySessionDirty) {
+    todaySession = JSON.parse(JSON.stringify(blocks[todayKey] || []));
+  }
+}
 
 document.getElementById('dpill').textContent=
   DAYFULL[todayI].toUpperCase()+' · '+
@@ -2649,30 +2847,23 @@ function getExHistory(exName){
 /* -------- MEDIA -------- */
 function saveLog(dk,bi){
   const today=new Date().toLocaleDateString('pt-BR');
-  const b=blocks[dk][bi];
+  /* MUDANÇA 4 — lê de todaySession, sem fallback em blocks */
+  const b=todaySession[bi];
+  if(!b)return;
   const prs=[];
-  /* Combina exercícios do template com extras da sessão */
+  /* Combina exercícios de todaySession com extras da sessão */
   const extraEx=sessionExtraExercises[dk+'-'+bi]||[];
   const allExercises=[...b.exercises,...extraEx];
   const exArr=allExercises.map(e=>{
-    const key=dk+String(bi)+e.name;
-    /* Prioridade: DOM → sessionDraft → inputState → base */
-    const sEl=document.getElementById('s-'+key);
-    const rEl=document.getElementById('r-'+key);
-    const wEl=document.getElementById('w-'+key);
-    const tEl=document.getElementById('t-'+key);
-    const sets  =sEl?parseInt(sEl.value)||e.sets  :(sessionDraft[draftKey(dk,bi,e.name)]?.sets   ??getInputVal('s-'+key,e.sets));
-    const reps  =rEl?parseInt(rEl.value)||0        :(sessionDraft[draftKey(dk,bi,e.name)]?.reps   ??getInputVal('r-'+key,e.reps||0));
-    const weight=wEl?parseFloat(wEl.value)||0      :(sessionDraft[draftKey(dk,bi,e.name)]?.weight ??getInputVal('w-'+key,e.weight||0));
-    const time  =tEl?parseInt(tEl.value)||0        :(sessionDraft[draftKey(dk,bi,e.name)]?.time   ??getInputVal('t-'+key,e.time||0));
-    if(isPR(e.name,weight))prs.push({name:e.name,weight});
-    return{name:e.name,sets,reps,weight,time};
+    /* todaySession já contém os valores editados pelo usuário via updExToday.
+       Não há fallback em blocks — o que está aqui é o que o usuário treinou. */
+    if(isPR(e.name,e.weight||0))prs.push({name:e.name,weight:e.weight||0});
+    return{name:e.name,sets:e.sets,reps:e.reps||0,weight:e.weight||0,time:e.time||0};
   });
   history.unshift({date:today,dayKey:dk,day:DAYFULL[DAYS.indexOf(dk)],blockLabel:b.label,blockType:b.type,exercises:exArr});
   if(history.length>180)history=history.slice(0,180);
   sv('bv2_history',history);
-  /* Limpa draft do bloco registrado */
-  allExercises.forEach(e=>{ delete sessionDraft[draftKey(dk,bi,e.name)]; });
+  /* Limpa extras da sessão — todaySession permanece (pode registrar outro bloco hoje) */
   delete sessionExtraExercises[dk+'-'+bi];
   /* Feedback contextual rico */
   const totalVol=exArr.reduce((acc,e)=>acc+(e.sets*(e.weight||0)),0);
@@ -2693,21 +2884,21 @@ function saveLog(dk,bi){
 
 function updEx(dk,bi,en,field,val){
   const ex=blocks[dk][bi].exercises.find(e=>e.name===en);
-  if(ex){ex[field]=parseFloat(val)||0;sv('bv2_blocks',blocks);}
+  if(ex){ex[field]=parseFloat(val)||0;sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();}
 }
 function updExBase(dk,bi,en,field,val){
   const ex=blocks[dk][bi].exercises.find(e=>e.name===en);
-  if(ex){ex[field]=parseFloat(val)||0;sv('bv2_blocks',blocks);toast('Base atualizada');}
+  if(ex){ex[field]=parseFloat(val)||0;sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();toast('Base atualizada');}
 }
 
 function addMedia(dk,bi,ei){
   const inp=document.getElementById('mi-'+dk+bi+ei);
   if(!inp)return;const url=inp.value.trim();if(!url)return;
   if(!blocks[dk][bi].exercises[ei].media)blocks[dk][bi].exercises[ei].media=[];
-  blocks[dk][bi].exercises[ei].media.push(url);sv('bv2_blocks',blocks);inp.value='';render();
+  blocks[dk][bi].exercises[ei].media.push(url);sv('bv2_blocks',blocks);inp.value='';if(dk===todayKey)resetTodaySession();render();
 }
 function delMedia(dk,bi,ei,mi){
-  blocks[dk][bi].exercises[ei].media.splice(mi,1);sv('bv2_blocks',blocks);render();
+  blocks[dk][bi].exercises[ei].media.splice(mi,1);sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();render();
 }
 
 function renderMediaSection(e,dk,bi,ei){
@@ -2750,14 +2941,15 @@ function renderExRow(e,dk,bi,ei,fromSemana){
   }
   let exD='';
   if(isOpen){
-    const updFn=fromSemana?'updExBase':'updExDraft';
+    const updFn=fromSemana?'updExBase':'updExToday';
     const pfx=fromSemana?'b':'';
-    /* Prefill: draft (sessão) → último registro no histórico → base do template */
+    /* MUDANÇA 3 — Guia Hoje: lê direto de e (que vem de todaySession), sem fallback em blocks.
+       Guia Semana: lê de e (que vem de blocks), comportamento inalterado. */
     const lastReg=!fromSemana?getLastRegistered(e.name):null;
-    const dispSets  =fromSemana?e.sets  :getDraftVal(dk,bi,e.name,'sets',  lastReg?lastReg.sets  :e.sets);
-    const dispReps  =fromSemana?(e.reps||0):getDraftVal(dk,bi,e.name,'reps',  lastReg?(lastReg.reps||0)  :(e.reps||0));
-    const dispTime  =fromSemana?(e.time||0):getDraftVal(dk,bi,e.name,'time',  lastReg?(lastReg.time||0)  :(e.time||0));
-    const dispWeight=fromSemana?(e.weight||0):getDraftVal(dk,bi,e.name,'weight',lastReg?(lastReg.weight||0):(e.weight||0));
+    const dispSets  =e.sets;
+    const dispReps  =e.reps||0;
+    const dispTime  =e.time||0;
+    const dispWeight=e.weight||0;
     /* Label contextual: se há histórico, mostra comparação de carga */
     let contextHint='';
     if(lastReg&&!fromSemana){
@@ -2964,6 +3156,7 @@ function confAddEx(){
   if(modal.fromSemana){
     blocks[modal.dk][modal.bi].exercises.push(ex);
     sv('bv2_blocks',blocks);
+    if(modal.dk===todayKey)resetTodaySession();
   } else {
     const k=modal.dk+'-'+modal.bi;
     if(!sessionExtraExercises[k])sessionExtraExercises[k]=[];
@@ -2975,24 +3168,24 @@ function confAddBlock(dk,type){
   const bt=BTYPES[type];
   if(!blocks[dk])blocks[dk]=[];
   blocks[dk].push({type,label:bt.l,notes:'',exercises:[]});
-  sv('bv2_blocks',blocks);closeModal();toast('Bloco criado');
+  sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();closeModal();toast('Bloco criado');
 }
 function confEditBlock(){
   const b=blocks[modal.dk][modal.bi];
   b.label=document.getElementById('m-bl').value.trim()||b.label;
   b.notes=document.getElementById('m-bn').value.trim();
-  sv('bv2_blocks',blocks);closeModal();toast('Bloco atualizado');
+  sv('bv2_blocks',blocks);if(modal.dk===todayKey)resetTodaySession();closeModal();toast('Bloco atualizado');
 }
 function setBlockColor(dk,bi,color){
-  blocks[dk][bi].accentColor=color;sv('bv2_blocks',blocks);
+  blocks[dk][bi].accentColor=color;sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();
   modal={t:'editBlock',dk,bi};render();
 }
 function setBlockType(dk,bi,type){
-  blocks[dk][bi].type=type;sv('bv2_blocks',blocks);
+  blocks[dk][bi].type=type;sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();
   modal={t:'editBlock',dk,bi};render();
 }
 function setBlockIcon(dk,bi,icon){
-  blocks[dk][bi].customIcon=icon;sv('bv2_blocks',blocks);
+  blocks[dk][bi].customIcon=icon;sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();
   modal={t:'editBlock',dk,bi};render();
 }
 
@@ -3005,8 +3198,8 @@ function openLightbox(url){
 }
 
 /* -------- CRUD -------- */
-function delEx(dk,bi,ei){blocks[dk][bi].exercises.splice(ei,1);sv('bv2_blocks',blocks);render()}
-function delBlock(dk,bi){blocks[dk].splice(bi,1);sv('bv2_blocks',blocks);closeModal();toast('Bloco removido')}
+function delEx(dk,bi,ei){blocks[dk][bi].exercises.splice(ei,1);sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();render()}
+function delBlock(dk,bi){blocks[dk].splice(bi,1);sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();closeModal();toast('Bloco removido')}
 function confAddGoal(){
   const n=document.getElementById('m-gn').value.trim();if(!n)return;
   const s=document.getElementById('m-gs').value.trim();
@@ -3039,7 +3232,9 @@ function toggleConfig(){
 
 /* -------- PAGE RENDERS -------- */
 function renderHoje(){
-  const db=blocks[todayKey]||[];
+  /* MUDANÇA 2 — usa todaySession (clone independente), nunca blocks[todayKey].
+     Isso garante que edições na guia Hoje não mutam o template permanente. */
+  const db=todaySession;
   let h=`<div class="sec">${DAYFULL[todayI]}</div>`;
   if(!db.length)h+=`<div class="empty"><strong>Sem blocos hoje</strong>Vá em Semana para montar o dia.</div>`;
   db.forEach((b,i)=>h+=renderBlockCard(b,todayKey,i,'hoje'));
