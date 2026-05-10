@@ -17,16 +17,16 @@ const link=document.createElement('link');link.rel='manifest';link.href=URL.crea
 <body>
 <style>
 /* ============================================================
-   BLOC — DESIGN SYSTEM v2.2
+   BLOC — DESIGN SYSTEM v3.0
    Status: ESTABILIZADO
    ────────────────────────────────────────────────────────────
    Fase 1: Tokens + Tipografia          ✓ completo
    Fase 2: Componentes + Navegação      ✓ completo
    Fase 3: Estados + Microinterações    ✓ aplicado
-   Fase 4: Refinamento de identidade    ✓ parcial
+   Fase 4: Refinamento de identidade    ✓ completo
    ────────────────────────────────────────────────────────────
-   Migration layer: tokens antigos mapeados em :root
-   Compatibilidade: --br, --br2, --ac2, --accent-color, --anim
+   Migration layer removido na v3 (aliases --br, --br2, --ac2,
+   --accent-color, --anim não tinham mais referências).
    ============================================================ */
 
 /* --- RESET --- */
@@ -124,22 +124,9 @@ const link=document.createElement('link');link.rel='manifest';link.href=URL.crea
   --dur-base: 0.22s;
   --dur-slow: 0.38s;
 
-  /* Overrides via JS */
-  --radius-global: 14px;
-  --anim-speed: 0.22s;
+  /* Overrides de família tipográfica via JS */
   --font-family: var(--font);
 
-  /* ─── MIGRATION LAYER — aliases de compatibilidade ───────────
-     Tokens do sistema anterior mapeados para os novos.
-     Mantidos para garantir que CSS externo ou snippets antigos
-     ainda funcionem durante a transição.
-     TODO: remover após migração completa (v3).
-  ─────────────────────────────────────────────────────────── */
-  --br:   var(--b1);   /* old: --br  → --b1 */
-  --br2:  var(--b2);   /* old: --br2 → --b2 */
-  --ac2:  var(--t2);   /* old: --ac2 → --t2 (secondary text) */
-  --accent-color: var(--ac); /* old: --accent-color → --ac */
-  --anim: var(--dur-base);   /* old: --anim → --dur-base */
 }
 
 /* ============================================================
@@ -184,7 +171,6 @@ body{
   justify-content:space-between;
   gap:var(--sp-8);
   flex-shrink:0;  /* garante que o header não encolha no flex container */
-  z-index:50;
   /* position:sticky removido — não funciona dentro de overflow:clip/hidden;
      o header já fica no topo por ser o primeiro filho do flex column */
 }
@@ -297,7 +283,6 @@ body{
 #content{
   flex:1;
   overflow-y:auto;
-  -webkit-overflow-scrolling:touch; /* scroll inercial em iOS */
   padding:var(--sp-16);
   padding-bottom:96px; /* compensa nav fixed (~64px) + safe area + folga */
   scroll-behavior:smooth;
@@ -2351,6 +2336,24 @@ body{
      JAVASCRIPT — BLOC engine (preservado, apenas ajustes visuais)
      ============================================================ -->
 <script>
+/* ════════════════════════════════════════════════════════════════════════════
+   § 1 · CONSTANTS & MAPS
+   ────────────────────────────────────────────────────────────────────────────
+   Constantes imutáveis e mapeamentos de dados. Nenhuma função, nenhum let,
+   zero side effects. Tudo que é declarado aqui pode ser lido de qualquer
+   ponto do código sem risco de estado inválido.
+
+   CONTEÚDO:
+   · Arrays e mapas de dias/semana
+   · Ícones SVG por tipo de bloco (BTYPE_ICONS, BTYPES)
+   · Mapeamento de grupos musculares (MUSCLE_GROUPS)
+   · Opções de aparência (FONT_OPTIONS, THEMES)
+   · Versão e chaves do localStorage (DATA_VERSION, STORE, TODAY_CACHE_STORE,
+     JOURNAL_STORE, TEMPLATE_PIN)
+   · Dados padrão para novos usuários (DEFAULT_BLOCKS, DEFAULT_GOALS,
+     DEFAULT_APPEARANCE)
+   ════════════════════════════════════════════════════════════════════════════ */
+
 const DAYS=['DOM','SEG','TER','QUA','QUI','SEX','SAB'];
 const DAYFULL=['Domingo','Segunda','Terça','Quarta','Quinta','Sexta','Sábado'];
 
@@ -2438,7 +2441,10 @@ const THEMES={
 // ─────────────────────────────────────────────────────────────────────────────
 
 const DATA_VERSION = 2; // ← bumpe aqui ao mudar estrutura de dados
-const STORE = 'bloc_data'; // chave única no localStorage
+const STORE           = 'bloc_data';           // chave principal do localStorage
+const TODAY_CACHE_STORE = 'bloc_today_cache';  // cache diário da sessão de treino
+const JOURNAL_STORE   = 'bloc_journals';       // armazenamento separado de journals
+const TEMPLATE_PIN    = '1502';                // PIN de acesso aos templates — alterar aqui
 
 const DEFAULT_BLOCKS = {
   SEG:[
@@ -2590,154 +2596,25 @@ function loadStore() {
 }
 
 /* ════════════════════════════════════════════════════════════════════════════
-   ARQUITETURA DE ESTADO — BLOC
-   Leia antes de qualquer alteração nas variáveis ou funções desta seção.
-   ════════════════════════════════════════════════════════════════════════════
-
-   VISÃO GERAL
-   ───────────
-   O app tem três camadas de estado com papéis distintos e fronteiras rígidas:
-
-     1. TEMPLATE PERMANENTE  →  blocks        (localStorage, persiste entre sessões)
-     2. SESSÃO DE HOJE       →  todaySession  (localStorage/dia, cache diário)
-     3. HISTÓRICO            →  history       (localStorage, snapshots imutáveis)
-
-   O fluxo de dados é UNIDIRECIONAL e NÃO pode ser invertido:
-
-     blocks[todayKey]
-         │
-         │  deep clone ao iniciar (ou reidratação de todayCache se mesmo dia)
-         ▼
-     todaySession  ──────────────────────────────────────────────┐
-         │  edições do usuário via updExToday()                   │
-         │  persiste via saveTodayCache() (chave por data)        │
-         ▼                                                        │
-     saveLog()  →  history.unshift(snapshot)                     │
-                                                                  │
-     blocks[todayKey]  ←──  NUNCA recebe dados de todaySession ──┘
-
-   ════════════════════════════════════════════════════════════════════════════
-   VARIÁVEIS DE ESTADO — O QUE PODE E O QUE NÃO PODE SER MUTADO
-   ════════════════════════════════════════════════════════════════════════════
-
-   blocks  [TEMPLATE PERMANENTE — MUTAÇÃO CONTROLADA]
+   § 2 · MIGRATIONS & STORE
    ────────────────────────────────────────────────────────────────────────────
-   • Estrutura: { "SEG": [BlockObj, ...], "TER": [...], ... }
-   • Persiste em localStorage via saveStore() / sv().
-   • Representa a SEMANA PADRÃO do usuário — o plano, não a execução.
-   • PODE ser mutado SOMENTE pelas funções da guia Semana/Config:
-       updExBase, setBlockColor, setBlockType, setBlockIcon,
-       confEditBlock, confAddBlock, confAddEx (quando fromSemana=true),
-       addMedia, delMedia, delEx, delBlock, reorderBlocks, moveBlock.
-   • NUNCA deve ser mutado por código da guia Hoje.
-   • TODA função que muta blocks[todayKey] DEVE chamar
-     resetTodaySession() imediatamente após o sv() — sem exceção.
-   • A guia Hoje lê todaySession, não blocks[todayKey]. Qualquer
-     leitura direta de blocks[todayKey] na guia Hoje é um bug.
+   Tudo que toca o localStorage diretamente. Nenhum outro módulo deve chamar
+   localStorage — toda persistência passa por aqui.
 
-   history  [SNAPSHOTS IMUTÁVEIS — APPEND-ONLY]
-   ────────────────────────────────────────────────────────────────────────────
-   • Estrutura: Array de entradas, mais recente primeiro.
-     Cada entrada: { date, dayKey, day, blockLabel, blockType, exercises[] }
-     exercises[]: [{ name, sets, reps, weight, time, status? }]
-   • Persiste em localStorage via sv().
-   • Gerado por saveLog() a partir de todaySession — NUNCA a partir de blocks.
-   • Entradas nunca são editadas após inserção (append-only).
-   • Limite: 180 entradas (history.slice(0,180)).
+   CONTEÚDO:
+   · MIGRATIONS[]    — array ordenado de funções de migração incremental.
+                        Uma função por versão; recebe o store e retorna o store
+                        migrado. Bumpe DATA_VERSION (§1) ao adicionar uma entrada.
+   · loadStore()     — lê, migra e retorna o store principal.
+   · saveStore()     — serializa blocks/history/goals/appearance para localStorage.
+   · saveTodayCache()— persiste a sessão do dia atual (todaySession + status).
+   · loadTodayCache()— recupera a sessão se a data bater; null se expirada.
 
-   todaySession  [CACHE DIÁRIO DA SESSÃO — PERSISTE POR DATA]
-   ────────────────────────────────────────────────────────────────────────────
-   • Estrutura: Array de BlockObj — mesma forma que blocks[todayKey].
-   • Ao iniciar: reidratado de bloc_today_cache se a data bater com hoje.
-     Caso contrário, recriado como deep clone de blocks[todayKey].
-   • Persiste via saveTodayCache() — chave separada do store principal.
-   • Ao virar o dia, o cache expira automaticamente (comparação de data).
-   • É o único objeto que a guia Hoje pode ler e mutar.
-   • Mutado por: updExToday(), confAddBlockToday(), confAddEx (Hoje).
-   • Quando blocks[todayKey] muda (via guia Semana), resetTodaySession()
-     re-sincroniza — mas SÓ se todaySessionDirty === false.
-
-   todaySessionDirty  [FLAG DE PROTEÇÃO]
-   ────────────────────────────────────────────────────────────────────────────
-   • boolean. Inicia false (sessão nova) ou true (sessão reidratada do cache).
-   • Enquanto true, resetTodaySession() é um no-op — protege edições
-     em andamento de serem sobrescritas por mudanças no template.
-
-   sessionExtraExercises  [EXERCÍCIOS EXTRAS DA SESSÃO]
-   ────────────────────────────────────────────────────────────────────────────
-   • Estrutura: { "SEG-0": [ExObj, ...], "SEG-1": [...], ... }
-   • Exercícios adicionados por confAddEx() quando fromSemana=false.
-     Não entram em blocks — existem só para a sessão.
-   • Persistidos via saveTodayCache() junto com todaySession.
-   • Removidos de sessionExtraExercises após saveLog() para o bloco.
-
-   sessionExStatus  [STATUS INDIVIDUAL POR EXERCÍCIO]
-   ────────────────────────────────────────────────────────────────────────────
-   • Estrutura: { "SEG-0-Supino reto": "done" | "skipped" }
-   • Persistido via saveTodayCache() — expira ao virar o dia.
-   • Lido por renderExRow() (fromSemana=false) para classes visuais.
-   • Lido por saveLog() para gravar 'status' no snapshot do histórico.
-
-   ════════════════════════════════════════════════════════════════════════════
-   FLUXO COMPLETO — SEMANA → HOJE → HISTÓRICO
-   ════════════════════════════════════════════════════════════════════════════
-
-   [GUIA SEMANA]
-   O usuário edita blocos e exercícios do plano semanal.
-   Funções: updExBase, setBlockColor/Type/Icon, confEditBlock, moveBlock, etc.
-   Destino: blocks (template) → localStorage.
-   Efeito colateral obrigatório: resetTodaySession() se dk === todayKey.
-
-   [GUIA HOJE]
-   renderHoje() lê todaySession (cache diário, não blocks[todayKey]).
-   renderBlockCard() recebe objetos de todaySession como parâmetro b.
-   renderExRow() com fromSemana=false:
-     • Lê valores de e (que vem de todaySession) para exibir nos inputs.
-     • onchange dos inputs chama updExToday() → muta todaySession + saveTodayCache.
-   O usuário aperta "Registrar bloco" → saveLog(dk, bi).
-
-   [saveLog]  ← CRÍTICO — não alterar a fonte de leitura
-   1. Lê todaySession[bi] (NÃO blocks[dk][bi]).
-   2. Combina com sessionExtraExercises[dk+'-'+bi].
-   3. Monta exArr com valores reais do treino + status de sessionExStatus.
-   4. Detecta PRs via isPR().
-   5. Insere snapshot em history[0] via history.unshift().
-   6. Persiste history + saveTodayCache().
-   7. Limpa sessionExtraExercises[dk+'-'+bi].
-
-   [HISTÓRICO]
-   history é append-only. Leituras: renderHistorico(), getExHistory(),
-   isPR(), hasDone (em renderBlockCard), sumário de volume pós-registro.
-
-   ════════════════════════════════════════════════════════════════════════════
-   REGRAS CRÍTICAS — NÃO VIOLAR
-   ════════════════════════════════════════════════════════════════════════════
-
-   ❌  Nunca ler blocks[todayKey] dentro de renderHoje() ou renderBlockCard()
-       quando chamado com prefix='hoje'. Use todaySession.
-
-   ❌  Nunca chamar sv() de código da guia Hoje para mutar blocks.
-       Apenas código da guia Semana/Config pode mutar blocks.
-
-   ❌  Nunca passar blocks[dk][bi] para saveLog(). saveLog() usa todaySession[bi].
-
-   ❌  prefix === 'sem' é a ÚNICA condição que autoriza fromSemana=true em modais.
-       prefix === 'hoje' (truthy) NÃO autoriza — esse foi o Bug 3A corrigido.
-
-   ❌  Nunca chamar resetTodaySession() depois de todaySessionDirty=true.
-       O flag protege automaticamente, mas não chamar explicitamente é igualmente
-       importante.
-
-   ✅  Toda função que chama sv() e toca blocks[todayKey] DEVE chamar
-       resetTodaySession() imediatamente após. Sem exceção.
-
-   ✅  Toda função que muta todaySession, sessionExStatus ou sessionExtraExercises
-       DEVE chamar saveTodayCache() após a mutação.
-
-   ✅  renderExRow() com fromSemana=false usa updExToday como updFn.
-       renderExRow() com fromSemana=true usa updExBase (muta blocks).
-
+   REGRA: loadJournals() e saveJournals() vivem em § 11 JOURNAL por coesão —
+   o sistema de journals é autossuficiente e tem chave própria (JOURNAL_STORE).
    ════════════════════════════════════════════════════════════════════════════ */
+
+
 
 function saveStore() {
   const store = { version: DATA_VERSION, blocks, history, goals, appearance };
@@ -2751,7 +2628,6 @@ function saveStore() {
    updExToday, toggleExStatus, confAddEx (Hoje), saveLog.
    NÃO faz parte do store principal — chave separada para não inflar o payload.
    ─────────────────────────────────────────────────────────────────────────── */
-const TODAY_CACHE_STORE = 'bloc_today_cache';
 function saveTodayCache() {
   const today = new Date().toLocaleDateString('pt-BR');
   const cache = {
@@ -2776,15 +2652,47 @@ function loadTodayCache() {
   } catch { return null; }
 }
 
-// sv() — wrapper de persistência. Sempre salva o store completo.
-// Chamada após toda mutação de blocks, history ou goals.
-// NÃO chamar para todaySession — ela nunca vai para localStorage.
-const sv = (k, v) => { saveStore(); };
-const ld = (k, d) => d; // não usada diretamente mais, mas mantida por compatibilidade
+/* ════════════════════════════════════════════════════════════════════════════
+   § 3 · STATE — Variáveis de estado e inicialização
+   ────────────────────────────────────────────────────────────────────────────
+   Todas as variáveis let do app: estado do store principal, estado de sessão,
+   estado de UI e caches de performance. Inicialização única no boot.
+
+   ARQUITETURA DE ESTADO — três camadas com fronteiras rígidas:
+
+     1. TEMPLATE PERMANENTE  →  blocks        (localStorage, persiste entre sessões)
+     2. SESSÃO DE HOJE       →  todaySession  (localStorage/dia, expira ao virar o dia)
+     3. HISTÓRICO            →  history       (localStorage, snapshots append-only)
+
+   Fluxo UNIDIRECIONAL — nunca invertido:
+
+     blocks[todayKey]
+         │  deep clone ao iniciar (ou reidratação de todayCache se mesmo dia)
+         ▼
+     todaySession  ──────────────────────────────────────────────┐
+         │  edições via updExToday()                             │
+         │  persiste via saveTodayCache()                        │
+         ▼                                                        │
+     saveLog()  →  history.unshift(snapshot)                     │
+                                                                  │
+     blocks[todayKey]  ←── NUNCA recebe dados de todaySession ───┘
+
+   REGRAS CRÍTICAS:
+   ❌  Nunca ler blocks[todayKey] em renderHoje() — use todaySession.
+   ❌  Nunca mutar blocks em código da guia Hoje.
+   ❌  Nunca passar blocks[dk][bi] para saveLog() — usa todaySession[bi].
+   ✅  Toda mutação em blocks[todayKey] → chamar resetTodaySession() em seguida.
+   ✅  Toda mutação em todaySession/sessionExStatus → chamar saveTodayCache().
+
+   VARIÁVEIS DE UI (sessionStorage — não persistem entre sessões):
+   · openBlk    — estado de blocos expandidos/colapsados (sobrevive a re-renders).
+   · openEx     — estado de exercícios expandidos dentro de blocos.
+   · scrollPos  — posição de scroll por aba (salvo em §7 saveScroll).
+
+   VARIÁVEIS DETALHADAS: ver comentários inline abaixo de cada declaração.
+   ════════════════════════════════════════════════════════════════════════════ */
 
 // ── Inicialização do estado persistido ────────────────────────────────────
-// _store é carregado UMA VEZ. Após isso, blocks/history/goals são as fontes
-// de verdade em memória. localStorage só é atualizado via sv().
 const _store = loadStore();
 let blocks    = _store.blocks;    // TEMPLATE — ver documentação acima
 let history   = _store.history;   // SNAPSHOTS — ver documentação acima
@@ -2798,12 +2706,45 @@ let journalOpen=false; /* flag: tela de edição de journal ativa */
 /* Estado do modo de reorganização de blocos (declarado aqui, engine mais abaixo) */
 let reorderState={active:false,dk:null};
 
+/* Estado de UI — day detail na guia Semana */
+let _lastDayDetail=null;
 
+/* Estado de UI — template PIN */
+let _templatePinOpen=false;
+let _templateUnlocked=false;
 
-/* ── Sessão de treino — estado temporário ──────────────────────────────────
-   sessionExtraExercises: exercícios adicionados só para o treino de hoje.
-   Estrutura: { "SEG-0": [ {name,sets,reps,weight,time,media} ] }
-   ─────────────────────────────────────────────────────────────────────────── */
+/* Estado de UI — busca no journal */
+let _journalSearch='';
+
+/* R8: journals inicializado aqui em §3 STATE (junto com todos os estados de localStorage).
+   As funções de journal continuam em §11 por coesão — só a inicialização foi movida.
+   Isso garante que journalHasEntry() em §7/§9 nunca acessa a variável antes dela existir,
+   independente de qualquer reorganização futura das seções.
+   JOURNAL_STORE está disponível aqui pois foi declarado em §1 CONSTANTS acima. */
+let journals = (function(){
+  try{return JSON.parse(localStorage.getItem(JOURNAL_STORE))||{};}catch{return{};}
+})();
+
+/* Preserva estado de blocos abertos entre navegações (QUICK WIN #1) */
+let openBlk=JSON.parse(sessionStorage.getItem('bloc_openBlk')||'{}');
+function persistOpenBlk(){ sessionStorage.setItem('bloc_openBlk',JSON.stringify(openBlk)); }
+
+/* ════════════════════════════════════════════════════════════════════════════
+   § 4 · SESSION — Sessão diária de treino
+   ────────────────────────────────────────────────────────────────────────────
+   Estado temporário da sessão do dia: valores editados pelo usuário nos inputs
+   de hoje, status de exercícios e exercícios extras adicionados mid-session.
+   Nunca persiste em blocks — é append-only via saveTodayCache().
+
+   CONTEÚDO:
+   · sessionExtraExercises — exercícios adicionados só para hoje (não entram
+     em blocks). Estrutura: { "SEG-0": [ExObj, ...] }
+   · sessionExStatus       — status done/skipped por exercício. Expirado ao
+     virar o dia. Estrutura: { "SEG-0-Supino reto": "done" | "skipped" }
+   · exStatusKey()         — gera a chave de status para um exercício.
+   · toggleExStatus()      — alterna done/skipped (toggle off se mesmo status).
+   · updExToday()          — muta todaySession + persiste via saveTodayCache().
+   ════════════════════════════════════════════════════════════════════════════ */
 
 /* ── sessionExtraExercises e sessionExStatus são inicializados abaixo,
    após todaySession, porque dependem do cache carregado. ── */
@@ -2857,54 +2798,90 @@ function updExToday(dk, bi, exName, field, val) {
   }
 }
 
-/* Preserva estado de blocos abertos entre navegações (QUICK WIN #1) */
-let openBlk=JSON.parse(sessionStorage.getItem('bloc_openBlk')||'{}');
-function persistOpenBlk(){ sessionStorage.setItem('bloc_openBlk',JSON.stringify(openBlk)); }
-
-/* FASE 2 — Estado de scroll por aba */
-const scrollPos={};
-function saveScroll(){
-  const ct=document.getElementById('content');
-  if(ct)scrollPos[configOpen?'config':page]=ct.scrollTop;
-}
-function restoreScroll(){
-  const ct=document.getElementById('content');
-  if(!ct)return;
-  const k=configOpen?'config':page;
-  if(scrollPos[k]!=null)ct.scrollTop=scrollPos[k];
-}
-
-/* FASE 2 — Estado dos inputs em memória (evita perda ao re-render) */
-const inputState={};
-function captureInputs(){
-  document.querySelectorAll('.inp-g input').forEach(el=>{
-    if(el.id)inputState[el.id]=el.value;
-  });
-}
-function getInputVal(id,fallback){
-  return inputState[id]!=null?parseFloat(inputState[id])||fallback:fallback;
-}
-
-/* FASE 2 — Stepper: ajusta kg direto sem abrir teclado */
-function stepWeight(id,delta){
-  const el=document.getElementById(id);
-  if(!el)return;
-  const cur=parseFloat(el.value)||0;
-  const nv=Math.max(0,Math.round((cur+delta)*4)/4);
-  el.value=nv;
-  el.dispatchEvent(new Event('change'));
-  /* feedback visual imediato */
-  el.style.transition='color 0.1s';
-  el.style.color=delta>0?'var(--green)':'var(--red)';
-  setTimeout(()=>{el.style.color='';},300);
-}
 
 /* ════════════════════════════════════════════════════════════════════════════
-   ANALYTICS CORE — funções puras, sem efeito colateral, sem acesso ao DOM.
-   Entrada: history (array global). Saída: dados para renderStats().
+   § 5 · ANALYTICS — Cálculos puros sobre history
+   ────────────────────────────────────────────────────────────────────────────
+   Funções puras: sem efeito colateral, sem acesso ao DOM, sem mutação de estado.
+   Entrada: history[] (array global) + índice pré-computado (_historyIndex).
+   Saída: objetos de dados consumidos por renderStats() e renderHistorico().
+
+   CONTEÚDO:
+   · calcStreak()            — dias consecutivos de treino (current + best).
+   · isPR_before()           — verifica se um peso é PR antes de salvar.
+   · isPR()                  — verifica PR após registro (usa _historyIndexPrMap).
+   · getLastRegistered()     — último registro de um exercício (O(1) via índice).
+   · trend()                 — direção da carga (up/down/eq) para badge de tendência.
+   · getExHistory()          — histórico completo de um exercício (O(1) via índice).
+   · calcMuscleFrequency()   — frequência por grupo muscular (últimas 4 semanas).
+   · calcBlockAdherence()    — aderência ao plano (dias planejados vs executados).
+   · calcWeeklySummary()     — resumo semanal: volume, PRs, séries.
+   · generateInsights()      — insights automáticos em linguagem natural.
    ════════════════════════════════════════════════════════════════════════════ */
 
 /* Retorna {current, best} de dias consecutivos com ao menos 1 registro */
+/* ════════════════════════════════════════════════════════════════════════════
+   P-03 / P-04 — ÍNDICE DE HISTÓRICO POR EXERCÍCIO
+   ────────────────────────────────────────────────────────────────────────────
+   Problema: getExHistory(), getLastRegistered() e isPR() iteravam history[]
+   inteiro a cada chamada — O(n × m) onde n = entradas e m = exercícios/entrada.
+   Com 180 entradas × 10 exercícios = 1800 objetos percorridos por chamada.
+   Renderizar 3 blocos abertos × 5 exercícios = 27.000 operações por render.
+
+   Solução: manter um índice pré-computado { [exName]: Entry[] } com custo de
+   construção único. Lookups passam a ser O(1).
+
+   O índice é reconstruído após toda mutação de history:
+     • saveLog()         — novo registro adicionado
+     • importData()      — history inteiro substituído
+     • confirmDanger()   — history zerado
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* P-02: cache de renderStats() — invalidado quando history muda.
+   Chave: history.length + timestamp do registro mais recente.
+   Enquanto o usuário navega na aba Stats sem treinar, o HTML é retornado
+   do cache sem recomputar as 12+ iterações sobre history. */
+let _statsCache = { key: null, html: '' };
+
+/* BUG-08: cache do exMap de evolução em renderHistorico().
+   Mesma estratégia de invalidação: chave = history.length + timestamp.
+   Cada expand/collapse de um item no histórico hoje reconstrói esse mapa
+   do zero (~1.800 iterações). Com o cache, reconstrução só ocorre quando
+   history muda de fato. */
+let _histCache = { key: null, exMap: null };
+
+/* { [exName]: [ {date, w, r, t, weight} ] } — entries em ordem de history[] (mais recente primeiro) */
+let _historyIndex = {};
+let _historyIndexPrMap = {}; /* { [exName]: maxWeight } — para isPR() em O(1) */
+
+function _buildHistoryIndex(){
+  _historyIndex = {};
+  _historyIndexPrMap = {};
+  _statsCache = { key: null, html: '' }; /* P-02: invalida cache de stats junto com o índice */
+  _histCache  = { key: null, exMap: null }; /* BUG-08: invalida cache de exMap */
+  history.forEach(entry=>{
+    const exList = Array.isArray(entry.exercises)
+      ? entry.exercises
+      : (entry.entries||[]).flatMap(b=>b.exercises||[]);
+    exList.forEach(e=>{
+      if(!_historyIndex[e.name]) _historyIndex[e.name] = [];
+      _historyIndex[e.name].push({
+        date:  entry.date,
+        w:     e.weight||0,
+        r:     e.reps||0,
+        t:     e.time||0,
+        weight:e.weight||0   /* alias para isPR compat */
+      });
+      /* mantém o máximo de peso para cada exercício */
+      if((e.weight||0) > (_historyIndexPrMap[e.name]||0)){
+        _historyIndexPrMap[e.name] = e.weight||0;
+      }
+    });
+  });
+}
+
+/* Constrói o índice na inicialização (history já foi carregado de loadStore()) */
+_buildHistoryIndex();
 function calcStreak(){
   if(!history.length)return{current:0,best:0};
   /* Coleta datas únicas em ordem decrescente */
@@ -2915,7 +2892,11 @@ function calcStreak(){
   const DAY=86400000;
   let cur=1,best=1,run=1;
   for(let i=1;i<ms.length;i++){
-    if(ms[i-1]-ms[i]===DAY){run++;if(run>best)best=run;}
+    /* BUG-06: usar Math.round em vez de === DAY.
+       A comparação exata falha em timezones com DST (horário de verão):
+       dias consecutivos podem diferir por 82800000ms (23h) ou 90000000ms (25h)
+       na transição, quebrando o streak. Math.round absorve essa variação. */
+    if(Math.round((ms[i-1]-ms[i])/DAY)===1){run++;if(run>best)best=run;}
     else run=1;
   }
   /* Streak atual: começa em 1 se hoje ou ontem tem registro, senão 0 */
@@ -3138,15 +3119,50 @@ function renderSparkline(vals,useWeight){
   </svg>`;
 }
 
-/* FASE 2 — PR detection: verifica se novo peso bate recorde */
+/* ── isPR_before(): verifica PR antes de salvar (sem índice, por data) ── */
 function isPR(exName, newWeight){
   if(!newWeight||newWeight<=0)return false;
-  const best=Math.max(0,...history.map(h=>{
-    const exList=Array.isArray(h.exercises)?h.exercises:(h.entries||[]).flatMap(b=>b.exercises||[]);
-    const found=exList.find(e=>e.name===exName);
-    return found?found.weight||0:0;
-  }));
-  return newWeight>best;
+  /* P-04: antes iterava history[] inteiro (O(n×m)). Agora O(1) via _historyIndexPrMap. */
+  const best = _historyIndexPrMap[exName] || 0;
+  return newWeight > best;
+}
+
+/* Helper: verifica se um peso é PR considerando apenas registros ANTES de uma data */
+function isPR_before(exName,weight,beforeDate){
+  const prev=history
+    .filter(h=>{
+      const[dd,mm,yy]=h.date.split('/');
+      return new Date(yy,mm-1,dd)<beforeDate;
+    })
+    .flatMap(h=>Array.isArray(h.exercises)?h.exercises:(h.entries||[]).flatMap(b=>b.exercises||[]))
+    .filter(e=>e.name===exName&&e.weight>0);
+  if(!prev.length)return false;
+  return weight>Math.max(...prev.map(e=>e.weight));
+}
+/* Retorna o último peso/rep/tempo registrado de um exercício (QUICK WIN #2) */
+function getLastRegistered(exName){
+  /* P-03: antes percorria history[] inteiro. Agora O(1) via _historyIndex. */
+  const entries = _historyIndex[exName];
+  if(!entries||!entries.length) return null;
+  /* _historyIndex preserva a ordem de history[] (mais recente primeiro) */
+  return entries[0];
+}
+
+function trend(curr,prev){
+  if(prev===0||curr===0)return{cls:'eq',sym:'→',txt:'—'};
+  const d=curr-prev,p=Math.round(Math.abs(d/prev)*100);
+  if(d>0)return{cls:'up',sym:'↑',txt:'+'+p+'%'};
+  if(d<0)return{cls:'dn',sym:'↓',txt:'-'+p+'%'};
+  return{cls:'eq',sym:'→',txt:'='};
+}
+
+function getExHistory(exName){
+  /* P-03: antes percorria history[] inteiro (O(n×m)). Agora O(1) via _historyIndex.
+     Filtra entradas sem valor relevante (w=0 e r=0) para manter paridade com o
+     comportamento anterior que só incluía e.weight>0 || e.reps>0. */
+  const entries = _historyIndex[exName];
+  if(!entries) return [];
+  return entries.filter(e=>e.w>0||e.r>0);
 }
 
 const todayI=new Date().getDay();
@@ -3182,1221 +3198,7 @@ document.getElementById('dpill').textContent=
   DAYFULL[todayI].toUpperCase()+' · '+
   new Date().toLocaleDateString('pt-BR',{day:'2-digit',month:'short'}).toUpperCase();
 
-/* -------- HELPERS -------- */
-function applyAppearance(){
-  const a=appearance;
-  const root=document.documentElement;
-  const t=THEMES[a.theme]||THEMES.dark;
-  root.style.setProperty('--bg',t.bg);
-  root.style.setProperty('--s1',t.s1);
-  root.style.setProperty('--s2',t.s2);
-  root.style.setProperty('--s3',t.s3);
-  root.style.setProperty('--s4',t.s4);
-  root.style.setProperty('--tc',t.tc);
-  root.style.setProperty('--t2',t.t2);
-  root.style.setProperty('--t3',t.t3);
-  root.style.setProperty('--ac',a.accentColor);
-  /* Bordas e divisores adaptados ao tema claro/escuro */
-  const isLight=t.bg>'#888';
-  root.style.setProperty('--b1',isLight?'rgba(0,0,0,0.09)':'rgba(255,255,255,0.06)');
-  root.style.setProperty('--b2',isLight?'rgba(0,0,0,0.18)':'rgba(255,255,255,0.10)');
-  root.style.setProperty('--t4',isLight?'rgba(0,0,0,0.08)':'#1e1e1e');
-  /* t3 já vem do tema, mas garantimos que não some em temas claros */
-  if(t.t3)root.style.setProperty('--t3',t.t3);
-  /* Marca o app com atributo de tema para overrides CSS (QUICK WIN #5) */
-  const appEl=document.getElementById('app');
-  if(isLight){appEl.setAttribute('data-theme-light','');} else {appEl.removeAttribute('data-theme-light');}
-  const f=FONT_OPTIONS.find(x=>x.id===a.font)||FONT_OPTIONS[0];
-  root.style.setProperty('--font-family',f.val);
-  document.getElementById('app').style.fontFamily=f.val;
-  root.style.setProperty('--radius-global',a.borderRadius+'px');
-  root.style.setProperty('--r-lg',a.borderRadius+'px');
-  const ct=document.getElementById('content');
-  const p=a.compactMode?'12px':'16px';
-  ct.style.paddingTop=p;
-  ct.style.paddingLeft=p;
-  ct.style.paddingRight=p;
-  ct.style.paddingBottom='96px';
-  /* Ajusta o top do sticky journal-hdr para compensar o padding correto */
-  root.style.setProperty('--journal-hdr-top', a.compactMode?'-12px':'-16px');
-  const speeds={fast:'0.15s',normal:'0.22s',slow:'0.38s'};
-  root.style.setProperty('--anim-speed',speeds[a.animSpeed||'normal']||'0.22s');
-  root.style.setProperty('--dur-base',speeds[a.animSpeed||'normal']||'0.22s');
-}
-
-function toast(m,variant){
-  const t=document.getElementById('toast');
-  t.textContent=m;
-  t.className='toast'; /* reset classes */
-  if(variant)t.classList.add(variant);
-  t.classList.add('show');
-  setTimeout(()=>t.classList.remove('show','pr-toast'),2400);
-}
-function ytId(url){const m=url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/);return m?m[1]:null}
-function isImg(url){return/\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(url)||url.startsWith('data:image')||/imgur\.com|i\.ibb\.co|imgbb\.com|postimg\.cc|pbs\.twimg\.com|media\.discordapp|cdn\.discordapp|gyazo\.com|prnt\.sc/.test(url)}
-function openLink(u){window.open(u,'_blank')}
-function looksLikeMedia(url){return isImg(url)||!!ytId(url)} /* compat alias */
-
-/* Retorna o último peso/rep/tempo registrado de um exercício (QUICK WIN #2) */
-function getLastRegistered(exName){
-  for(let h of history){
-    const exList=Array.isArray(h.exercises)?h.exercises:(h.entries||[]).flatMap(b=>b.exercises||[]);
-    const found=exList.find(e=>e.name===exName);
-    if(found)return found;
-  }
-  return null;
-}
-
-function trend(curr,prev){
-  if(prev===0||curr===0)return{cls:'eq',sym:'→',txt:'—'};
-  const d=curr-prev,p=Math.round(Math.abs(d/prev)*100);
-  if(d>0)return{cls:'up',sym:'↑',txt:'+'+p+'%'};
-  if(d<0)return{cls:'dn',sym:'↓',txt:'-'+p+'%'};
-  return{cls:'eq',sym:'→',txt:'='};
-}
-
-function getExHistory(exName){
-  const vals=[];
-  history.forEach(h=>{
-    if(Array.isArray(h.exercises)){
-      h.exercises.forEach(e=>{
-        if(e.name===exName&&(e.weight>0||e.reps>0))
-          vals.push({date:h.date,w:e.weight||0,r:e.reps||0,t:e.time||0});
-      });
-    } else if(Array.isArray(h.entries)){
-      h.entries.forEach(b=>{
-        (b.exercises||[]).forEach(e=>{
-          if(e.name===exName&&(e.weight>0||e.reps>0))
-            vals.push({date:h.date,w:e.weight||0,r:e.reps||0,t:e.time||0});
-        });
-      });
-    }
-  });
-  return vals;
-}
-
-/* -------- MEDIA -------- */
-function saveLog(dk,bi){
-  const now=new Date();
-  const today=now.toLocaleDateString('pt-BR');
-  const timestamp=now.toISOString(); /* hora exata do registro — fundação de analytics */
-  /* Calcula duration se há sessionStart gravado para este bloco */
-  const startKey=`bloc_start_${dk}${bi}`;
-  const startTs=sessionStorage.getItem(startKey);
-  const duration=startTs?Math.round((now-new Date(startTs))/1000):null; /* segundos */
-  sessionStorage.removeItem(startKey);
-  /* MUDANÇA 4 — lê de todaySession, sem fallback em blocks */
-  const b=todaySession[bi];
-  if(!b)return;
-  const prs=[];
-  /* Combina exercícios de todaySession com extras da sessão */
-  const extraEx=sessionExtraExercises[dk+'-'+bi]||[];
-  const allExercises=[...b.exercises,...extraEx];
-  const exArr=allExercises.map(e=>{
-    /* todaySession já contém os valores editados pelo usuário via updExToday.
-       Não há fallback em blocks — o que está aqui é o que o usuário treinou. */
-    if(isPR(e.name,e.weight||0))prs.push({name:e.name,weight:e.weight||0});
-    /* Captura o status individual do exercício (done/skipped/undefined).
-       O status pertence à sessionExStatus (memória de sessão) e é gravado
-       no snapshot do histórico para analytics futuros.
-       NUNCA altera blocks nem todaySession — é append-only no histórico. */
-    const exStatus = sessionExStatus[exStatusKey(dk, bi, e.name)];
-    const entry = {name:e.name,sets:e.sets,reps:e.reps||0,weight:e.weight||0,time:e.time||0};
-    if (exStatus) entry.status = exStatus; /* só inclui se houver marcação explícita */
-    return entry;
-  });
-  history.unshift({date:today,timestamp,duration,dayKey:dk,day:DAYFULL[DAYS.indexOf(dk)],blockLabel:b.label,blockType:b.type,exercises:exArr});
-  if(history.length>180)history=history.slice(0,180);
-  sv('bv2_history',history);
-  /* Limpa extras da sessão — todaySession permanece (pode registrar outro bloco hoje) */
-  delete sessionExtraExercises[dk+'-'+bi];
-  saveTodayCache(); /* persiste estado pós-registro */
-  /* Feedback contextual rico */
-  const totalVol=exArr.reduce((acc,e)=>acc+(e.sets*(e.weight||0)),0);
-  if(prs.length>0){
-    const prNames=prs.map(p=>`${p.name} ${p.weight}kg`).join(', ');
-    toast(`PR — ${prNames}`,'pr-toast');
-  } else if(totalVol>0){
-    toast(`${b.label} · ${totalVol}kg`);
-  } else {
-    toast(`${b.label} registrado`);
-  }
-  render();
-  setTimeout(()=>{
-    const dots=document.querySelectorAll('.done-dot');
-    dots.forEach(d=>{d.style.animation='none';void d.offsetWidth;d.style.animation='donePulse 0.6s var(--ease-spring)';});
-  },60);
-}
-
-function updEx(dk,bi,en,field,val){
-  const ex=blocks[dk][bi].exercises.find(e=>e.name===en);
-  if(ex){ex[field]=parseFloat(val)||0;sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();}
-}
-function updExBase(dk,bi,en,field,val){
-  const ex=blocks[dk][bi].exercises.find(e=>e.name===en);
-  if(ex){ex[field]=parseFloat(val)||0;sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();toast('Base atualizada');}
-}
-
-function addMedia(dk,bi,ei){
-  const inp=document.getElementById('mi-'+dk+bi+ei);
-  if(!inp)return;const url=inp.value.trim();if(!url)return;
-  if(!blocks[dk][bi].exercises[ei].media)blocks[dk][bi].exercises[ei].media=[];
-  blocks[dk][bi].exercises[ei].media.push(url);sv('bv2_blocks',blocks);inp.value='';if(dk===todayKey)resetTodaySession();render();
-}
-function delMedia(dk,bi,ei,mi){
-  blocks[dk][bi].exercises[ei].media.splice(mi,1);sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();render();
-}
-
-function renderMediaSection(e,dk,bi,ei){
-  const mid='mi-'+dk+bi+ei;
-  let h=`<div class="ex-media"><div class="media-title">Mídia</div>`;
-  (e.media||[]).forEach((url,mi)=>{
-    const ytid=ytId(url);const imgLike=isImg(url);
-    const typeLabel=ytid?'YT':imgLike?'IMG':'URL';
-    h+=`<div class="media-item"><span class="media-type">${typeLabel}</span>`;
-    h+=`<span class="media-url" onclick="openLink('${url}')">${url.length>40?url.slice(0,37)+'...':url}</span>`;
-    h+=`<span class="media-del" onclick="delMedia('${dk}',${bi},${ei},${mi})">✕</span></div>`;
-    if(ytid){
-      h+=`<iframe class="media-yt" src="https://www.youtube.com/embed/${ytid}" allowfullscreen loading="lazy"></iframe>`;
-    } else {
-      h+=`<div class="media-img-wrap"><img class="media-img" src="${url}" onclick="openLightbox('${url}')" onerror="this.parentElement.style.display='none'" loading="lazy"><div class="img-expand-btn" onclick="openLightbox('${url}')">⤢</div></div>`;
-    }
-  });
-  h+=`<div class="media-inp"><input type="text" id="${mid}" placeholder="URL imagem ou YouTube..."><button class="media-add" onclick="addMedia('${dk}',${bi},${ei})">+ Add</button></div></div>`;
-  return h;
-}
-
-/* -------- ICON HELPER -------- */
-function blockIcon(b){
-  if(b.customIcon&&b.customIcon.length<=2)return`<span style="font-size:14px">${b.customIcon}</span>`;
-  return BTYPE_ICONS[b.type]||BTYPE_ICONS.custom;
-}
-
-/* -------- RENDER EXERCISE ROW -------- */
-function renderExRow(e,dk,bi,ei,fromSemana){
-  const xkey=(fromSemana?'sem':'')+dk+bi+ei;
-  const isOpen=openEx[xkey];
-  const hasTime=e.time>0;
-  const hist=getExHistory(e.name);
-  let trndHtml='';
-  if(hist.length>=2){
-    const last=hist[0],prev=hist[1];
-    const val={c:last.w||last.r||last.t,p:prev.w||prev.r||prev.t};
-    const t=trend(val.c,val.p);
-    trndHtml=`<span class="trnd ${t.cls}">${t.sym} ${t.txt}</span>`;
-  }
-
-  /* ── STATUS INDIVIDUAL (só na guia Hoje, nunca em fromSemana) ──────────────
-     Lê o status de sessionExStatus sem tocar blocks ou todaySession.
-     O status é aplicado como classe CSS na ex-row para feedback visual imediato.
-     Ele também é enviado ao histórico via saveLog() (campo 'status' no snapshot).
-  ─────────────────────────────────────────────────────────────────────────── */
-  const exStatus = !fromSemana ? (sessionExStatus[exStatusKey(dk, bi, e.name)] || null) : null;
-  const safeName = (dk+bi+e.name).replace(/[^a-zA-Z0-9]/g,'_');
-  const statusClass = exStatus ? ` status-${exStatus}` : '';
-
-  /* Ícones SVG para os botões de status */
-  const checkSvg = `<svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6l3 3 5-5"/></svg>`;
-  const skipSvg  = `<svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h8M7 3l3 3-3 3"/></svg>`;
-
-  const statusBtns = !fromSemana ? `<div class="ex-status-btns">
-    <button id="exs-done-${safeName}"
-      class="ex-status-btn done-btn${exStatus==='done'?' active':''}"
-      onclick="event.stopPropagation();toggleExStatus('${dk}',${bi},'${e.name}','done')"
-      title="${exStatus==='done'?'Desmarcar como feito':'Marcar como feito'}"
-    >${checkSvg}</button>
-    <button id="exs-skip-${safeName}"
-      class="ex-status-btn skip-btn${exStatus==='skipped'?' active':''}"
-      onclick="event.stopPropagation();toggleExStatus('${dk}',${bi},'${e.name}','skipped')"
-      title="${exStatus==='skipped'?'Desmarcar como pulado':'Marcar como pulado'}"
-    >${skipSvg}</button>
-  </div>` : '';
-
-  let exD='';
-  if(isOpen){
-    const updFn=fromSemana?'updExBase':'updExToday';
-    const pfx=fromSemana?'b':'';
-    /* MUDANÇA 3 — Guia Hoje: lê direto de e (que vem de todaySession), sem fallback em blocks.
-       Guia Semana: lê de e (que vem de blocks), comportamento inalterado. */
-    const lastReg=!fromSemana?getLastRegistered(e.name):null;
-    const dispSets  =e.sets;
-    const dispReps  =e.reps||0;
-    const dispTime  =e.time||0;
-    const dispWeight=e.weight||0;
-    /* Label contextual: se há histórico, mostra comparação de carga */
-    let contextHint='';
-    if(lastReg&&!fromSemana){
-      const prevW=lastReg.weight||0;
-      const prevR=lastReg.reps||0;
-      const prevT=lastReg.time||0;
-      const valStr=prevW>0?`${prevW}kg`:(prevT>0?`${prevT}s`:`${prevR}rep`);
-      contextHint=`<div style="padding:5px 16px 8px;font-size:9px;color:var(--t2);letter-spacing:0.4px;display:flex;align-items:center;gap:5px;border-top:0.5px solid var(--t4)"><span style="opacity:0.5;font-size:8px">↑</span>última: ${valStr}</div>`;
-    }
-    const wId=`w${pfx}-${dk+bi+e.name}`;
-    exD+=`<div class="ex-inputs-row">
-      <div class="inp-g"><input id="s${pfx}-${dk+bi+e.name}" type="number" value="${dispSets}" min="1" onchange="${updFn}('${dk}',${bi},'${e.name}','sets',this.value)"><div class="inp-lbl">séries</div></div>
-      ${hasTime
-        ?`<div class="inp-g"><input id="t${pfx}-${dk+bi+e.name}" type="number" value="${dispTime}" min="0" onchange="${updFn}('${dk}',${bi},'${e.name}','time',this.value)"><div class="inp-lbl">seg</div></div>`
-        :`<div class="inp-g"><input id="r${pfx}-${dk+bi+e.name}" type="number" value="${dispReps}" min="0" onchange="${updFn}('${dk}',${bi},'${e.name}','reps',this.value)"><div class="inp-lbl">reps</div></div>`}
-      <div class="inp-g kg-g">
-        <div class="kg-stepper">
-          <button class="kg-step" onclick="stepWeight('${wId}',-2.5)" ontouchstart="event.preventDefault();stepWeight('${wId}',-2.5)">−</button>
-          <input id="${wId}" type="number" value="${dispWeight}" min="0" step="2.5" onchange="${updFn}('${dk}',${bi},'${e.name}','weight',this.value)">
-          <button class="kg-step" onclick="stepWeight('${wId}',2.5)" ontouchstart="event.preventDefault();stepWeight('${wId}',2.5)">+</button>
-        </div>
-        <div class="inp-lbl">kg</div>
-      </div>
-    </div>${contextHint}`;
-    if(fromSemana){
-      exD+=`<div style="padding:8px 16px;font-size:10px;color:var(--t2);border-top:0.5px solid var(--t4);letter-spacing:0.3px">Alterações salvas como padrão</div>`;
-    }
-    exD+=renderMediaSection(e,dk,bi,ei);
-  }
-  const toggleFn=fromSemana?`toggleExSem('${xkey}','${dk}')`:`toggleEx('${xkey}')`;
-  const chevSvg=`<svg viewBox="0 0 10 10"><path d="M2 3.5L5 6.5L8 3.5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-  return`<div class="ex-row${statusClass}">
-    <div class="ex-top" onclick="${toggleFn}">
-      <div class="ex-name">${e.name}</div>
-      <div class="ex-meta">
-        ${trndHtml}
-        <span class="ex-tag">${e.sets}×${hasTime?(e.time+'s'):(e.reps+' reps')}</span>
-        ${e.weight?`<span class="ex-tag">${e.weight}kg</span>`:''}
-        ${statusBtns}
-        <div class="ex-expand-btn${isOpen?' open-btn':''}">${chevSvg}</div>
-      </div>
-    </div>
-    ${isOpen?`<div class="ex-detail">${exD}</div>`:''}
-  </div>`;
-}
-
-/* -------- RENDER BLOCK CARD -------- */
-function renderBlockCard(b,dk,bi,prefix){
-  const key=(prefix||dk)+bi;
-  const isOpen=openBlk[key];
-  const today=new Date().toLocaleDateString('pt-BR');
-  const hasDone=history.some(h=>h.dayKey===dk&&h.date===today&&h.blockLabel===b.label);
-  const colorAttr=b.accentColor?` data-color="${b.accentColor}"`:'';
-  const fromSemanaCtx = (prefix === 'sem');
-  const addExFn=fromSemanaCtx
-    ?`openModal({t:'addEx',dk:'${dk}',bi:${bi},fromSemana:true});setTimeout(()=>reopenDay('${dk}'),10)`
-    :`openModal({t:'addEx',dk:'${dk}',bi:${bi},fromSemana:false})`;
-
-  let body='';
-  if(isOpen){
-    b.exercises.forEach((e,ei)=>{body+=renderExRow(e,dk,bi,ei,prefix==='sem');});
-    /* Exercícios extras adicionados só para a sessão de hoje */
-    if(prefix !== 'sem'){
-      const extraEx=sessionExtraExercises[dk+'-'+bi]||[];
-      extraEx.forEach((e,ei)=>{body+=renderExRow(e,dk,bi,b.exercises.length+ei,false);});
-    }
-    body+=`<button class="add-b" onclick="${addExFn}">
-      <svg viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke-width="2" stroke-linecap="round"/></svg>
-      exercício
-    </button>`;
-    /* Sumário inline quando bloco já foi registrado hoje (FASE 2) */
-    if(hasDone){
-      const lastEntry=history.find(h=>h.dayKey===dk&&h.date===new Date().toLocaleDateString('pt-BR')&&h.blockLabel===b.label);
-      if(lastEntry){
-        const vol=lastEntry.exercises.reduce((a,e)=>a+(e.sets*(e.weight||0)),0);
-        const exCount=lastEntry.exercises.length;
-        const volStr=vol>0?` · ${vol}kg`:'';
-        body+=`<div class="session-summary">${exCount} ex${volStr}</div>`;
-      }
-    }
-    body+=`<button class="sreg btn-ripple${hasDone?' done':''}" onclick="saveLog('${dk}',${bi})">
-      ${hasDone?'✓ Registrado — atualizar':'Registrar bloco'}
-    </button>`;
-    /* Botão Journal — sempre presente quando bloco está aberto */
-    const hasJournal=journalHasEntry(dk,bi,new Date().toLocaleDateString('pt-BR'));
-    body+=`<button class="journal-btn${hasJournal?' has-entry':''}" onclick="openJournal('${dk}',${bi})">
-      <svg viewBox="0 0 16 16"><path d="M3 13V4.5L7 2l4 2.5V13" stroke-width="1.3" stroke-linejoin="round"/><path d="M7 2v11" stroke-width="1.3"/><path d="M3 8h4M11 8h2" stroke-width="1.2" stroke-linecap="round"/></svg>
-      ${hasJournal?'Ver journal de hoje':'Escrever no journal'}
-    </button>`;
-    /* Botão "Promover para Semana" — só aparece em blocos criados apenas para hoje */
-    if(b._sessionOnly){
-      body+=`<button class="add-b" style="border-style:solid;color:var(--blue);border-color:rgba(96,165,250,0.25)" onclick="promoteBlockToWeek(${bi})">
-        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9V1M2 4l4-4 4 4"/></svg>
-        Salvar na Semana também
-      </button>`;
-    }
-  }
-
-  const chevSvg=`<svg viewBox="0 0 14 14"><path d="M3 5L7 9L11 5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-
-  /* Subtítulo contextual: quando done mostra volume do dia */
-  let subtitle=`${b.exercises.length} exercício${b.exercises.length!==1?'s':''}`;
-  if(hasDone){
-    const lastEntry=history.find(h=>h.dayKey===dk&&h.date===new Date().toLocaleDateString('pt-BR')&&h.blockLabel===b.label);
-    if(lastEntry){
-      const vol=lastEntry.exercises.reduce((a,e)=>a+(e.sets*(e.weight||0)),0);
-      subtitle=vol>0?`${vol}kg registrado`:'registrado';
-    }
-  }
-
-  return`<div class="bc${isOpen?' open':''}${hasDone?' done-block':''}${colorAttr}">
-    <div class="bh" onclick="toggleBlk('${key}')">
-      <div class="bl-icon">${blockIcon(b)}</div>
-      <div class="bh-info">
-        <div class="bn">${b.label}</div>
-        <div class="bs">${subtitle}</div>
-      </div>
-      <div class="bh-right">
-        ${hasDone?'<div class="done-dot"></div>':''}
-        <div class="bchev${isOpen?' o':''}">${chevSvg}</div>
-      </div>
-    </div>
-    ${isOpen?`<div class="bbody">${body}</div>`:''}
-  </div>`;
-}
-
-/* -------- TOGGLE HELPERS -------- */
-function toggleEx(k){openEx[k]=!openEx[k];render()}
-function toggleBlk(k){
-  openBlk[k]=!openBlk[k];
-  persistOpenBlk();
-  /* Grava hora de abertura do bloco para calcular duration em saveLog().
-     Só grava na abertura (isOpen false → true) e se ainda não há start gravado. */
-  if(openBlk[k]){
-    /* k = dk+bi (ex: "SEG0"). Extrai partes para chave do sessionStorage */
-    const startKey=`bloc_start_${k}`;
-    if(!sessionStorage.getItem(startKey))sessionStorage.setItem(startKey,new Date().toISOString());
-  }
-  render();
-}
-function toggleHist(k){openHist[k]=!openHist[k];render()}
-function toggleExSem(k,dk){openEx[k]=!openEx[k];if(window._lastDayDetail)openDayDetail(window._lastDayDetail)}
-function toggleBlkSem(k,dk){openBlk[k]=!openBlk[k];persistOpenBlk();openDayDetail(dk)}
-
-/* -------- MODAL -------- */
-function openModal(m){
-  modal=m;render();
-  if(m.t==='reorderEx')setTimeout(()=>attachExReorderListeners(),30);
-}
-function closeModal(){modal=null;render()}
-
-function renderModal(){
-  if(!modal)return'';
-  const m=modal;
-
-  if(m.t==='addEx'){
-    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
-      <h3>Novo exercício</h3>
-      <input type="text" id="m-en" placeholder="Nome do exercício" autocomplete="off">
-      <select id="m-et"><option value="reps">Séries + Reps</option><option value="time">Séries + Tempo</option></select>
-      <input type="number" id="m-es" placeholder="Séries" value="3" min="1">
-      <input type="number" id="m-ev" placeholder="Reps / Segundos" value="10" min="1">
-      <div class="m-btns"><button class="m-cancel" onclick="closeModal()">Cancelar</button><button class="m-ok btn-ripple" onclick="confAddEx()">Adicionar</button></div>
-    </div></div>`;
-  }
-
-  if(m.t==='addBlockToday'){
-    const opts=Object.entries(BTYPES).map(([k,v])=>`<div class="blk-opt" onclick="confAddBlockToday('${m.dk}','${k}')">
-      <div class="blk-opt-icon">${BTYPE_ICONS[k]}</div>
-      <div><div class="blk-opt-name">${v.l}</div><div class="blk-opt-desc">${v.d}</div></div>
-    </div>`).join('');
-    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
-      <h3>Novo bloco — só hoje</h3>
-      <div style="font-size:11px;color:var(--t2);margin-bottom:12px;letter-spacing:0.2px;line-height:1.6">O bloco será adicionado apenas à sessão de hoje. Você pode promovê-lo para a Semana depois.</div>
-      ${opts}
-      <div class="m-btns" style="margin-top:8px"><button class="m-cancel" onclick="closeModal()">Cancelar</button></div>
-    </div></div>`;
-  }
-
-  if(m.t==='addBlock'){
-    const opts=Object.entries(BTYPES).map(([k,v])=>`<div class="blk-opt" onclick="confAddBlock('${m.dk}','${k}')">
-      <div class="blk-opt-icon">${BTYPE_ICONS[k]}</div>
-      <div><div class="blk-opt-name">${v.l}</div><div class="blk-opt-desc">${v.d}</div></div>
-    </div>`).join('');
-    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
-      <h3>Tipo de bloco</h3>${opts}
-      <div class="m-btns" style="margin-top:8px"><button class="m-cancel" onclick="closeModal()">Cancelar</button></div>
-    </div></div>`;
-  }
-
-  if(m.t==='editBlock'){
-    const b=blocks[m.dk][m.bi];
-    const BLOCK_COLORS=['','pink','blue','green','orange','purple','yellow','red','teal'];
-    const COLOR_HEX={pink:'#f472b6',blue:'#60a5fa',green:'#4ade80',orange:'#fb923c',purple:'#a78bfa',yellow:'#fbbf24',red:'#f87171',teal:'#2dd4bf'};
-    const colorBtns=BLOCK_COLORS.map(c=>
-      `<div class="blk-color-dot${b.accentColor===c?' selected':''}" style="background:${c?COLOR_HEX[c]:'#2a2a2a'};${!c?'border:0.5px dashed #444':''}" onclick="setBlockColor('${m.dk}',${m.bi},'${c}')" title="${c||'padrão'}"></div>`
-    ).join('');
-    // SVG icons para seleção de bloco
-    const iconBtns=Object.entries(BTYPE_ICONS).map(([k,svg])=>
-      `<div class="blk-icon-opt${b.type===k?' selected':''}" onclick="setBlockType('${m.dk}',${m.bi},'${k}')" title="${BTYPES[k]?.l||k}">${svg}</div>`
-    ).join('');
-    const hasMultipleEx = b.exercises.length > 1;
-    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
-      <h3>Editar bloco</h3>
-      <input type="text" id="m-bl" value="${b.label}" placeholder="Nome do bloco">
-      <textarea id="m-bn" placeholder="Notas (opcional)">${b.notes||''}</textarea>
-      <div style="font-size:9px;color:var(--t2);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;font-weight:500">Cor</div>
-      <div class="blk-color-row">${colorBtns}</div>
-      <div style="font-size:9px;color:var(--t2);letter-spacing:2px;text-transform:uppercase;margin:16px 0 8px;font-weight:500">Ícone</div>
-      <div class="blk-icon-row">${iconBtns}</div>
-      <div class="sep"></div>
-      <div style="font-size:9px;color:var(--t2);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;font-weight:500">Exercícios</div>
-      ${b.exercises.map((e,ei)=>`<div class="cfg-row"><div><div class="cfg-row-label">${e.name}</div><div class="cfg-row-sub">${e.sets}× ${e.time>0&&e.reps===0?e.time+'s':e.reps+' reps'}${e.weight?' · '+e.weight+'kg':''}</div></div><button class="cfg-del" onclick="delEx('${m.dk}',${m.bi},${ei})">remover</button></div>`).join('')}
-      ${hasMultipleEx?`<button class="reorder-btn" style="width:100%;margin-top:8px" onclick="openModal({t:'reorderEx',dk:'${m.dk}',bi:${m.bi}})">
-        <svg viewBox="0 0 16 16" style="stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round"><path d="M2 5h12M2 8h12M2 11h12"/></svg>
-        Reorganizar exercícios
-      </button>`:''}
-      <div class="sep"></div>
-      <button class="cfg-del" style="width:100%;margin-bottom:12px;font-family:inherit;padding:10px;border-radius:var(--r-md);text-align:center" onclick="delBlock('${m.dk}',${m.bi})">Excluir bloco</button>
-      <div class="m-btns"><button class="m-cancel" onclick="closeModal()">Fechar</button><button class="m-ok btn-ripple" onclick="confEditBlock()">Salvar</button></div>
-    </div></div>`;
-  }
-
-  if(m.t==='reorderEx'){
-    const b=blocks[m.dk][m.bi];
-    const gripSvg=`<svg viewBox="0 0 10 16" width="10" height="16"><circle cx="3" cy="3" r="1.4" fill="currentColor"/><circle cx="7" cy="3" r="1.4" fill="currentColor"/><circle cx="3" cy="8" r="1.4" fill="currentColor"/><circle cx="7" cy="8" r="1.4" fill="currentColor"/><circle cx="3" cy="13" r="1.4" fill="currentColor"/><circle cx="7" cy="13" r="1.4" fill="currentColor"/></svg>`;
-    const items=b.exercises.map((e,ei)=>
-      `<div class="ex-reorder-item" data-ei="${ei}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-md);margin-bottom:6px;cursor:grab;user-select:none;touch-action:none">
-        <div style="color:var(--t3);display:flex;align-items:center;flex-shrink:0">${gripSvg}</div>
-        <div style="flex:1;min-width:0">
-          <div style="font-size:var(--fs-body);color:var(--tc);font-weight:var(--fw-normal)">${e.name}</div>
-          <div style="font-size:var(--fs-sub);color:var(--t2);margin-top:2px">${e.sets}× ${e.time>0&&e.reps===0?e.time+'s':e.reps+' reps'}${e.weight?' · '+e.weight+'kg':''}</div>
-        </div>
-      </div>`
-    ).join('');
-    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
-      <h3>Reorganizar exercícios</h3>
-      <div style="font-size:11px;color:var(--t2);margin-bottom:12px;letter-spacing:0.2px">Segure e arraste para reordenar</div>
-      <div id="ex-reorder-list">${items}</div>
-      <div class="m-btns" style="margin-top:12px"><button class="m-cancel" onclick="openModal({t:'editBlock',dk:'${m.dk}',bi:${m.bi}})">← Voltar</button></div>
-    </div></div>`;
-  }
-
-  if(m.t==='addGoal'){
-    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
-      <h3>Nova meta</h3>
-      <input type="text" id="m-gn" placeholder="Nome da meta" autocomplete="off">
-      <input type="text" id="m-gs" placeholder="Descrição (opcional)">
-      <div class="m-btns"><button class="m-cancel" onclick="closeModal()">Cancelar</button><button class="m-ok btn-ripple" onclick="confAddGoal()">Criar</button></div>
-    </div></div>`;
-  }
-  return'';
-}
-
-/* -------- MODAL ACTIONS -------- */
-function confAddEx(){
-  const n=document.getElementById('m-en').value.trim();if(!n)return;
-  const tp=document.getElementById('m-et').value;
-  const s=parseInt(document.getElementById('m-es').value)||3;
-  const v=parseInt(document.getElementById('m-ev').value)||10;
-  const ex={name:n,sets:s,reps:tp==='reps'?v:0,weight:0,media:[]};
-  if(tp==='time')ex.time=v;
-  /* Se chamado da guia Semana (modal.fromSemana), salva no template.
-     Caso contrário, salva apenas na sessão de hoje. */
-  if(modal.fromSemana){
-    blocks[modal.dk][modal.bi].exercises.push(ex);
-    sv('bv2_blocks',blocks);
-    if(modal.dk===todayKey)resetTodaySession();
-  } else {
-    const k=modal.dk+'-'+modal.bi;
-    if(!sessionExtraExercises[k])sessionExtraExercises[k]=[];
-    sessionExtraExercises[k].push(ex);
-    saveTodayCache(); /* persiste exercícios extras da sessão */
-  }
-  closeModal();
-}
-function confAddBlock(dk,type){
-  const bt=BTYPES[type];
-  if(!blocks[dk])blocks[dk]=[];
-  blocks[dk].push({type,label:bt.l,notes:'',exercises:[]});
-  sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();closeModal();toast('Bloco criado');
-}
-
-/* Adiciona bloco SOMENTE à sessão de hoje — não toca blocks/template */
-function confAddBlockToday(dk,type){
-  const bt=BTYPES[type];
-  const newBlock={type,label:bt.l,notes:'',exercises:[],_sessionOnly:true};
-  todaySession.push(newBlock);
-  todaySessionDirty=true;
-  saveTodayCache();
-  closeModal();
-  toast('Bloco adicionado para hoje');
-}
-
-/* Promove um bloco de todaySession para o template da Semana */
-function promoteBlockToWeek(bi){
-  const b=todaySession[bi];
-  if(!b)return;
-  const clone=JSON.parse(JSON.stringify(b));
-  delete clone._sessionOnly;
-  if(!blocks[todayKey])blocks[todayKey]=[];
-  blocks[todayKey].push(clone);
-  sv('bv2_blocks',blocks);
-  /* Marca como promovido na sessão (remove flag) */
-  delete todaySession[bi]._sessionOnly;
-  saveTodayCache();
-  toast('Bloco salvo na Semana');
-  render();
-}
-function confEditBlock(){
-  const b=blocks[modal.dk][modal.bi];
-  b.label=document.getElementById('m-bl').value.trim()||b.label;
-  b.notes=document.getElementById('m-bn').value.trim();
-  sv('bv2_blocks',blocks);if(modal.dk===todayKey)resetTodaySession();closeModal();toast('Bloco atualizado');
-}
-function setBlockColor(dk,bi,color){
-  blocks[dk][bi].accentColor=color;sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();
-  modal={t:'editBlock',dk,bi};render();
-  if(window._lastDayDetail)setTimeout(()=>openDayDetail(window._lastDayDetail),0);
-}
-function setBlockType(dk,bi,type){
-  blocks[dk][bi].type=type;sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();
-  modal={t:'editBlock',dk,bi};render();
-}
-function setBlockIcon(dk,bi,icon){
-  blocks[dk][bi].customIcon=icon;sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();
-  modal={t:'editBlock',dk,bi};render();
-}
-
-/* -------- LIGHTBOX -------- */
-function openLightbox(url){
-  const lb=document.createElement('div');lb.className='img-lightbox';
-  lb.innerHTML=`<img src="${url}" alt=""><div class="img-lightbox-close" onclick="this.parentElement.remove()">✕</div>`;
-  lb.onclick=function(e){if(e.target===lb)lb.remove();};
-  document.getElementById('app').appendChild(lb);
-}
-
-/* -------- CRUD -------- */
-function delEx(dk,bi,ei){blocks[dk][bi].exercises.splice(ei,1);sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();render()}
-function delBlock(dk,bi){blocks[dk].splice(bi,1);sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();closeModal();toast('Bloco removido')}
-
-function confAddGoal(){
-  const n=document.getElementById('m-gn').value.trim();if(!n)return;
-  const s=document.getElementById('m-gs').value.trim();
-  goals.push({name:n,progress:0,note:s});sv('bv2_goals',goals);closeModal();
-}
-function updGoal(i,d){goals[i].progress=Math.max(0,Math.min(100,goals[i].progress+d));sv('bv2_goals',goals);render()}
-function delGoal(i){goals.splice(i,1);sv('bv2_goals',goals);render()}
-
-/* -------- NAVIGATION -------- */
-function nav(p){
-  saveScroll();   /* salva scroll da aba atual antes de trocar */
-  /* Sai do modo reorganização ao trocar de aba — previne estado órfão */
-  if(reorderState.active){reorderState.active=false;reorderState.dk=null;saveStore();}
-  /* Fecha journal se estiver aberto */
-  if(journalOpen){stopRecording(false);journalOpen=false;journalState=null;}
-  page=p;configOpen=false;
-  document.getElementById('gear-btn').classList.remove('active');
-  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
-  const nbEl=document.getElementById('nb-'+p);
-  if(nbEl)nbEl.classList.add('active');
-  render();
-}
-function toggleConfig(){
-  /* Fecha journal se estiver aberto antes de abrir config */
-  if(journalOpen){stopRecording(false);journalOpen=false;journalState=null;}
-  configOpen=!configOpen;
-  document.getElementById('gear-btn').classList.toggle('active',configOpen);
-  render();
-}
-
-/* -------- PAGE RENDERS -------- */
-function renderHoje(){
-  /* MUDANÇA 2 — usa todaySession (clone independente), nunca blocks[todayKey].
-     Isso garante que edições na guia Hoje não mutam o template permanente. */
-  const db=todaySession;
-  let h=`<div class="sec">${DAYFULL[todayI]}</div>`;
-  if(!db.length)h+=`<div class="empty"><strong>Sem blocos hoje</strong>Vá em Semana para montar o dia.</div>`;
-  db.forEach((b,i)=>h+=renderBlockCard(b,todayKey,i,'hoje'));
-  h+=`<button class="add-b" onclick="openModal({t:'addBlockToday',dk:'${todayKey}'})">
-    <svg viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke-width="2" stroke-linecap="round"/></svg>
-    Novo bloco
-  </button>`;
-  return h;
-}
-
-function renderSemana(){
-  let h=`<div class="sec">Semana</div><div class="wk-grid">`;
-  DAYS.forEach((d,i)=>{
-    const db=blocks[d]||[];const isT=i===todayI;
-    const blist=db.length?db.map(b=>`<span class="dc-dot"></span>${b.label}`).join('<br>'):`<span style="color:var(--t3)">—</span>`;
-    h+=`<div class="dc${isT?' today':''}" onclick="openDayDetail('${d}')">
-      <div class="dc-day">${d}${isT?` <span style="width:4px;height:4px;border-radius:50%;background:var(--ac);display:inline-block;margin-left:2px"></span>`:''}</div>
-      <div class="dc-blocks">${blist}</div>
-    </div>`;
-  });
-  h+=`</div><div id="dd"></div>`;
-  return h;
-}
-
-function openDayDetail(dk){
-  const db=blocks[dk]||[];const i=DAYS.indexOf(dk);
-  const inReorder=reorderState.active&&reorderState.dk===dk;
-
-  let h=`<div class="sep"></div><div class="sec">${DAYFULL[i]}</div>`;
-
-  /* ── Banner de modo reorganização ── */
-  if(inReorder){
-    h+=`<div class="reorder-banner">
-      <div class="reorder-banner-dot"></div>
-      <div class="reorder-banner-label">Arraste os blocos para reorganizar</div>
-      <button class="reorder-done-btn" onclick="exitReorderMode()">Concluir</button>
-    </div>`;
-  }
-
-  /* ── Lista de blocos ── */
-  h+=`<div id="reorder-list-${dk}">`;
-  db.forEach((b,bi)=>{
-    if(inReorder){
-      /* Modo reorganização: cada bloco vira um item arrastável com handle */
-      h+=renderReorderItem(b,bi,dk);
-    } else {
-      /* Modo normal: comportamento original preservado */
-      const key='sem'+dk+bi;
-      const isOpen=openBlk[key];
-      const colorAttr=b.accentColor?` data-color="${b.accentColor}"`:'';
-      let body='';
-      if(isOpen){
-        b.exercises.forEach((e,ei)=>{body+=renderExRow(e,dk,bi,ei,true);});
-        body+=`<button class="add-b" onclick="openModal({t:'addEx',dk:'${dk}',bi:${bi},fromSemana:true});setTimeout(()=>reopenDay('${dk}'),10)">
-          <svg viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke-width="2" stroke-linecap="round"/></svg>
-          exercício
-        </button>`;
-        body+=`<button class="sreg" onclick="openModal({t:'editBlock',dk:'${dk}',bi:${bi}})">Editar bloco</button>`;
-      }
-      const chevSvg=`<svg viewBox="0 0 14 14"><path d="M3 5L7 9L11 5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-      h+=`<div class="bc${isOpen?' open':''}${colorAttr}">
-        <div class="bh" onclick="toggleBlkSem('${key}','${dk}')">
-          <div class="bl-icon">${blockIcon(b)}</div>
-          <div class="bh-info"><div class="bn">${b.label}</div><div class="bs">${b.exercises.length} exercício${b.exercises.length!==1?'s':''}</div></div>
-          <div class="bchev${isOpen?' o':''}">${chevSvg}</div>
-        </div>
-        ${isOpen?`<div class="bbody">${body}</div>`:''}
-      </div>`;
-    }
-  });
-  h+=`</div>`;
-
-  /* ── Botões de ação abaixo da lista ── */
-  if(!inReorder){
-    h+=`<button class="add-b" onclick="openModal({t:'addBlock',dk:'${dk}'})">
-      <svg viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke-width="2" stroke-linecap="round"/></svg>
-      Novo bloco em ${dk}
-    </button>`;
-    /* Botão de reorganizar — só aparece quando há mais de 1 bloco */
-    if(db.length>1){
-      h+=`<button class="reorder-btn" onclick="enterReorderMode('${dk}')">
-        <svg viewBox="0 0 16 16" style="stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round">
-          <path d="M2 5h12M2 8h12M2 11h12"/>
-        </svg>
-        Reorganizar blocos
-      </button>`;
-    }
-  }
-
-  const dd=document.getElementById('dd');
-  if(dd){
-    dd.innerHTML=h;
-    /* Scroll automático ao abrir o detalhe do dia */
-    setTimeout(()=>{
-      const ct=document.getElementById('content');
-      if(ct&&dd)ct.scrollTop=dd.offsetTop-16;
-    },80);
-    /* Se estiver em modo reorder, ativa os listeners de drag */
-    if(inReorder){
-      setTimeout(()=>attachReorderListeners(dk),30);
-    }
-  }
-  window._lastDayDetail=dk;
-}
-
-/* ── Renderiza um item arrastável no modo reorder ── */
-function renderReorderItem(b,bi,dk){
-  /* Grip: 6 pontos 2×3, preenchidos (fill), sem stroke */
-  const gripSvg=`<svg viewBox="0 0 10 16" width="10" height="16">
-    <circle cx="3" cy="3"  r="1.4" fill="currentColor"/>
-    <circle cx="7" cy="3"  r="1.4" fill="currentColor"/>
-    <circle cx="3" cy="8"  r="1.4" fill="currentColor"/>
-    <circle cx="7" cy="8"  r="1.4" fill="currentColor"/>
-    <circle cx="3" cy="13" r="1.4" fill="currentColor"/>
-    <circle cx="7" cy="13" r="1.4" fill="currentColor"/>
-  </svg>`;
-
-  return`<div class="bc bc-reorder" data-bi="${bi}" data-dk="${dk}">
-    <div class="bh" style="padding-left:0;cursor:inherit;gap:10px">
-      <div class="drag-handle">${gripSvg}</div>
-      <div class="bl-icon">${blockIcon(b)}</div>
-      <div class="bh-info">
-        <div class="bn">${b.label}</div>
-        <div class="bs">${b.exercises.length} exercício${b.exercises.length!==1?'s':''}</div>
-      </div>
-    </div>
-  </div>`;
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   REORDER ENGINE v2 — Drag-and-drop correto
-   
-   Estratégia: placeholder (não altera dados durante drag)
-   ─────────────────────────────────────────────────────────────────
-   BUGS CORRIGIDOS vs v1:
-   1. Ghost "solto": usava left/top absolutos que ignoravam scroll e
-      max-width do #app. Agora usa transform:translate (coordenadas
-      relativas ao viewport, sem dependência de offset pai).
-   2. Reordenação bugada: v1 alterava blocks[dk] em tempo real e
-      recriava o DOM no meio do drag, perdendo referências. Agora
-      usa um placeholder estático no DOM — dados só mudam no drop.
-   3. Índice errado: v1 acumulava fromIndex a cada frame. Agora
-      fromIndex é fixo (índice inicial), toIndex é calculado puro
-      comparando posição do cursor com cada item do DOM.
-   4. Conflito scroll/drag no iOS: touch-action:none no CSS +
-      preventDefault no touchstart/touchmove resolve o conflito.
-   ═══════════════════════════════════════════════════════════════════ */
-
-/* Estado interno — resetado a cada drag */
-const _drag = {
-  active: false,
-  el: null,          /* elemento original (some durante drag) */
-  ghost: null,       /* clone visual flutuante */
-  placeholder: null, /* div que marca o slot de destino */
-  dk: null,          /* dia sendo reorganizado */
-  fromIndex: -1,     /* índice de origem (fixo durante o drag) */
-  toIndex: -1,       /* índice de destino atual */
-  offsetX: 0,        /* distância do ponto de toque à borda esquerda do card */
-  offsetY: 0,        /* distância do ponto de toque à borda superior do card */
-  ghostW: 0,         /* largura do ghost */
-  scrollEl: null,
-  scrollRaf: null,   /* requestAnimationFrame do auto-scroll */
-  clientY: 0,        /* última posição Y conhecida do ponteiro */
-};
-
-/* ── Entrada/saída do modo de reorganização ── */
-function enterReorderMode(dk){
-  reorderState.active=true;
-  reorderState.dk=dk;
-  Object.keys(openBlk).forEach(k=>{if(k.startsWith('sem'+dk))openBlk[k]=false;});
-  openDayDetail(dk);
-  toast('Segure e arraste para reorganizar');
-}
-
-function exitReorderMode(){
-  /* Garante que qualquer drag em andamento é cancelado */
-  if(_drag.active)_dragCancel();
-  reorderState.active=false;
-  reorderState.dk=null;
-  saveStore();
-  if(window._lastDayDetail)openDayDetail(window._lastDayDetail);
-  toast('Ordem salva');
-}
-
-/* ═══════════════════════════════════════════════════════════════════
-   EXERCISE REORDER ENGINE — drag-and-drop dentro do modal reorderEx
-   Mesmo padrão do block reorder, adaptado para exercícios inline no modal.
-   Salva imediatamente em blocks ao soltar; modal re-renderiza automaticamente.
-   ═══════════════════════════════════════════════════════════════════ */
-const _exDrag = {
-  active:false, el:null, ghost:null, placeholder:null,
-  fromIndex:-1, toIndex:-1, offsetX:0, offsetY:0,
-  dk:null, bi:-1, scrollEl:null, scrollRaf:null, clientY:0,
-};
-
-function attachExReorderListeners(){
-  const list=document.getElementById('ex-reorder-list');
-  if(!list)return;
-  list.querySelectorAll('.ex-reorder-item').forEach(item=>{
-    item.addEventListener('mousedown',_exOnStart,{passive:false});
-    item.addEventListener('touchstart',_exOnStart,{passive:false});
-  });
-}
-
-function _exOnStart(e){
-  e.preventDefault();
-  const el=e.currentTarget;
-  const isTouchEvt=e.type==='touchstart';
-  const pt=isTouchEvt?e.touches[0]:e;
-  const rect=el.getBoundingClientRect();
-
-  const ph=document.createElement('div');
-  ph.className='bc-placeholder';ph.style.height=rect.height+'px';ph.style.borderRadius='var(--r-md)';
-  el.parentNode.insertBefore(ph,el.nextSibling);
-
-  const ghost=el.cloneNode(true);
-  ghost.style.cssText=`position:fixed;top:0;left:0;z-index:9999;pointer-events:none;will-change:transform;width:${rect.width}px;border-radius:var(--r-md);background:var(--s3);border:1px solid var(--b2);box-shadow:0 12px 32px rgba(0,0,0,0.45);opacity:0.97;transform:translate(${rect.left}px,${rect.top}px)`;
-  document.getElementById('app').appendChild(ghost);
-
-  el.style.opacity='0';el.style.pointerEvents='none';
-
-  const m=modal;
-  _exDrag.active=true;_exDrag.el=el;_exDrag.ghost=ghost;_exDrag.placeholder=ph;
-  _exDrag.fromIndex=parseInt(el.dataset.ei);_exDrag.toIndex=_exDrag.fromIndex;
-  _exDrag.offsetX=pt.clientX-rect.left;_exDrag.offsetY=pt.clientY-rect.top;
-  _exDrag.dk=m.dk;_exDrag.bi=m.bi;
-  _exDrag.scrollEl=document.querySelector('.modal-ov .modal');
-  _exDrag.clientY=pt.clientY;
-
-  if(isTouchEvt){
-    document.addEventListener('touchmove',_exOnMove,{passive:false});
-    document.addEventListener('touchend',_exOnEnd,{passive:false});
-    document.addEventListener('touchcancel',_exDragCancel,{passive:false});
-  } else {
-    document.addEventListener('mousemove',_exOnMove);
-    document.addEventListener('mouseup',_exOnEnd);
-  }
-}
-
-function _exOnMove(e){
-  if(!_exDrag.active)return;e.preventDefault();
-  const pt=e.type==='touchmove'?e.touches[0]:e;
-  const cx=pt.clientX;const cy=pt.clientY;_exDrag.clientY=cy;
-  if(_exDrag.ghost){_exDrag.ghost.style.transition='none';_exDrag.ghost.style.transform=`translate(${cx-_exDrag.offsetX}px,${cy-_exDrag.offsetY}px)`;}
-  _exCalcDropIndex(cy);
-}
-
-function _exOnEnd(e){
-  if(!_exDrag.active)return;e.preventDefault();
-  _exDrag.active=false;
-  document.removeEventListener('touchmove',_exOnMove);document.removeEventListener('touchend',_exOnEnd);
-  document.removeEventListener('touchcancel',_exDragCancel);document.removeEventListener('mousemove',_exOnMove);document.removeEventListener('mouseup',_exOnEnd);
-  const from=_exDrag.fromIndex;const to=_exDrag.toIndex;
-  if(from!==to&&blocks[_exDrag.dk]&&blocks[_exDrag.dk][_exDrag.bi]){
-    const arr=blocks[_exDrag.dk][_exDrag.bi].exercises;
-    const item=arr.splice(from,1)[0];arr.splice(to,0,item);
-    sv('bv2_blocks',blocks);
-    if(_exDrag.dk===todayKey)resetTodaySession();
-  }
-  if(_exDrag.ghost){_exDrag.ghost.remove();_exDrag.ghost=null;}
-  if(_exDrag.placeholder){_exDrag.placeholder.remove();_exDrag.placeholder=null;}
-  /* Re-abre o modal reorderEx para refletir nova ordem */
-  openModal({t:'reorderEx',dk:_exDrag.dk,bi:_exDrag.bi});
-  setTimeout(()=>attachExReorderListeners(),30);
-}
-
-function _exDragCancel(){
-  if(!_exDrag.active)return;_exDrag.active=false;
-  document.removeEventListener('touchmove',_exOnMove);document.removeEventListener('touchend',_exOnEnd);
-  document.removeEventListener('touchcancel',_exDragCancel);document.removeEventListener('mousemove',_exOnMove);document.removeEventListener('mouseup',_exOnEnd);
-  if(_exDrag.ghost){_exDrag.ghost.remove();_exDrag.ghost=null;}
-  if(_exDrag.placeholder){_exDrag.placeholder.remove();_exDrag.placeholder=null;}
-  if(_exDrag.el){_exDrag.el.style.opacity='';_exDrag.el.style.pointerEvents='';}
-  openModal({t:'reorderEx',dk:_exDrag.dk,bi:_exDrag.bi});
-  setTimeout(()=>attachExReorderListeners(),30);
-}
-
-function _exCalcDropIndex(clientY){
-  const list=document.getElementById('ex-reorder-list');
-  if(!list||!_exDrag.placeholder)return;
-  const items=[...list.querySelectorAll('.ex-reorder-item')].filter(el=>el.style.opacity!=='0');
-  if(!items.length)return;
-  let newTo=_exDrag.fromIndex;let insertBefore=null;let placed=false;
-  for(let i=0;i<items.length;i++){
-    const r=items[i].getBoundingClientRect();
-    if(clientY<r.top+r.height*0.5){
-      newTo=parseInt(items[i].dataset.ei);
-      if(newTo>_exDrag.fromIndex)newTo=newTo-1;
-      insertBefore=items[i];placed=true;break;
-    }
-  }
-  if(!placed){
-    const last=items[items.length-1];
-    newTo=parseInt(last.dataset.ei);
-    if(newTo<_exDrag.fromIndex)newTo=newTo+1;
-    insertBefore=last.nextSibling;
-  }
-  if(newTo!==_exDrag.toIndex)_exDrag.toIndex=newTo;
-  list.insertBefore(_exDrag.placeholder,insertBefore||null);
-}
-
-
-function attachReorderListeners(dk){
-  const list=document.getElementById('reorder-list-'+dk);
-  if(!list)return;
-  list.querySelectorAll('.bc-reorder').forEach(item=>{
-    item.addEventListener('mousedown', _onStart, {passive:false});
-    item.addEventListener('touchstart', _onStart, {passive:false});
-  });
-}
-
-/* ── Início do drag ── */
-function _onStart(e){
-  if(e.target.closest('button'))return; /* não inicia em botões */
-  e.preventDefault();
-
-  const el = e.currentTarget;
-  const isTouchEvt = e.type === 'touchstart';
-  const pt = isTouchEvt ? e.touches[0] : e;
-  const rect = el.getBoundingClientRect();
-
-  /* Cria placeholder com mesma altura do card */
-  const ph = document.createElement('div');
-  ph.className = 'bc-placeholder';
-  ph.style.height = rect.height + 'px';
-  el.parentNode.insertBefore(ph, el.nextSibling); /* insere após o original */
-
-  /* Cria ghost (clone visual) posicionado via transform */
-  const ghost = el.cloneNode(true);
-  ghost.className = 'bc bc-drag-ghost';
-  ghost.style.width = rect.width + 'px';
-  ghost.style.transform = `translate(${rect.left}px, ${rect.top}px)`;
-  /* Anima entrada: escala leve para feedback tátil */
-  ghost.style.transition = 'transform 0.12s var(--ease-spring), box-shadow 0.12s ease';
-  document.getElementById('app').appendChild(ghost);
-  requestAnimationFrame(()=>{
-    ghost.style.boxShadow = '0 20px 50px rgba(0,0,0,0.55), 0 4px 14px rgba(0,0,0,0.4)';
-    ghost.style.transition = 'box-shadow 0.12s ease'; /* remove transform transition após entrada */
-  });
-
-  /* Esconde o original */
-  el.classList.add('bc-dragging');
-
-  /* Inicializa estado */
-  _drag.active      = true;
-  _drag.el          = el;
-  _drag.ghost       = ghost;
-  _drag.placeholder = ph;
-  _drag.dk          = el.dataset.dk;
-  _drag.fromIndex   = parseInt(el.dataset.bi);
-  _drag.toIndex     = _drag.fromIndex;
-  _drag.offsetX     = pt.clientX - rect.left;
-  _drag.offsetY     = pt.clientY - rect.top;
-  _drag.ghostW      = rect.width;
-  _drag.scrollEl    = document.getElementById('content');
-  _drag.clientY     = pt.clientY;
-
-  if(isTouchEvt){
-    document.addEventListener('touchmove',  _onMove,  {passive:false});
-    document.addEventListener('touchend',   _onEnd,   {passive:false});
-    document.addEventListener('touchcancel',_dragCancel,{passive:false});
-  } else {
-    document.addEventListener('mousemove', _onMove);
-    document.addEventListener('mouseup',   _onEnd);
-  }
-}
-
-/* ── Movimento ── */
-function _onMove(e){
-  if(!_drag.active)return;
-  e.preventDefault();
-
-  const isTouchEvt = e.type === 'touchmove';
-  const pt = isTouchEvt ? e.touches[0] : e;
-  const cx = pt.clientX;
-  const cy = pt.clientY;
-  _drag.clientY = cy;
-
-  /* Move o ghost usando transform — correto independente de scroll ou max-width */
-  if(_drag.ghost){
-    _drag.ghost.style.transition = 'none'; /* sem transition durante movimento */
-    _drag.ghost.style.transform = `translate(${cx - _drag.offsetX}px, ${cy - _drag.offsetY}px)`;
-  }
-
-  /* Auto-scroll */
-  _startAutoScroll();
-
-  /* Calcula novo índice de destino olhando os itens visiveis no DOM */
-  _calcDropIndex(cy);
-}
-
-/* ── Fim do drag ── */
-function _onEnd(e){
-  if(!_drag.active)return;
-  e.preventDefault();
-
-  _drag.active = false;
-  _stopAutoScroll();
-
-  /* Remove listeners globais */
-  document.removeEventListener('touchmove',   _onMove);
-  document.removeEventListener('touchend',    _onEnd);
-  document.removeEventListener('touchcancel', _dragCancel);
-  document.removeEventListener('mousemove',   _onMove);
-  document.removeEventListener('mouseup',     _onEnd);
-
-  /* Aplica a reordenação nos dados (só agora, no drop) */
-  const from = _drag.fromIndex;
-  const to   = _drag.toIndex;
-  if(from !== to && blocks[_drag.dk]){
-    const arr = blocks[_drag.dk];
-    const item = arr.splice(from, 1)[0];
-    arr.splice(to, 0, item);
-    saveStore();
-  }
-
-  /* Remove ghost e placeholder e re-renderiza a lista */
-  if(_drag.ghost){ _drag.ghost.remove(); _drag.ghost=null; }
-  if(_drag.placeholder){ _drag.placeholder.remove(); _drag.placeholder=null; }
-  if(_drag.el){ _drag.el.classList.remove('bc-dragging'); _drag.el=null; }
-
-  /* Re-renderiza apenas o detail do dia (não full render) */
-  if(window._lastDayDetail)openDayDetail(window._lastDayDetail);
-}
-
-/* ── Cancela drag (touchcancel ou saída de emergência) ── */
-function _dragCancel(){
-  if(!_drag.active)return;
-  _drag.active = false;
-  _stopAutoScroll();
-  document.removeEventListener('touchmove',   _onMove);
-  document.removeEventListener('touchend',    _onEnd);
-  document.removeEventListener('touchcancel', _dragCancel);
-  document.removeEventListener('mousemove',   _onMove);
-  document.removeEventListener('mouseup',     _onEnd);
-  if(_drag.ghost){ _drag.ghost.remove(); _drag.ghost=null; }
-  if(_drag.placeholder){ _drag.placeholder.remove(); _drag.placeholder=null; }
-  if(_drag.el){ _drag.el.classList.remove('bc-dragging'); _drag.el=null; }
-  /* Cancela sem salvar — ordem original permanece */
-  if(window._lastDayDetail)openDayDetail(window._lastDayDetail);
-}
-
-/* ── Calcula onde o placeholder deve ficar e move-o ── */
-function _calcDropIndex(clientY){
-  const list = document.getElementById('reorder-list-'+_drag.dk);
-  if(!list||!_drag.placeholder)return;
-
-  /* Coleta itens reais (exclui o original invisível e o placeholder) */
-  const items = [...list.querySelectorAll('.bc-reorder:not(.bc-dragging)')];
-  if(!items.length)return;
-
-  let newTo = _drag.fromIndex;
-  let insertBefore = null; /* referência DOM de onde inserir o placeholder */
-
-  let placed = false;
-  for(let i=0;i<items.length;i++){
-    const r = items[i].getBoundingClientRect();
-    if(clientY < r.top + r.height * 0.5){
-      /* Cursor está na metade superior deste item → placeholder fica antes dele */
-      newTo = parseInt(items[i].dataset.bi);
-      /* Se o item vem depois do from, ajusta para compensar a remoção */
-      if(newTo > _drag.fromIndex) newTo = newTo - 1;
-      insertBefore = items[i];
-      placed = true;
-      break;
-    }
-  }
-  if(!placed){
-    /* Cursor abaixo de todos → vai para o final */
-    const last = items[items.length-1];
-    newTo = parseInt(last.dataset.bi);
-    if(newTo < _drag.fromIndex) newTo = newTo + 1;
-    /* Insere depois do último */
-    insertBefore = last.nextSibling;
-  }
-
-  /* Move o placeholder no DOM só se a posição mudou */
-  if(newTo !== _drag.toIndex){
-    _drag.toIndex = newTo;
-  }
-  /* Sempre move o placeholder para refletir posição visual correta */
-  list.insertBefore(_drag.placeholder, insertBefore || null);
-}
-
-/* ── Auto-scroll suave usando rAF ── */
-function _startAutoScroll(){
-  _stopAutoScroll();
-  function _frame(){
-    if(!_drag.active)return;
-    const ct = _drag.scrollEl;
-    if(ct){
-      const cr = ct.getBoundingClientRect();
-      const zone = 72, speed = 10;
-      const cy = _drag.clientY;
-      if(cy < cr.top + zone){
-        ct.scrollTop -= speed * (1 - (cy - cr.top) / zone);
-      } else if(cy > cr.bottom - zone){
-        ct.scrollTop += speed * (1 - (cr.bottom - cy) / zone);
-      }
-    }
-    _drag.scrollRaf = requestAnimationFrame(_frame);
-  }
-  _drag.scrollRaf = requestAnimationFrame(_frame);
-}
-function _stopAutoScroll(){
-  if(_drag.scrollRaf){ cancelAnimationFrame(_drag.scrollRaf); _drag.scrollRaf=null; }
-}
-
-function reopenDay(dk){if(window._lastDayDetail)openDayDetail(window._lastDayDetail)}
-
-function renderHistorico(){
-  let h=`<div class="sec">Histórico</div>`;
-  if(!history.length)h+=`<div class="empty"><strong>Nenhum treino registrado</strong>Abra um bloco em Hoje e registre.</div>`;
-  const byDate={};
-  history.forEach((entry,hi)=>{
-    if(!byDate[entry.date])byDate[entry.date]={date:entry.date,day:entry.day,entries:[],indices:[]};
-    byDate[entry.date].entries.push(entry);byDate[entry.date].indices.push(hi);
-  });
-  Object.values(byDate).slice(0,20).forEach(group=>{
-    const groupKey='g'+group.date.replace(/\//g,'');const isOpen=openHist[groupKey];
-    let body='';
-    if(isOpen){
-      group.entries.forEach(entry=>{
-        const blocks_to_render=Array.isArray(entry.exercises)
-          ?[{label:entry.blockLabel,type:entry.blockType,exercises:entry.exercises}]
-          :(entry.entries||[]);
-        blocks_to_render.forEach(blk=>{
-          body+=`<div style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--t4)">
-            <div style="font-size:10px;font-weight:500;color:var(--t2);margin-bottom:6px;letter-spacing:1px;text-transform:uppercase">${blk.label||entry.blockLabel||''}</div>`;
-          (blk.exercises||[]).forEach(e=>{
-            let val;
-            if(e.time&&e.time>0&&(!e.reps||e.reps===0)){val=`${e.sets}×${e.time}s`;}
-            else if(e.weight&&e.weight>0){val=`${e.sets}×${e.reps} · ${e.weight}kg`;}
-            else{val=`${e.sets}×${e.reps}`;}
-            /* Renderiza badge de status se o exercício foi marcado como done ou skipped.
-               O campo 'status' é gravado pelo saveLog() a partir de sessionExStatus.
-               null/undefined = nenhuma marcação explícita (exercício neutro). */
-            const statusBadge = e.status === 'done'
-              ? `<span class="hist-ex-status done">feito</span>`
-              : e.status === 'skipped'
-              ? `<span class="hist-ex-status skipped">pulado</span>`
-              : '';
-            body+=`<div class="h-ex-row"><span class="h-ex-name">${e.name}</span>${statusBadge}<span class="h-ex-val">${val}</span></div>`;
-          });
-          body+=`</div>`;
-        });
-      });
-    }
-    const chevSvg=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5L7 9L11 5"/></svg>`;
-    h+=`<div class="hist-c">
-      <div class="hist-h" onclick="openHist['${groupKey}']=!openHist['${groupKey}'];render()">
-        <div>
-          <div class="hist-day">${group.day}</div>
-          <div class="hist-date">${group.date} · ${group.entries.length} bloco${group.entries.length!==1?'s':''}</div>
-        </div>
-        <div class="bchev${isOpen?' o':''}">${chevSvg}</div>
-      </div>
-      ${isOpen?`<div class="hist-body">${body}</div>`:''}
-    </div>`;
-  });
-
-  h+=`<div class="sec" style="margin-top:24px">Evolução</div>`;
-  const exMap={};
-  history.forEach(en=>{
-    const exList=Array.isArray(en.exercises)?en.exercises:(en.entries||[]).flatMap(b=>b.exercises||[]);
-    exList.forEach(e=>{
-      if(!exMap[e.name])exMap[e.name]=[];
-      exMap[e.name].push({w:e.weight||0,r:e.reps||0,t:e.time||0,d:en.date});
-    });
-  });
-  const tracked=Object.entries(exMap).filter(([,v])=>v.length>=2);
-  if(!tracked.length){
-    h+=`<div class="empty"><strong>Sem dados de evolução</strong>Registre ao menos 2 blocos para ver progresso.</div>`;
-  } else {
-    tracked.forEach(([name,vals])=>{
-      const curr=vals[0];const prev=vals[vals.length>4?vals.length-4:vals.length-1];
-      const useW=curr.w>0;
-      const cv=useW?curr.w:(curr.r||curr.t);
-      const pv=useW?prev.w:(prev.r||prev.t);
-      if(!cv&&!pv)return;
-      const t=trend(cv,pv);
-      h+=`<div class="ind-card">
-        <div class="ind-ex">${name}</div>
-        <div class="ind-cmp">
-          <div class="ind-val"><div class="ind-num" style="color:var(--t2)">${pv}${useW?'kg':curr.t?'s':'rep'}</div><div class="ind-lbl">anterior</div></div>
-          <div class="ind-arr ${t.cls}">${t.sym}</div>
-          <div class="ind-val"><div class="ind-num">${cv}${useW?'kg':curr.t?'s':'rep'}</div><div class="ind-lbl">recente</div></div>
-          <div style="flex:1;text-align:right"><span class="trnd ${t.cls}">${t.txt}</span></div>
-        </div>
-      </div>`;
-    });
-  }
-  return h;
-}
-
-/* ════════════════════════════════════════════════════════════════════════════
-   ANALYTICS — FASE 3
-   ════════════════════════════════════════════════════════════════════════════ */
+/* ── Analytics avançado: cálculos de frequência, aderência e insights ── */
 
 /* Frequência por grupo muscular — retorna [{group, sessions, lastDate}]
    Cada registro de bloco contribui com os grupos do seu blockType.
@@ -4513,18 +3315,6 @@ function calcWeeklySummary(weekOffset){
   return{label,days,vol,exercises:exSet.size,prs:weekPRs,topSkipped,blocks:entries.length};
 }
 
-/* Helper: verifica se um peso é PR considerando apenas registros ANTES de uma data */
-function isPR_before(exName,weight,beforeDate){
-  const prev=history
-    .filter(h=>{
-      const[dd,mm,yy]=h.date.split('/');
-      return new Date(yy,mm-1,dd)<beforeDate;
-    })
-    .flatMap(h=>Array.isArray(h.exercises)?h.exercises:(h.entries||[]).flatMap(b=>b.exercises||[]))
-    .filter(e=>e.name===exName&&e.weight>0);
-  if(!prev.length)return false;
-  return weight>Math.max(...prev.map(e=>e.weight));
-}
 
 /* ══════════════════════════════════════════════════════════
    FASE 4 — INSIGHTS AUTOMÁTICOS
@@ -4577,7 +3367,7 @@ function generateInsights(){
   const neverDone=[];
   DAYS.forEach(dk=>{
     (blocks[dk]||[]).forEach(b=>{
-      if(!doneSet_insight(b,dk,doneBlocks))neverDone.push(b.label);
+      if(!doneBlocks.has(`${dk}||${b.label}`))neverDone.push(b.label);
     });
   });
   if(neverDone.length){
@@ -4656,11 +3446,1009 @@ function generateInsights(){
 }
 
 /* Helper interno — verifica se bloco já foi registrado alguma vez */
-function doneSet_insight(b,dk,doneBlocks){
-  return doneBlocks.has(`${dk}||${b.label}`);
+
+/* ════════════════════════════════════════════════════════════════════════════
+   § 6 · APPEARANCE — Tema, fontes e variáveis de CSS
+   ────────────────────────────────────────────────────────────────────────────
+   Tudo que toca CSS custom properties via JS. Chamada no boot e toda vez que
+   o usuário altera tema, fonte, border-radius, compact mode ou velocidade de
+   animação. Os setters (setTheme, setAccentColor, etc.) vivem em § 9 RENDER ENGINE
+   pois são chamados diretamente pelos inputs do renderConfigAparencia().
+
+   CONTEÚDO:
+   · applyAppearance() — aplica o objeto appearance completo nos CSS vars.
+                          Chamada no boot e após toda alteração de aparência.
+   ════════════════════════════════════════════════════════════════════════════ */
+function applyAppearance(){
+  const a=appearance;
+  const root=document.documentElement;
+  const t=THEMES[a.theme]||THEMES.dark;
+  root.style.setProperty('--bg',t.bg);
+  root.style.setProperty('--s1',t.s1);
+  root.style.setProperty('--s2',t.s2);
+  root.style.setProperty('--s3',t.s3);
+  root.style.setProperty('--s4',t.s4);
+  root.style.setProperty('--tc',t.tc);
+  root.style.setProperty('--t2',t.t2);
+  root.style.setProperty('--t3',t.t3);
+  root.style.setProperty('--ac',a.accentColor);
+  /* Bordas e divisores adaptados ao tema claro/escuro */
+  const isLight=t.bg>'#888';
+  root.style.setProperty('--b1',isLight?'rgba(0,0,0,0.09)':'rgba(255,255,255,0.06)');
+  root.style.setProperty('--b2',isLight?'rgba(0,0,0,0.18)':'rgba(255,255,255,0.10)');
+  root.style.setProperty('--t4',isLight?'rgba(0,0,0,0.08)':'#1e1e1e');
+  /* t3 já vem do tema, mas garantimos que não some em temas claros */
+  if(t.t3)root.style.setProperty('--t3',t.t3);
+  /* Marca o app com atributo de tema para overrides CSS (QUICK WIN #5) */
+  const appEl=document.getElementById('app');
+  if(isLight){appEl.setAttribute('data-theme-light','');} else {appEl.removeAttribute('data-theme-light');}
+  const f=FONT_OPTIONS.find(x=>x.id===a.font)||FONT_OPTIONS[0];
+  root.style.setProperty('--font-family',f.val);
+  document.getElementById('app').style.fontFamily=f.val;
+  root.style.setProperty('--radius-global',a.borderRadius+'px');
+  root.style.setProperty('--r-lg',a.borderRadius+'px');
+  const ct=document.getElementById('content');
+  /* R7: guard contra execução antes do DOM estar pronto (ex: script movido para <head>) */
+  if(!ct) return;
+  const p=a.compactMode?'12px':'16px';
+  ct.style.paddingTop=p;
+  ct.style.paddingLeft=p;
+  ct.style.paddingRight=p;
+  ct.style.paddingBottom='96px';
+  /* Ajusta o top do sticky journal-hdr para compensar o padding correto */
+  root.style.setProperty('--journal-hdr-top', a.compactMode?'-12px':'-16px');
+  const speeds={fast:'0.15s',normal:'0.22s',slow:'0.38s'};
+  /* R3: --anim-speed removido — variável sem referência no CSS. Apenas --dur-base é usado. */
+  root.style.setProperty('--dur-base',speeds[a.animSpeed||'normal']||'0.22s');
 }
 
+/* ════════════════════════════════════════════════════════════════════════════
+   § 7 · UI HELPERS — Utilitários de interface sem responsabilidade de render
+   ────────────────────────────────────────────────────────────────────────────
+   Funções de suporte à UI: feedback visual, parsing de URLs, estado de scroll,
+   captura de inputs e controle de peso. Sem lógica de negócio, sem acesso a
+   blocks/history/goals. Podem ser chamadas de qualquer ponto do app.
+
+   CONTEÚDO:
+   · toast()             — notificação temporária (variantes: padrão, 'pr-toast').
+   · ytId()              — extrai ID de vídeo de URLs YouTube.
+   · isImg()             — detecta se URL é imagem (extensão ou domínio conhecido).
+   · openLink()          — abre URL em nova aba.
+   · looksLikeMedia()    — alias: retorna true se URL é imagem ou YouTube.
+   · updExBase()         — atualiza campo de exercício em blocks (via guia Semana).
+   · addMedia()/delMedia() — adiciona/remove mídia de um exercício.
+   · renderMediaSection()  — HTML da seção de mídia dentro de um exercício.
+   · blockIcon()         — retorna HTML do ícone de um bloco (emoji ou tipo).
+   · renderExRow()       — HTML completo de uma linha de exercício (expandível).
+   · openLightbox()      — abre lightbox de imagem em fullscreen.
+   · persistOpenBlk()    — persiste estado de blocos abertos no sessionStorage (decl. em §3).
+   · saveScroll()/restoreScroll() — estado de scroll por aba.
+   · captureInputs()/getInputVal() — preserva valores de inputs entre re-renders.
+   · stepWeight()        — stepper de kg em ±2.5 sem abrir teclado.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+
+/* ── Estado de scroll por aba — salvo antes de cada re-render ── */
+const scrollPos={};
+function saveScroll(){
+  const ct=document.getElementById('content');
+  if(ct)scrollPos[configOpen?'config':page]=ct.scrollTop;
+}
+function restoreScroll(){
+  const ct=document.getElementById('content');
+  if(!ct)return;
+  const k=configOpen?'config':page;
+  if(scrollPos[k]!=null)ct.scrollTop=scrollPos[k];
+}
+
+/* ── Cache de inputs em memória — evita perda de valores ao re-render ── */
+const inputState={};
+function captureInputs(){
+  document.querySelectorAll('.inp-g input').forEach(el=>{
+    if(el.id)inputState[el.id]=el.value;
+  });
+}
+function getInputVal(id,fallback){
+  return inputState[id]!=null?parseFloat(inputState[id])||fallback:fallback;
+}
+
+/* ── Stepper de kg — ajusta ±2.5 sem abrir teclado virtual ── */
+function stepWeight(id,delta){
+  const el=document.getElementById(id);
+  if(!el)return;
+  const cur=parseFloat(el.value)||0;
+  const nv=Math.max(0,Math.round((cur+delta)*4)/4);
+  el.value=nv;
+  el.dispatchEvent(new Event('change'));
+  /* feedback visual imediato */
+  el.style.transition='color 0.1s';
+  el.style.color=delta>0?'var(--green)':'var(--red)';
+  setTimeout(()=>{el.style.color='';},300);
+}
+function toast(m,variant){
+  const t=document.getElementById('toast');
+  t.textContent=m;
+  t.className='toast'; /* reset classes */
+  if(variant)t.classList.add(variant);
+  t.classList.add('show');
+  setTimeout(()=>t.classList.remove('show','pr-toast'),2400);
+}
+function ytId(url){const m=url.match(/(?:youtu\.be\/|youtube\.com\/(?:watch\?v=|embed\/|shorts\/))([A-Za-z0-9_-]{11})/);return m?m[1]:null}
+function isImg(url){return/\.(jpg|jpeg|png|gif|webp|svg)(\?|$)/i.test(url)||url.startsWith('data:image')||/imgur\.com|i\.ibb\.co|imgbb\.com|postimg\.cc|pbs\.twimg\.com|media\.discordapp|cdn\.discordapp|gyazo\.com|prnt\.sc/.test(url)}
+function openLink(u){window.open(u,'_blank')}
+function looksLikeMedia(url){return isImg(url)||!!ytId(url)} /* compat alias */
+
+function updExBase(dk,bi,en,field,val){
+  const ex=blocks[dk][bi].exercises.find(e=>e.name===en);
+  if(ex){ex[field]=parseFloat(val)||0;saveStore();if(dk===todayKey)resetTodaySession();toast('Base atualizada');}
+}
+
+function addMedia(dk,bi,ei){
+  const inp=document.getElementById('mi-'+dk+bi+ei);
+  if(!inp)return;const url=inp.value.trim();if(!url)return;
+  if(!blocks[dk][bi].exercises[ei].media)blocks[dk][bi].exercises[ei].media=[];
+  blocks[dk][bi].exercises[ei].media.push(url);saveStore();inp.value='';if(dk===todayKey)resetTodaySession();render();
+}
+function delMedia(dk,bi,ei,mi){
+  blocks[dk][bi].exercises[ei].media.splice(mi,1);saveStore();if(dk===todayKey)resetTodaySession();render();
+}
+
+function renderMediaSection(e,dk,bi,ei){
+  const mid='mi-'+dk+bi+ei;
+  let h=`<div class="ex-media"><div class="media-title">Mídia</div>`;
+  (e.media||[]).forEach((url,mi)=>{
+    const ytid=ytId(url);const imgLike=isImg(url);
+    const typeLabel=ytid?'YT':imgLike?'IMG':'URL';
+    h+=`<div class="media-item"><span class="media-type">${typeLabel}</span>`;
+    h+=`<span class="media-url" onclick="openLink('${url}')">${url.length>40?url.slice(0,37)+'...':url}</span>`;
+    h+=`<span class="media-del" onclick="delMedia('${dk}',${bi},${ei},${mi})">✕</span></div>`;
+    if(ytid){
+      h+=`<iframe class="media-yt" src="https://www.youtube.com/embed/${ytid}" allowfullscreen loading="lazy"></iframe>`;
+    } else {
+      h+=`<div class="media-img-wrap"><img class="media-img" src="${url}" onclick="openLightbox('${url}')" onerror="this.parentElement.style.display='none'" loading="lazy"><div class="img-expand-btn" onclick="openLightbox('${url}')">⤢</div></div>`;
+    }
+  });
+  h+=`<div class="media-inp"><input type="text" id="${mid}" placeholder="URL imagem ou YouTube..."><button class="media-add" onclick="addMedia('${dk}',${bi},${ei})">+ Add</button></div></div>`;
+  return h;
+}
+
+/* ── Ícone de bloco ── */
+function blockIcon(b){
+  if(b.customIcon&&b.customIcon.length<=2)return`<span style="font-size:14px">${b.customIcon}</span>`;
+  return BTYPE_ICONS[b.type]||BTYPE_ICONS.custom;
+}
+
+/* ── renderExRow(): HTML completo de uma linha de exercício (expansível) ── */
+function renderExRow(e,dk,bi,ei,fromSemana){
+  const xkey=(fromSemana?'sem':'')+dk+bi+ei;
+  const isOpen=openEx[xkey];
+  const hasTime=e.time>0;
+  const hist=getExHistory(e.name);
+  let trndHtml='';
+  if(hist.length>=2){
+    const last=hist[0],prev=hist[1];
+    const val={c:last.w||last.r||last.t,p:prev.w||prev.r||prev.t};
+    const t=trend(val.c,val.p);
+    trndHtml=`<span class="trnd ${t.cls}">${t.sym} ${t.txt}</span>`;
+  }
+
+  /* ── STATUS INDIVIDUAL (só na guia Hoje, nunca em fromSemana) ──────────────
+     Lê o status de sessionExStatus sem tocar blocks ou todaySession.
+     O status é aplicado como classe CSS na ex-row para feedback visual imediato.
+     Ele também é enviado ao histórico via saveLog() (campo 'status' no snapshot).
+  ─────────────────────────────────────────────────────────────────────────── */
+  const exStatus = !fromSemana ? (sessionExStatus[exStatusKey(dk, bi, e.name)] || null) : null;
+  const safeName = (dk+bi+e.name).replace(/[^a-zA-Z0-9]/g,'_');
+  const statusClass = exStatus ? ` status-${exStatus}` : '';
+
+  /* Ícones SVG para os botões de status */
+  const checkSvg = `<svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6l3 3 5-5"/></svg>`;
+  const skipSvg  = `<svg viewBox="0 0 12 12" width="12" height="12" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h8M7 3l3 3-3 3"/></svg>`;
+
+  const statusBtns = !fromSemana ? `<div class="ex-status-btns">
+    <button id="exs-done-${safeName}"
+      class="ex-status-btn done-btn${exStatus==='done'?' active':''}"
+      onclick="event.stopPropagation();toggleExStatus('${dk}',${bi},'${e.name}','done')"
+      title="${exStatus==='done'?'Desmarcar como feito':'Marcar como feito'}"
+    >${checkSvg}</button>
+    <button id="exs-skip-${safeName}"
+      class="ex-status-btn skip-btn${exStatus==='skipped'?' active':''}"
+      onclick="event.stopPropagation();toggleExStatus('${dk}',${bi},'${e.name}','skipped')"
+      title="${exStatus==='skipped'?'Desmarcar como pulado':'Marcar como pulado'}"
+    >${skipSvg}</button>
+  </div>` : '';
+
+  let exD='';
+  if(isOpen){
+    const updFn=fromSemana?'updExBase':'updExToday';
+    const pfx=fromSemana?'b':'';
+    /* MUDANÇA 3 — Guia Hoje: lê direto de e (que vem de todaySession), sem fallback em blocks.
+       Guia Semana: lê de e (que vem de blocks), comportamento inalterado. */
+    const lastReg=!fromSemana?getLastRegistered(e.name):null;
+    const dispSets  =e.sets;
+    const dispReps  =e.reps||0;
+    const dispTime  =e.time||0;
+    const dispWeight=e.weight||0;
+    /* Label contextual: se há histórico, mostra comparação de carga */
+    let contextHint='';
+    if(lastReg&&!fromSemana){
+      const prevW=lastReg.weight||0;
+      const prevR=lastReg.reps||0;
+      const prevT=lastReg.time||0;
+      const valStr=prevW>0?`${prevW}kg`:(prevT>0?`${prevT}s`:`${prevR}rep`);
+      contextHint=`<div style="padding:5px 16px 8px;font-size:9px;color:var(--t2);letter-spacing:0.4px;display:flex;align-items:center;gap:5px;border-top:0.5px solid var(--t4)"><span style="opacity:0.5;font-size:8px">↑</span>última: ${valStr}</div>`;
+    }
+    /* UX-03: oninput em vez de onchange nos inputs de exercício.
+       onchange só dispara ao tirar foco. Em touch, o usuário pode digitar
+       e fechar o bloco sem tirar foco (tocando no header), perdendo o dado
+       silenciosamente. oninput dispara a cada caractere, garantindo que
+       updExToday() sempre persiste o valor atual. */
+    const wId=`w${pfx}-${dk+bi+e.name}`;
+    exD+=`<div class="ex-inputs-row">
+      <div class="inp-g"><input id="s${pfx}-${dk+bi+e.name}" type="number" value="${dispSets}" min="1" oninput="${updFn}('${dk}',${bi},'${e.name}','sets',this.value)"><div class="inp-lbl">séries</div></div>
+      ${hasTime
+        ?`<div class="inp-g"><input id="t${pfx}-${dk+bi+e.name}" type="number" value="${dispTime}" min="0" oninput="${updFn}('${dk}',${bi},'${e.name}','time',this.value)"><div class="inp-lbl">seg</div></div>`
+        :`<div class="inp-g"><input id="r${pfx}-${dk+bi+e.name}" type="number" value="${dispReps}" min="0" oninput="${updFn}('${dk}',${bi},'${e.name}','reps',this.value)"><div class="inp-lbl">reps</div></div>`}
+      <div class="inp-g kg-g">
+        <div class="kg-stepper">
+          <button class="kg-step" onclick="stepWeight('${wId}',-2.5)" ontouchstart="event.preventDefault();stepWeight('${wId}',-2.5)">−</button>
+          <input id="${wId}" type="number" value="${dispWeight}" min="0" step="2.5" oninput="${updFn}('${dk}',${bi},'${e.name}','weight',this.value)">
+          <button class="kg-step" onclick="stepWeight('${wId}',2.5)" ontouchstart="event.preventDefault();stepWeight('${wId}',2.5)">+</button>
+        </div>
+        <div class="inp-lbl">kg</div>
+      </div>
+    </div>${contextHint}`;
+    if(fromSemana){
+      exD+=`<div style="padding:8px 16px;font-size:10px;color:var(--t2);border-top:0.5px solid var(--t4);letter-spacing:0.3px">Alterações salvas como padrão</div>`;
+    }
+    exD+=renderMediaSection(e,dk,bi,ei);
+  }
+  const toggleFn=fromSemana?`toggleExSem('${xkey}','${dk}')`:`toggleEx('${xkey}')`;
+  const chevSvg=`<svg viewBox="0 0 10 10"><path d="M2 3.5L5 6.5L8 3.5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+  return`<div class="ex-row${statusClass}">
+    <div class="ex-top" onclick="${toggleFn}">
+      <div class="ex-name">${e.name}</div>
+      <div class="ex-meta">
+        ${trndHtml}
+        <span class="ex-tag">${e.sets}×${hasTime?(e.time+'s'):(e.reps+' reps')}</span>
+        ${e.weight?`<span class="ex-tag">${e.weight}kg</span>`:''}
+        ${statusBtns}
+        <div class="ex-expand-btn${isOpen?' open-btn':''}">${chevSvg}</div>
+      </div>
+    </div>
+    ${isOpen?`<div class="ex-detail">${exD}</div>`:''}
+  </div>`;
+}
+
+/* ── renderBlockCard(): HTML do card de um bloco (colapsado/expandido) ── */
+function renderBlockCard(b,dk,bi,prefix){
+  const key=(prefix||dk)+bi;
+  const isOpen=openBlk[key];
+  const today=new Date().toLocaleDateString('pt-BR');
+  const hasDone=history.some(h=>h.dayKey===dk&&h.date===today&&h.blockLabel===b.label);
+  const colorAttr=b.accentColor?` data-color="${b.accentColor}"`:'';
+  const fromSemanaCtx = (prefix === 'sem');
+  const addExFn=fromSemanaCtx
+    ?`openModal({t:'addEx',dk:'${dk}',bi:${bi},fromSemana:true});setTimeout(()=>reopenDay('${dk}'),10)`
+    :`openModal({t:'addEx',dk:'${dk}',bi:${bi},fromSemana:false})`;
+
+  let body='';
+  if(isOpen){
+    b.exercises.forEach((e,ei)=>{body+=renderExRow(e,dk,bi,ei,prefix==='sem');});
+    /* Exercícios extras adicionados só para a sessão de hoje */
+    if(prefix !== 'sem'){
+      const extraEx=sessionExtraExercises[dk+'-'+bi]||[];
+      extraEx.forEach((e,ei)=>{body+=renderExRow(e,dk,bi,b.exercises.length+ei,false);});
+    }
+    body+=`<button class="add-b" onclick="${addExFn}">
+      <svg viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke-width="2" stroke-linecap="round"/></svg>
+      exercício
+    </button>`;
+    /* Sumário inline quando bloco já foi registrado hoje (FASE 2) */
+    if(hasDone){
+      const lastEntry=history.find(h=>h.dayKey===dk&&h.date===new Date().toLocaleDateString('pt-BR')&&h.blockLabel===b.label);
+      if(lastEntry){
+        const vol=lastEntry.exercises.reduce((a,e)=>a+(e.sets*(e.weight||0)),0);
+        const exCount=lastEntry.exercises.length;
+        const volStr=vol>0?` · ${vol}kg`:'';
+        body+=`<div class="session-summary">${exCount} ex${volStr}</div>`;
+      }
+    }
+    body+=`<button class="sreg btn-ripple${hasDone?' done':''}" onclick="saveLog('${dk}',${bi})">
+      ${hasDone?'✓ Registrado — atualizar':'Registrar bloco'}
+    </button>`;
+    /* Botão Journal — sempre presente quando bloco está aberto */
+    const hasJournal=journalHasEntry(dk,bi,new Date().toLocaleDateString('pt-BR'));
+    body+=`<button class="journal-btn${hasJournal?' has-entry':''}" onclick="openJournal('${dk}',${bi})">
+      <svg viewBox="0 0 16 16"><path d="M3 13V4.5L7 2l4 2.5V13" stroke-width="1.3" stroke-linejoin="round"/><path d="M7 2v11" stroke-width="1.3"/><path d="M3 8h4M11 8h2" stroke-width="1.2" stroke-linecap="round"/></svg>
+      ${hasJournal?'Ver journal de hoje':'Escrever no journal'}
+    </button>`;
+    /* Botão "Promover para Semana" — só aparece em blocos criados apenas para hoje */
+    if(b._sessionOnly){
+      body+=`<button class="add-b" style="border-style:solid;color:var(--blue);border-color:rgba(96,165,250,0.25)" onclick="promoteBlockToWeek(${bi})">
+        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9V1M2 4l4-4 4 4"/></svg>
+        Salvar na Semana também
+      </button>`;
+    }
+  }
+
+  const chevSvg=`<svg viewBox="0 0 14 14"><path d="M3 5L7 9L11 5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+
+  /* Subtítulo contextual: quando done mostra volume do dia */
+  let subtitle=`${b.exercises.length} exercício${b.exercises.length!==1?'s':''}`;
+  if(hasDone){
+    const lastEntry=history.find(h=>h.dayKey===dk&&h.date===new Date().toLocaleDateString('pt-BR')&&h.blockLabel===b.label);
+    if(lastEntry){
+      const vol=lastEntry.exercises.reduce((a,e)=>a+(e.sets*(e.weight||0)),0);
+      subtitle=vol>0?`${vol}kg registrado`:'registrado';
+    }
+  }
+
+  return`<div class="bc${isOpen?' open':''}${hasDone?' done-block':''}${colorAttr}">
+    <div class="bh" onclick="toggleBlk('${key}')">
+      <div class="bl-icon">${blockIcon(b)}</div>
+      <div class="bh-info">
+        <div class="bn">${b.label}</div>
+        <div class="bs">${subtitle}</div>
+      </div>
+      <div class="bh-right">
+        ${hasDone?'<div class="done-dot"></div>':''}
+        <div class="bchev${isOpen?' o':''}">${chevSvg}</div>
+      </div>
+    </div>
+    ${isOpen?`<div class="bbody">${body}</div>`:''}
+  </div>`;
+}
+
+/* ── Helpers de toggle — abrir/fechar blocos, exercícios, histórico ── */
+function toggleEx(k){openEx[k]=!openEx[k];render()}
+function toggleBlk(k){
+  openBlk[k]=!openBlk[k];
+  persistOpenBlk();
+  /* Grava hora de abertura do bloco para calcular duration em saveLog().
+     Só grava na abertura (isOpen false → true) e se ainda não há start gravado. */
+  if(openBlk[k]){
+    /* k = dk+bi (ex: "SEG0"). Extrai partes para chave do sessionStorage */
+    const startKey=`bloc_start_${k}`;
+    if(!sessionStorage.getItem(startKey))sessionStorage.setItem(startKey,new Date().toISOString());
+  }
+  render();
+}
+function toggleHist(k){openHist[k]=!openHist[k];render()}
+function toggleExSem(k,dk){openEx[k]=!openEx[k];if(_lastDayDetail)openDayDetail(_lastDayDetail)}
+function toggleBlkSem(k,dk){openBlk[k]=!openBlk[k];persistOpenBlk();openDayDetail(dk)}
+
+/* ── renderModal(): HTML do modal (bottom sheet) conforme modal.type ── */
+function openModal(m){
+  modal=m;render();
+  if(m.t==='reorderEx')setTimeout(()=>attachExReorderListeners(),30);
+}
+function closeModal(){modal=null;render()}
+
+function renderModal(){
+  if(!modal)return'';
+  const m=modal;
+
+  if(m.t==='addEx'){
+    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
+      <h3>Novo exercício</h3>
+      <input type="text" id="m-en" placeholder="Nome do exercício" autocomplete="off">
+      <select id="m-et"><option value="reps">Séries + Reps</option><option value="time">Séries + Tempo</option></select>
+      <input type="number" id="m-es" placeholder="Séries" value="3" min="1">
+      <input type="number" id="m-ev" placeholder="Reps / Segundos" value="10" min="1">
+      <div class="m-btns"><button class="m-cancel" onclick="closeModal()">Cancelar</button><button class="m-ok btn-ripple" onclick="confAddEx()">Adicionar</button></div>
+    </div></div>`;
+  }
+
+  if(m.t==='addBlockToday'){
+    const opts=Object.entries(BTYPES).map(([k,v])=>`<div class="blk-opt" onclick="confAddBlockToday('${m.dk}','${k}')">
+      <div class="blk-opt-icon">${BTYPE_ICONS[k]}</div>
+      <div><div class="blk-opt-name">${v.l}</div><div class="blk-opt-desc">${v.d}</div></div>
+    </div>`).join('');
+    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
+      <h3>Novo bloco — só hoje</h3>
+      <div style="font-size:11px;color:var(--t2);margin-bottom:12px;letter-spacing:0.2px;line-height:1.6">O bloco será adicionado apenas à sessão de hoje. Você pode promovê-lo para a Semana depois.</div>
+      ${opts}
+      <div class="m-btns" style="margin-top:8px"><button class="m-cancel" onclick="closeModal()">Cancelar</button></div>
+    </div></div>`;
+  }
+
+  if(m.t==='addBlock'){
+    const opts=Object.entries(BTYPES).map(([k,v])=>`<div class="blk-opt" onclick="confAddBlock('${m.dk}','${k}')">
+      <div class="blk-opt-icon">${BTYPE_ICONS[k]}</div>
+      <div><div class="blk-opt-name">${v.l}</div><div class="blk-opt-desc">${v.d}</div></div>
+    </div>`).join('');
+    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
+      <h3>Tipo de bloco</h3>${opts}
+      <div class="m-btns" style="margin-top:8px"><button class="m-cancel" onclick="closeModal()">Cancelar</button></div>
+    </div></div>`;
+  }
+
+  if(m.t==='editBlock'){
+    const b=blocks[m.dk][m.bi];
+    const BLOCK_COLORS=['','pink','blue','green','orange','purple','yellow','red','teal'];
+    const COLOR_HEX={pink:'#f472b6',blue:'#60a5fa',green:'#4ade80',orange:'#fb923c',purple:'#a78bfa',yellow:'#fbbf24',red:'#f87171',teal:'#2dd4bf'};
+    const colorBtns=BLOCK_COLORS.map(c=>
+      `<div class="blk-color-dot${b.accentColor===c?' selected':''}" style="background:${c?COLOR_HEX[c]:'#2a2a2a'};${!c?'border:0.5px dashed #444':''}" onclick="setBlockColor('${m.dk}',${m.bi},'${c}')" title="${c||'padrão'}"></div>`
+    ).join('');
+    // SVG icons para seleção de bloco
+    const iconBtns=Object.entries(BTYPE_ICONS).map(([k,svg])=>
+      `<div class="blk-icon-opt${b.type===k?' selected':''}" onclick="setBlockType('${m.dk}',${m.bi},'${k}')" title="${BTYPES[k]?.l||k}">${svg}</div>`
+    ).join('');
+    const hasMultipleEx = b.exercises.length > 1;
+    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
+      <h3>Editar bloco</h3>
+      <input type="text" id="m-bl" value="${b.label}" placeholder="Nome do bloco">
+      <textarea id="m-bn" placeholder="Notas (opcional)">${b.notes||''}</textarea>
+      <div style="font-size:9px;color:var(--t2);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;font-weight:500">Cor</div>
+      <div class="blk-color-row">${colorBtns}</div>
+      <div style="font-size:9px;color:var(--t2);letter-spacing:2px;text-transform:uppercase;margin:16px 0 8px;font-weight:500">Ícone</div>
+      <div class="blk-icon-row">${iconBtns}</div>
+      <div class="sep"></div>
+      <div style="font-size:9px;color:var(--t2);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;font-weight:500">Exercícios</div>
+      ${b.exercises.map((e,ei)=>`<div class="cfg-row"><div><div class="cfg-row-label">${e.name}</div><div class="cfg-row-sub">${e.sets}× ${e.time>0&&e.reps===0?e.time+'s':e.reps+' reps'}${e.weight?' · '+e.weight+'kg':''}</div></div><button class="cfg-del" onclick="delEx('${m.dk}',${m.bi},${ei})">remover</button></div>`).join('')}
+      ${hasMultipleEx?`<button class="reorder-btn" style="width:100%;margin-top:8px" onclick="openModal({t:'reorderEx',dk:'${m.dk}',bi:${m.bi}})">
+        <svg viewBox="0 0 16 16" style="stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round"><path d="M2 5h12M2 8h12M2 11h12"/></svg>
+        Reorganizar exercícios
+      </button>`:''}
+      <div class="sep"></div>
+      <button class="cfg-del" style="width:100%;margin-bottom:12px;font-family:inherit;padding:10px;border-radius:var(--r-md);text-align:center" onclick="delBlock('${m.dk}',${m.bi})">Excluir bloco</button>
+      <div class="m-btns"><button class="m-cancel" onclick="closeModal()">Fechar</button><button class="m-ok btn-ripple" onclick="confEditBlock()">Salvar</button></div>
+    </div></div>`;
+  }
+
+  if(m.t==='reorderEx'){
+    const b=blocks[m.dk][m.bi];
+    const gripSvg=`<svg viewBox="0 0 10 16" width="10" height="16"><circle cx="3" cy="3" r="1.4" fill="currentColor"/><circle cx="7" cy="3" r="1.4" fill="currentColor"/><circle cx="3" cy="8" r="1.4" fill="currentColor"/><circle cx="7" cy="8" r="1.4" fill="currentColor"/><circle cx="3" cy="13" r="1.4" fill="currentColor"/><circle cx="7" cy="13" r="1.4" fill="currentColor"/></svg>`;
+    const items=b.exercises.map((e,ei)=>
+      `<div class="ex-reorder-item" data-ei="${ei}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-md);margin-bottom:6px;cursor:grab;user-select:none;touch-action:none">
+        <div style="color:var(--t3);display:flex;align-items:center;flex-shrink:0">${gripSvg}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:var(--fs-body);color:var(--tc);font-weight:var(--fw-normal)">${e.name}</div>
+          <div style="font-size:var(--fs-sub);color:var(--t2);margin-top:2px">${e.sets}× ${e.time>0&&e.reps===0?e.time+'s':e.reps+' reps'}${e.weight?' · '+e.weight+'kg':''}</div>
+        </div>
+      </div>`
+    ).join('');
+    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
+      <h3>Reorganizar exercícios</h3>
+      <div style="font-size:11px;color:var(--t2);margin-bottom:12px;letter-spacing:0.2px">Segure e arraste para reordenar</div>
+      <div id="ex-reorder-list">${items}</div>
+      <div class="m-btns" style="margin-top:12px"><button class="m-cancel" onclick="openModal({t:'editBlock',dk:'${m.dk}',bi:${m.bi}})">← Voltar</button></div>
+    </div></div>`;
+  }
+
+  if(m.t==='addGoal'){
+    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
+      <h3>Nova meta</h3>
+      <input type="text" id="m-gn" placeholder="Nome da meta" autocomplete="off">
+      <input type="text" id="m-gs" placeholder="Descrição (opcional)">
+      <div class="m-btns"><button class="m-cancel" onclick="closeModal()">Cancelar</button><button class="m-ok btn-ripple" onclick="confAddGoal()">Criar</button></div>
+    </div></div>`;
+  }
+  return'';
+}
+
+/* ── Ações de confirmação via modal ── */
+function confAddEx(){
+  const n=document.getElementById('m-en').value.trim();if(!n)return;
+  const tp=document.getElementById('m-et').value;
+  const s=parseInt(document.getElementById('m-es').value)||3;
+  const v=parseInt(document.getElementById('m-ev').value)||10;
+  /* BUG-01: sempre inicializar time:0, independente do tipo.
+     Sem isso, exercícios de reps ficam sem o campo `time`, gerando objetos
+     com estrutura incompleta que código futuro (analytics, 'time' in ex) encontra. */
+  const ex={name:n,sets:s,reps:tp==='reps'?v:0,time:tp==='time'?v:0,weight:0,media:[]};
+  /* Se chamado da guia Semana (modal.fromSemana), salva no template.
+     Caso contrário, salva apenas na sessão de hoje. */
+  if(modal.fromSemana){
+    blocks[modal.dk][modal.bi].exercises.push(ex);
+    saveStore();
+    if(modal.dk===todayKey)resetTodaySession();
+  } else {
+    const k=modal.dk+'-'+modal.bi;
+    if(!sessionExtraExercises[k])sessionExtraExercises[k]=[];
+    sessionExtraExercises[k].push(ex);
+    saveTodayCache(); /* persiste exercícios extras da sessão */
+  }
+  closeModal();
+}
+function confAddBlock(dk,type){
+  const bt=BTYPES[type];
+  if(!blocks[dk])blocks[dk]=[];
+  blocks[dk].push({type,label:bt.l,notes:'',exercises:[]});
+  saveStore();if(dk===todayKey)resetTodaySession();closeModal();toast('Bloco criado');
+}
+
+/* Adiciona bloco SOMENTE à sessão de hoje — não toca blocks/template */
+function confAddBlockToday(dk,type){
+  const bt=BTYPES[type];
+  const newBlock={type,label:bt.l,notes:'',exercises:[],_sessionOnly:true};
+  todaySession.push(newBlock);
+  todaySessionDirty=true;
+  saveTodayCache();
+  closeModal();
+  toast('Bloco adicionado para hoje');
+}
+
+/* Promove um bloco de todaySession para o template da Semana */
+function promoteBlockToWeek(bi){
+  const b=todaySession[bi];
+  if(!b)return;
+  const clone=JSON.parse(JSON.stringify(b));
+  delete clone._sessionOnly;
+  if(!blocks[todayKey])blocks[todayKey]=[];
+  blocks[todayKey].push(clone);
+  saveStore();
+  /* Marca como promovido na sessão (remove flag) */
+  delete todaySession[bi]._sessionOnly;
+  saveTodayCache();
+  toast('Bloco salvo na Semana');
+  render();
+}
+function confEditBlock(){
+  const b=blocks[modal.dk][modal.bi];
+  b.label=document.getElementById('m-bl').value.trim()||b.label;
+  b.notes=document.getElementById('m-bn').value.trim();
+  saveStore();if(modal.dk===todayKey)resetTodaySession();closeModal();toast('Bloco atualizado');
+}
+/* Lê e persiste o estado atual dos inputs do modal editBlock antes de chamar render().
+   BUG-05: qualquer clique em cor/tipo/ícone descartava texto que o usuário estava editando
+   em #m-bl (label) e #m-bn (notas), pois render() recriava o modal lendo os valores
+   salvos em blocks[], não o que estava no input no momento. */
+function _captureEditBlockModal(dk,bi){
+  const lbl=document.getElementById('m-bl');
+  const notes=document.getElementById('m-bn');
+  if(lbl&&lbl.value.trim())blocks[dk][bi].label=lbl.value.trim();
+  if(notes)blocks[dk][bi].notes=notes.value;
+}
+function setBlockColor(dk,bi,color){
+  _captureEditBlockModal(dk,bi);
+  blocks[dk][bi].accentColor=color;saveStore();if(dk===todayKey)resetTodaySession();
+  modal={t:'editBlock',dk,bi};render();
+  if(_lastDayDetail)setTimeout(()=>openDayDetail(_lastDayDetail),0);
+}
+function setBlockType(dk,bi,type){
+  _captureEditBlockModal(dk,bi);
+  blocks[dk][bi].type=type;saveStore();if(dk===todayKey)resetTodaySession();
+  modal={t:'editBlock',dk,bi};render();
+}
+function setBlockIcon(dk,bi,icon){
+  _captureEditBlockModal(dk,bi);
+  blocks[dk][bi].customIcon=icon;saveStore();if(dk===todayKey)resetTodaySession();
+  modal={t:'editBlock',dk,bi};render();
+}
+
+/* ── Lightbox de imagem ── */
+function openLightbox(url){
+  const lb=document.createElement('div');lb.className='img-lightbox';
+  lb.innerHTML=`<img src="${url}" alt=""><div class="img-lightbox-close" onclick="this.parentElement.remove()">✕</div>`;
+  lb.onclick=function(e){if(e.target===lb)lb.remove();};
+  document.getElementById('app').appendChild(lb);
+}
+
+
+/* ════════════════════════════════════════════════════════════════════════════
+   § 8 · CRUD — Mutações de dados (blocks, goals, history)
+   ────────────────────────────────────────────────────────────────────────────
+   Todas as funções que mutam o estado persistido do app. Toda função aqui
+   chama saveStore() (ou saveTodayCache()) ao final. Nenhuma faz render()
+   exceto quando necessário para atualização visual imediata.
+
+   CONTEÚDO:
+   · delEx()             — remove exercício de um bloco.
+   · delBlock()          — remove bloco + limpa chaves fantasmas em openBlk.
+   · confAddGoal()       — confirma adição de nova meta (via modal).
+   · updGoal()           — incrementa/decrementa progresso de meta.
+   · delGoal()           — remove meta por índice.
+   · saveLog()           — salva snapshot de treino em history[] (gera PR toast).
+   · confAddEx()         — confirma adição de exercício via modal.
+   · confAddBlock()      — confirma criação de bloco em um dia da semana.
+   · confAddBlockToday() — confirma criação de bloco só para hoje.
+   · promoteBlockToWeek()— promove bloco de hoje para o template da semana.
+   · confEditBlock()     — salva edição de label/cor/ícone/tipo de bloco.
+   · setBlockColor()/setBlockType()/setBlockIcon() — setters de propriedades.
+   · importData()        — importa JSON completo (substitui todos os dados).
+   · exportData()        — exporta JSON para download.
+   · confirmDanger()     — executa ação destrutiva (clear history, reset tudo).
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function saveLog(dk,bi){
+  const now=new Date();
+  const today=now.toLocaleDateString('pt-BR');
+  const timestamp=now.toISOString(); /* hora exata do registro — fundação de analytics */
+  /* Calcula duration se há sessionStart gravado para este bloco */
+  const startKey=`bloc_start_${dk}${bi}`;
+  const startTs=sessionStorage.getItem(startKey);
+  const duration=startTs?Math.round((now-new Date(startTs))/1000):null; /* segundos */
+  sessionStorage.removeItem(startKey);
+  /* MUDANÇA 4 — lê de todaySession, sem fallback em blocks */
+  const b=todaySession[bi];
+  if(!b)return;
+  const prs=[];
+  /* Combina exercícios de todaySession com extras da sessão */
+  const extraEx=sessionExtraExercises[dk+'-'+bi]||[];
+  const allExercises=[...b.exercises,...extraEx];
+  const exArr=allExercises.map(e=>{
+    /* todaySession já contém os valores editados pelo usuário via updExToday.
+       Não há fallback em blocks — o que está aqui é o que o usuário treinou. */
+    if(isPR(e.name,e.weight||0))prs.push({name:e.name,weight:e.weight||0});
+    /* Captura o status individual do exercício (done/skipped/undefined).
+       O status pertence à sessionExStatus (memória de sessão) e é gravado
+       no snapshot do histórico para analytics futuros.
+       NUNCA altera blocks nem todaySession — é append-only no histórico. */
+    const exStatus = sessionExStatus[exStatusKey(dk, bi, e.name)];
+    const entry = {name:e.name,sets:e.sets,reps:e.reps||0,weight:e.weight||0,time:e.time||0};
+    if (exStatus) entry.status = exStatus; /* só inclui se houver marcação explícita */
+    return entry;
+  });
+  history.unshift({date:today,timestamp,duration,dayKey:dk,day:DAYFULL[DAYS.indexOf(dk)],blockLabel:b.label,blockType:b.type,exercises:exArr});
+  if(history.length>180)history=history.slice(0,180);
+  _buildHistoryIndex(); /* P-03/P-04: recstrói índice após mutação de history */
+  saveStore();
+  /* R2: sessão registrada com sucesso — reseta dirty flag para que mudanças futuras
+     no template (via guia Semana) sejam refletidas corretamente via resetTodaySession().
+     Mantemos todaySession intacto (pode registrar outros blocos hoje), mas permitimos
+     re-clone parcial em caso de mutação do template. */
+  todaySessionDirty = false;
+  /* Limpa extras da sessão — todaySession permanece (pode registrar outro bloco hoje) */
+  delete sessionExtraExercises[dk+'-'+bi];
+  saveTodayCache(); /* persiste estado pós-registro */
+  /* Feedback contextual rico */
+  const totalVol=exArr.reduce((acc,e)=>acc+(e.sets*(e.weight||0)),0);
+  if(prs.length>0){
+    const prNames=prs.map(p=>`${p.name} ${p.weight}kg`).join(', ');
+    toast(`PR — ${prNames}`,'pr-toast');
+  } else if(totalVol>0){
+    toast(`${b.label} · ${totalVol}kg`);
+  } else {
+    toast(`${b.label} registrado`);
+  }
+  render();
+  setTimeout(()=>{
+    const dots=document.querySelectorAll('.done-dot');
+    dots.forEach(d=>{d.style.animation='none';void d.offsetWidth;d.style.animation='donePulse 0.6s var(--ease-spring)';});
+  },60);
+}
+
+function delEx(dk,bi,ei){blocks[dk][bi].exercises.splice(ei,1);saveStore();if(dk===todayKey)resetTodaySession();render()}
+function delBlock(dk,bi){
+  blocks[dk].splice(bi,1);
+  saveStore();
+  if(dk===todayKey)resetTodaySession();
+  /* BUG-03: limpar chaves fantasmas de openBlk ao deletar bloco.
+     Sem isso, um novo bloco criado no mesmo índice herda o estado de expansão
+     do bloco deletado, e openBlk acumula chaves mortas indefinidamente.
+     Estratégia: remover as chaves do bloco deletado e re-indexar os blocos
+     com índice maior (que foram deslocados pelo splice). */
+  /* R4: prefixos de openBlk usados de fato.
+     '' = guia Semana (key = dk+bi)
+     'sem' = detalhe do dia em Semana (key = 'sem'+dk+bi)
+     Prefixo 'hoje' removido: renderBlockCard na guia Hoje usa prefix='hoje' mas gera
+     key = 'hoje'+bi (sem dk), nunca 'hoje'+dk+bi — portanto a limpeza com dk era ineficaz. */
+  const prefixes=['','sem'];
+  prefixes.forEach(pfx=>{
+    /* Remove a chave do bloco deletado */
+    delete openBlk[pfx+dk+bi];
+    /* Re-indexa blocos posteriores: chave bi+1 → bi */
+    const remaining=blocks[dk]||[];
+    for(let i=bi;i<remaining.length;i++){
+      const oldKey=pfx+dk+(i+1);
+      const newKey=pfx+dk+i;
+      if(openBlk[oldKey]!==undefined){
+        openBlk[newKey]=openBlk[oldKey];
+        delete openBlk[oldKey];
+      }
+    }
+  });
+  persistOpenBlk();
+  closeModal();
+  toast('Bloco removido');
+}
+
+function confAddGoal(){
+  const n=document.getElementById('m-gn').value.trim();if(!n)return;
+  const s=document.getElementById('m-gs').value.trim();
+  goals.push({name:n,progress:0,note:s});
+  _statsCache={key:null,html:''}; /* R1: invalida cache de stats — goals mudaram */
+  saveStore();closeModal();
+}
+function updGoal(i,d){
+  goals[i].progress=Math.max(0,Math.min(100,goals[i].progress+d));
+  _statsCache={key:null,html:''}; /* R1: invalida cache de stats — goals mudaram */
+  saveStore();render();
+}
+function delGoal(i){
+  goals.splice(i,1);
+  _statsCache={key:null,html:''}; /* R1: invalida cache de stats — goals mudaram */
+  saveStore();render();
+}
+
+/* ── Navegação entre abas ── */
+function nav(p){
+  saveScroll();   /* salva scroll da aba atual antes de trocar */
+  /* Sai do modo reorganização ao trocar de aba — previne estado órfão */
+  if(reorderState.active){reorderState.active=false;reorderState.dk=null;saveStore();}
+  /* Fecha journal se estiver aberto */
+  if(journalOpen){stopRecording(false);journalOpen=false;journalState=null;}
+  page=p;configOpen=false;
+  document.getElementById('gear-btn').classList.remove('active');
+  document.querySelectorAll('.nb').forEach(b=>b.classList.remove('active'));
+  const nbEl=document.getElementById('nb-'+p);
+  if(nbEl)nbEl.classList.add('active');
+  render();
+}
+function toggleConfig(){
+  /* Fecha journal se estiver aberto antes de abrir config */
+  if(journalOpen){stopRecording(false);journalOpen=false;journalState=null;}
+  configOpen=!configOpen;
+  document.getElementById('gear-btn').classList.toggle('active',configOpen);
+  render();
+}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   § 9 · RENDER ENGINE — render(), renderHoje(), renderSemana() e derivados
+   ────────────────────────────────────────────────────────────────────────────
+   Todas as funções que produzem HTML e o injetam no DOM. Funções puras de
+   dados chamam as de §5 ANALYTICS; mutações chamam as de §8 CRUD.
+   render() é o ponto de entrada único — chama a sub-função correta conforme
+   page/configOpen/journalOpen. Sempre chamado após mutação de estado.
+
+   CONTEÚDO:
+   · nav()                   — muda aba ativa (salva scroll antes, restaura depois).
+   · toggleConfig()          — abre/fecha o painel de configurações.
+   · renderHoje()            — HTML da guia Hoje (blocos do dia corrente).
+   · renderSemana()          — HTML da guia Semana (todos os dias da semana).
+   · openDayDetail()         — abre detalhe de um dia (modal de blocos).
+   · renderReorderItem()     — HTML de um item no modo de reordenação.
+   · renderHistorico()       — HTML da guia Histórico (lista de registros).
+   · renderStats()           — HTML da guia Stats (gráficos, PRs, insights).
+   · renderGoals()           — HTML da guia Metas.
+   · renderConfig()          — HTML do painel Config (abas: Blocos, Aparência, Dados).
+   · renderConfigBlocos()    — sub-render da aba Blocos.
+   · renderConfigAparencia() — sub-render da aba Aparência.
+   · renderConfigDados()     — sub-render da aba Dados.
+   · setConfigTab()          — muda aba ativa do config.
+   · APPEARANCE SETTERS      — setTheme(), setAccentColor(), setFont(), etc.
+   · render()                — dispatcher principal: decide qual sub-render chamar.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+function renderHoje(){
+  /* MUDANÇA 2 — usa todaySession (clone independente), nunca blocks[todayKey].
+     Isso garante que edições na guia Hoje não mutam o template permanente. */
+  const db=todaySession;
+  let h=`<div class="sec">${DAYFULL[todayI]}</div>`;
+  if(!db.length)h+=`<div class="empty"><strong>Sem blocos hoje</strong>Vá em Semana para montar o dia.</div>`;
+  db.forEach((b,i)=>h+=renderBlockCard(b,todayKey,i,'hoje'));
+  h+=`<button class="add-b" onclick="openModal({t:'addBlockToday',dk:'${todayKey}'})">
+    <svg viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke-width="2" stroke-linecap="round"/></svg>
+    Novo bloco
+  </button>`;
+  return h;
+}
+
+function renderSemana(){
+  let h=`<div class="sec">Semana</div><div class="wk-grid">`;
+  DAYS.forEach((d,i)=>{
+    const db=blocks[d]||[];const isT=i===todayI;
+    const blist=db.length?db.map(b=>`<span class="dc-dot"></span>${b.label}`).join('<br>'):`<span style="color:var(--t3)">—</span>`;
+    h+=`<div class="dc${isT?' today':''}" onclick="openDayDetail('${d}')">
+      <div class="dc-day">${d}${isT?` <span style="width:4px;height:4px;border-radius:50%;background:var(--ac);display:inline-block;margin-left:2px"></span>`:''}</div>
+      <div class="dc-blocks">${blist}</div>
+    </div>`;
+  });
+  h+=`</div><div id="dd"></div>`;
+  return h;
+}
+
+function openDayDetail(dk){
+  const db=blocks[dk]||[];const i=DAYS.indexOf(dk);
+  const inReorder=reorderState.active&&reorderState.dk===dk;
+
+  let h=`<div class="sep"></div><div class="sec">${DAYFULL[i]}</div>`;
+
+  /* ── Banner de modo reorganização ── */
+  if(inReorder){
+    h+=`<div class="reorder-banner">
+      <div class="reorder-banner-dot"></div>
+      <div class="reorder-banner-label">Arraste os blocos para reorganizar</div>
+      <button class="reorder-done-btn" onclick="exitReorderMode()">Concluir</button>
+    </div>`;
+  }
+
+  /* ── Lista de blocos ── */
+  h+=`<div id="reorder-list-${dk}">`;
+  db.forEach((b,bi)=>{
+    if(inReorder){
+      /* Modo reorganização: cada bloco vira um item arrastável com handle */
+      h+=renderReorderItem(b,bi,dk);
+    } else {
+      /* Modo normal: comportamento original preservado */
+      const key='sem'+dk+bi;
+      const isOpen=openBlk[key];
+      const colorAttr=b.accentColor?` data-color="${b.accentColor}"`:'';
+      let body='';
+      if(isOpen){
+        b.exercises.forEach((e,ei)=>{body+=renderExRow(e,dk,bi,ei,true);});
+        body+=`<button class="add-b" onclick="openModal({t:'addEx',dk:'${dk}',bi:${bi},fromSemana:true});setTimeout(()=>reopenDay('${dk}'),10)">
+          <svg viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke-width="2" stroke-linecap="round"/></svg>
+          exercício
+        </button>`;
+        body+=`<button class="sreg" onclick="openModal({t:'editBlock',dk:'${dk}',bi:${bi}})">Editar bloco</button>`;
+      }
+      const chevSvg=`<svg viewBox="0 0 14 14"><path d="M3 5L7 9L11 5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
+      h+=`<div class="bc${isOpen?' open':''}${colorAttr}">
+        <div class="bh" onclick="toggleBlkSem('${key}','${dk}')">
+          <div class="bl-icon">${blockIcon(b)}</div>
+          <div class="bh-info"><div class="bn">${b.label}</div><div class="bs">${b.exercises.length} exercício${b.exercises.length!==1?'s':''}</div></div>
+          <div class="bchev${isOpen?' o':''}">${chevSvg}</div>
+        </div>
+        ${isOpen?`<div class="bbody">${body}</div>`:''}
+      </div>`;
+    }
+  });
+  h+=`</div>`;
+
+  /* ── Botões de ação abaixo da lista ── */
+  if(!inReorder){
+    h+=`<button class="add-b" onclick="openModal({t:'addBlock',dk:'${dk}'})">
+      <svg viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke-width="2" stroke-linecap="round"/></svg>
+      Novo bloco em ${dk}
+    </button>`;
+    /* Botão de reorganizar — só aparece quando há mais de 1 bloco */
+    if(db.length>1){
+      h+=`<button class="reorder-btn" onclick="enterReorderMode('${dk}')">
+        <svg viewBox="0 0 16 16" style="stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round">
+          <path d="M2 5h12M2 8h12M2 11h12"/>
+        </svg>
+        Reorganizar blocos
+      </button>`;
+    }
+  }
+
+  const dd=document.getElementById('dd');
+  if(dd){
+    dd.innerHTML=h;
+    /* Scroll automático ao abrir o detalhe do dia */
+    setTimeout(()=>{
+      const ct=document.getElementById('content');
+      if(ct&&dd)ct.scrollTop=dd.offsetTop-16;
+    },80);
+    /* Se estiver em modo reorder, ativa os listeners de drag */
+    if(inReorder){
+      setTimeout(()=>attachReorderListeners(dk),30);
+    }
+  }
+  _lastDayDetail=dk;
+}
+
+/* ── Renderiza um item arrastável no modo reorder ── */
+function renderReorderItem(b,bi,dk){
+  /* Grip: 6 pontos 2×3, preenchidos (fill), sem stroke */
+  const gripSvg=`<svg viewBox="0 0 10 16" width="10" height="16">
+    <circle cx="3" cy="3"  r="1.4" fill="currentColor"/>
+    <circle cx="7" cy="3"  r="1.4" fill="currentColor"/>
+    <circle cx="3" cy="8"  r="1.4" fill="currentColor"/>
+    <circle cx="7" cy="8"  r="1.4" fill="currentColor"/>
+    <circle cx="3" cy="13" r="1.4" fill="currentColor"/>
+    <circle cx="7" cy="13" r="1.4" fill="currentColor"/>
+  </svg>`;
+
+  return`<div class="bc bc-reorder" data-bi="${bi}" data-dk="${dk}">
+    <div class="bh" style="padding-left:0;cursor:inherit;gap:10px">
+      <div class="drag-handle">${gripSvg}</div>
+      <div class="bl-icon">${blockIcon(b)}</div>
+      <div class="bh-info">
+        <div class="bn">${b.label}</div>
+        <div class="bs">${b.exercises.length} exercício${b.exercises.length!==1?'s':''}</div>
+      </div>
+    </div>
+  </div>`;
+}
+
+function renderHistorico(){
+  let h=`<div class="sec">Histórico</div>`;
+  if(!history.length)h+=`<div class="empty"><strong>Nenhum treino registrado</strong>Abra um bloco em Hoje e registre.</div>`;
+  const byDate={};
+  history.forEach((entry,hi)=>{
+    if(!byDate[entry.date])byDate[entry.date]={date:entry.date,day:entry.day,entries:[],indices:[]};
+    byDate[entry.date].entries.push(entry);byDate[entry.date].indices.push(hi);
+  });
+  Object.values(byDate).slice(0,20).forEach(group=>{
+    const groupKey='g'+group.date.replace(/\//g,'');const isOpen=openHist[groupKey];
+    let body='';
+    if(isOpen){
+      group.entries.forEach(entry=>{
+        const blocks_to_render=Array.isArray(entry.exercises)
+          ?[{label:entry.blockLabel,type:entry.blockType,exercises:entry.exercises}]
+          :(entry.entries||[]);
+        blocks_to_render.forEach(blk=>{
+          body+=`<div style="margin-top:12px;padding-top:12px;border-top:0.5px solid var(--t4)">
+            <div style="font-size:10px;font-weight:500;color:var(--t2);margin-bottom:6px;letter-spacing:1px;text-transform:uppercase">${blk.label||entry.blockLabel||''}</div>`;
+          (blk.exercises||[]).forEach(e=>{
+            let val;
+            if(e.time&&e.time>0&&(!e.reps||e.reps===0)){val=`${e.sets}×${e.time}s`;}
+            else if(e.weight&&e.weight>0){val=`${e.sets}×${e.reps} · ${e.weight}kg`;}
+            else{val=`${e.sets}×${e.reps}`;}
+            /* Renderiza badge de status se o exercício foi marcado como done ou skipped.
+               O campo 'status' é gravado pelo saveLog() a partir de sessionExStatus.
+               null/undefined = nenhuma marcação explícita (exercício neutro). */
+            const statusBadge = e.status === 'done'
+              ? `<span class="hist-ex-status done">feito</span>`
+              : e.status === 'skipped'
+              ? `<span class="hist-ex-status skipped">pulado</span>`
+              : '';
+            body+=`<div class="h-ex-row"><span class="h-ex-name">${e.name}</span>${statusBadge}<span class="h-ex-val">${val}</span></div>`;
+          });
+          body+=`</div>`;
+        });
+      });
+    }
+    const chevSvg=`<svg width="14" height="14" viewBox="0 0 14 14" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"><path d="M3 5L7 9L11 5"/></svg>`;
+    h+=`<div class="hist-c">
+      <div class="hist-h" onclick="openHist['${groupKey}']=!openHist['${groupKey}'];render()">
+        <div>
+          <div class="hist-day">${group.day}</div>
+          <div class="hist-date">${group.date} · ${group.entries.length} bloco${group.entries.length!==1?'s':''}</div>
+        </div>
+        <div class="bchev${isOpen?' o':''}">${chevSvg}</div>
+      </div>
+      ${isOpen?`<div class="hist-body">${body}</div>`:''}
+    </div>`;
+  });
+
+  h+=`<div class="sec" style="margin-top:24px">Evolução</div>`;
+  /* BUG-08: exMap reconstruído a cada render (toggle de item = render completo = 1800 iterações).
+     Agora memoizado: só reconstrói quando history muda.
+     Invalidação ocorre em _buildHistoryIndex() que é chamado por saveLog/import/danger. */
+  const histCacheKey = history.length + '|' + (history[0]?.timestamp ?? '');
+  if(_histCache.key !== histCacheKey){
+    const freshMap = {};
+    history.forEach(en=>{
+      const exList=Array.isArray(en.exercises)?en.exercises:(en.entries||[]).flatMap(b=>b.exercises||[]);
+      exList.forEach(e=>{
+        if(!freshMap[e.name])freshMap[e.name]=[];
+        freshMap[e.name].push({w:e.weight||0,r:e.reps||0,t:e.time||0,d:en.date});
+      });
+    });
+    _histCache = { key: histCacheKey, exMap: freshMap };
+  }
+  const exMap = _histCache.exMap;
+  const tracked=Object.entries(exMap).filter(([,v])=>v.length>=2);
+  if(!tracked.length){
+    h+=`<div class="empty"><strong>Sem dados de evolução</strong>Registre ao menos 2 blocos para ver progresso.</div>`;
+  } else {
+    tracked.forEach(([name,vals])=>{
+      const curr=vals[0];const prev=vals[vals.length>4?vals.length-4:vals.length-1];
+      const useW=curr.w>0;
+      const cv=useW?curr.w:(curr.r||curr.t);
+      const pv=useW?prev.w:(prev.r||prev.t);
+      if(!cv&&!pv)return;
+      const t=trend(cv,pv);
+      h+=`<div class="ind-card">
+        <div class="ind-ex">${name}</div>
+        <div class="ind-cmp">
+          <div class="ind-val"><div class="ind-num" style="color:var(--t2)">${pv}${useW?'kg':curr.t?'s':'rep'}</div><div class="ind-lbl">anterior</div></div>
+          <div class="ind-arr ${t.cls}">${t.sym}</div>
+          <div class="ind-val"><div class="ind-num">${cv}${useW?'kg':curr.t?'s':'rep'}</div><div class="ind-lbl">recente</div></div>
+          <div style="flex:1;text-align:right"><span class="trnd ${t.cls}">${t.txt}</span></div>
+        </div>
+      </div>`;
+    });
+  }
+  return h;
+}
+
+
 function renderStats(){
+  /* P-02: memoização — stats envolve 12+ iterações sobre history.
+     Se history não mudou desde o último render, retorna o HTML cacheado.
+     Invalidação: qualquer chamada a _buildHistoryIndex() (saveLog, import, danger)
+     também reseta _statsCache, garantindo que dados novos sempre aparecem. */
+  const statsCacheKey = history.length + '|' + (history[0]?.timestamp ?? '');
+  if(_statsCache.key === statsCacheKey && _statsCache.html){
+    return _statsCache.html;
+  }
+
   const totalRegistros=history.length;
   const streak=calcStreak();
   const weekRate=calcWeekRate();
@@ -4967,6 +4755,8 @@ function renderStats(){
 
   /* rodapé */
   h+=`<div style="text-align:center;padding:10px 0 4px"><div style="font-size:11px;color:var(--t2)">${totalRegistros} registro${totalRegistros!==1?'s':''} no histórico</div></div>`;
+  /* P-02: salva no cache antes de retornar */
+  _statsCache = { key: statsCacheKey, html: h };
   return h;
 }
 
@@ -5005,7 +4795,7 @@ function renderGoals(){
   return h;
 }
 
-/* -------- CONFIG -------- */
+/* ── Painel de configurações ── */
 function renderConfig(){
   let h=`<div class="sec">Configurações</div>`;
   h+=`<div class="cfg-tabs">`;
@@ -5119,7 +4909,6 @@ function renderConfigDados(){
     <div class="prog-n">Importar dados</div>
     <div class="prog-sub">Carregue um arquivo JSON exportado</div>
     <div style="margin-top:12px">
-      <input type="file" id="import-file" accept=".json" style="display:none" onchange="importData(this)">
       <button class="data-btn" onclick="document.getElementById('import-file-persistent').click()">↑ Carregar JSON</button>
     </div>
   </div>`;
@@ -5143,7 +4932,7 @@ function renderConfigDados(){
   </div>`;
   // Ghost button — invisible, below danger zone
   h+=`<button style="width:100%;height:32px;margin-top:8px;background:transparent;border:none;cursor:default;outline:none;-webkit-tap-highlight-color:transparent;color:transparent;user-select:none" onclick="initTemplatePin()" aria-hidden="true"> </button>`;
-  if(window._templateUnlocked){
+  if(_templateUnlocked){
     h+=`<div class="prog-c" style="border-color:rgba(96,165,250,.18);margin-top:0">`;
     h+=`<div class="prog-n" style="color:var(--blue)">Templates do GitHub</div>`;
     h+=`<div class="prog-sub">Substitui apenas os blocos — histórico e metas ficam intactos</div>`;
@@ -5155,53 +4944,62 @@ function renderConfigDados(){
       h+=`</div>`;
     });
     h+=`</div>`;
-    h+=`<button class="data-btn" style="margin-top:12px;color:var(--t2)" onclick="window._templateUnlocked=false;render()">Ocultar</button>`;
+    h+=`<button class="data-btn" style="margin-top:12px;color:var(--t2)" onclick="_templateUnlocked=false;render()">Ocultar</button>`;
     h+=`</div>`;
   }
-  if(window._templatePinOpen){
+  if(_templatePinOpen){
     h+=`<div class="danger-confirm" id="template-pin-box" style="border-color:rgba(96,165,250,.18)">`;
     h+=`<div class="danger-confirm-title" style="color:var(--blue)">Verificação</div>`;
     h+=`<div class="danger-confirm-msg">Digite o PIN para acessar os templates:</div>`;
     h+=`<input class="danger-confirm-input" id="template-pin-input" type="password" placeholder="••••" maxlength="8" autocomplete="off" onkeydown="if(event.key==='Enter')confirmTemplatePin()">`;
-    h+=`<div class="danger-btns"><button class="danger-cancel" onclick="window._templatePinOpen=false;render()">Cancelar</button><button class="danger-ok" onclick="confirmTemplatePin()">Confirmar</button></div>`;
+    h+=`<div class="danger-btns"><button class="danger-cancel" onclick="_templatePinOpen=false;render()">Cancelar</button><button class="danger-ok" onclick="confirmTemplatePin()">Confirmar</button></div>`;
     h+=`</div>`;
     setTimeout(()=>{const el=document.getElementById('template-pin-input');if(el)el.focus();},80);
   }
   return h;
 }
 
-/* -------- APPEARANCE SETTERS -------- */
+/* ── Setters de aparência — chamados pelos inputs de renderConfigAparencia() ── */
 function setTheme(id){
   appearance.theme=id;
   const t=THEMES[id]||THEMES.dark;
   const isLight=t.bg>'#888';
   appearance.accentColor=isLight?'#000000':'#ffffff';
-  sv('bv2_appearance',appearance);applyAppearance();render();
+  saveStore();applyAppearance();render();
 }
-function setAccentColor(v){appearance.accentColor=v;sv('bv2_appearance',appearance);applyAppearance()}
-function setFont(id){appearance.font=id;sv('bv2_appearance',appearance);applyAppearance();render()}
-function setBorderRadius(v){appearance.borderRadius=parseInt(v);sv('bv2_appearance',appearance);applyAppearance();render()}
-function setCompact(v){appearance.compactMode=v;sv('bv2_appearance',appearance);applyAppearance()}
+/* P-07: debounce para setAccentColor.
+   Chamada em oninput do color picker — dispara a cada pixel de movimento.
+   Cada chamada sem debounce executava ~15 setProperty() em :root (style recalc
+   em todos os elementos com var(--ac)) + um render() completo.
+   Debounce de 16ms para applyAppearance() (1 frame) e de 200ms para render()
+   — o usuário vê a cor mudar instantaneamente mas o DOM só é recriado ao parar. */
+let _accentRenderTimer = null;
+function setAccentColor(v){
+  appearance.accentColor=v;
+  saveStore();
+  applyAppearance(); /* atualiza CSS vars imediatamente — visual instantâneo */
+  clearTimeout(_accentRenderTimer);
+  _accentRenderTimer = setTimeout(()=>{ render(); }, 200);
+}
+function setFont(id){appearance.font=id;saveStore();applyAppearance();render()}
+function setBorderRadius(v){appearance.borderRadius=parseInt(v);saveStore();applyAppearance();render()}
+function setCompact(v){appearance.compactMode=v;saveStore();applyAppearance()}
 function setAnimSpeed(v){
-  appearance.animSpeed=v;sv('bv2_appearance',appearance);
+  appearance.animSpeed=v;saveStore();
   const speeds={fast:'0.15s',normal:'0.22s',slow:'0.38s'};
   document.documentElement.style.setProperty('--dur-base',speeds[v]||'0.22s');
   render();
 }
 function resetAppearance(){
   appearance={theme:'dark',accentColor:'#ffffff',font:'helvetica',borderRadius:14,compactMode:false,animSpeed:'normal'};
-  sv('bv2_appearance',appearance);applyAppearance();render();toast('Aparência resetada');
+  saveStore();applyAppearance();render();toast('Aparência resetada');
 }
 
-/* -------- TEMPLATES — PIN de 2 fatores -------- */
-// PIN hardcoded — mude aqui se quiser trocar
-const TEMPLATE_PIN = '1502';
-window._templatePinOpen   = false;
-window._templateUnlocked  = false;
+/* ── Templates — sistema de PIN de 2 fatores ── */
 
 function initTemplatePin(){
-  if(window._templateUnlocked){ window._templateUnlocked=false; render(); return; }
-  window._templatePinOpen=true; render();
+  if(_templateUnlocked){ _templateUnlocked=false; render(); return; }
+  _templatePinOpen=true; render();
   setTimeout(()=>{ const el=document.getElementById('template-pin-input'); if(el) el.focus(); },80);
 }
 
@@ -5209,8 +5007,8 @@ function confirmTemplatePin(){
   const el=document.getElementById('template-pin-input');
   if(!el) return;
   if(el.value===TEMPLATE_PIN){
-    window._templatePinOpen=false;
-    window._templateUnlocked=true;
+    _templatePinOpen=false;
+    _templateUnlocked=true;
     render();
     setTimeout(()=>{ const box=document.getElementById('template-pin-box'); if(box) box.scrollIntoView({behavior:'smooth',block:'center'}); },100);
   } else {
@@ -5221,7 +5019,7 @@ function confirmTemplatePin(){
   }
 }
 
-/* -------- TEMPLATES DO GITHUB -------- */
+/* ── Templates do GitHub — carregamento de planos prontos ── */
 function loadTemplate(id, url){
   toast('Buscando template...');
   fetch(url)
@@ -5229,18 +5027,27 @@ function loadTemplate(id, url){
     .then(data=>{
       // O JSON é {DIA: [...blocos]} — substitui só os blocks
       if(typeof data!=='object'||Array.isArray(data)) throw new Error('Formato inválido');
-      blocks = data;
+      /* R6: valida se o objeto tem ao menos uma chave reconhecida de DAYS.
+         Protege o usuário de templates com chaves erradas (ex: "Segunda" em vez de "SEG")
+         que sobrescreveriam blocks com dados inválidos, zerando o plano silenciosamente. */
+      const hasValidKey = DAYS.some(d => Array.isArray(data[d]));
+      if(!hasValidKey) throw new Error('Template sem dias válidos — esperado SEG, TER, QUA...');
+      /* Sanitiza: garante que só chaves de DAYS entram em blocks (descarta chaves estranhas) */
+      const sanitized = {};
+      DAYS.forEach(d=>{ if(Array.isArray(data[d])) sanitized[d]=data[d]; });
+      blocks = sanitized;
+      resetTodaySession(); /* garante que todaySession reflete o novo template */
       saveStore();
       render();
       toast('Template carregado');
     })
     .catch(err=>{
       console.error(err);
-      toast('Erro ao buscar template — verifique a conexão');
+      toast('Erro ao buscar template — ' + err.message);
     });
 }
 
-/* -------- DATA -------- */
+/* ── Importação e exportação de dados ── */
 function exportData(){
   // Exporta o store completo incluindo versão — compatível com importData
   const d=JSON.stringify({version:DATA_VERSION,blocks,history,goals,appearance},null,2);
@@ -5270,6 +5077,7 @@ function importData(input){
       while(v<DATA_VERSION){if(MIGRATIONS[v])s=MIGRATIONS[v](s);v++;}
       // Atualiza todas as variáveis globais — incluindo appearance
       blocks=s.blocks;history=s.history;goals=s.goals;appearance=s.appearance;
+      _buildHistoryIndex(); /* P-03/P-04: reconstrói índice após history importado */
       saveStore();
       localStorage.removeItem(TODAY_CACHE_STORE); /* reseta cache de sessão */
       applyAppearance();
@@ -5289,7 +5097,7 @@ function importData(input){
   document.body.appendChild(inp);
 })();
 
-/* -------- DANGER ZONE -------- */
+/* ── Danger zone — ações destrutivas com confirmação em 2 passos ── */
 function initDangerAction(action){dangerConfirmStep[action]=true;render();setTimeout(()=>{const el=document.getElementById('danger-confirm-'+action);if(el)el.scrollIntoView({behavior:'smooth',block:'center'});},100)}
 function cancelDanger(action){delete dangerConfirmStep[action];render()}
 function confirmDanger(action){
@@ -5298,12 +5106,22 @@ function confirmDanger(action){
   if(action==='history'&&val!=='APAGAR'){toast('Digite APAGAR para confirmar');return;}
   if(action==='reset'&&val!=='RESETAR'){toast('Digite RESETAR para confirmar');return;}
   delete dangerConfirmStep[action];
-  if(action==='history'){history=[];saveStore();toast('Histórico apagado');render();}
+  if(action==='history'){
+    history=[];_buildHistoryIndex();saveStore();
+    todaySessionDirty=false; /* R2: histórico zerado — permite re-clone limpo da sessão */
+    toast('Histórico apagado');render();
+  }
   if(action==='reset'){const emptyStore={version:DATA_VERSION,blocks:{},history:[],goals:[],appearance:JSON.parse(JSON.stringify(DEFAULT_APPEARANCE))};localStorage.setItem(STORE,JSON.stringify(emptyStore));localStorage.removeItem(JOURNAL_STORE);localStorage.removeItem(TODAY_CACHE_STORE);location.reload();}
 }
 
-/* -------- MAIN RENDER -------- */
+/* ── render() — dispatcher principal: decide qual sub-render executar ── */
 function render(){
+  /* BUG-04: Cancelar drag ativo antes de destruir o DOM.
+     Sem isso, render() durante um drag destrói referências DOM que o
+     drag engine ainda segura → ghost fica preso, listeners nunca removidos,
+     app trava até reload. */
+  if(_drag.active)_dragCancel();
+  if(_exDrag.active)_exDragCancel();
   captureInputs();   /* captura estado dos inputs ANTES de destruir o DOM */
   saveScroll();      /* salva posição de scroll por aba */
   let h='';
@@ -5322,20 +5140,432 @@ function render(){
   restoreScroll();   /* restaura scroll depois de inserir o conteúdo */
 }
 
-/* ══════════════════════════════════════════════════════════════════
-   JOURNAL SYSTEM — Integrado ao BLOC
-   
-   Arquitetura de dados:
-   journals = { "[dk]-[bi]-[date]": { text, photos[], audios[], meta, updatedAt } }
-   
-   Armazenado em localStorage separado ('bloc_journals') para não
-   inflar o store principal — journals podem conter base64 de fotos.
-   
-   A chave é determinística: dia (dk) + índice do bloco (bi) + data.
-   Isso vincula cada journal a um bloco específico em um dia específico.
-   ══════════════════════════════════════════════════════════════════ */
+/* ════════════════════════════════════════════════════════════════════════════
+   § 10 · DRAG ENGINE — Reordenação de blocos e exercícios (touch + mouse)
+   ────────────────────────────────────────────────────────────────────────────
+   Engine de drag-and-drop v2 com estratégia de placeholder: o elemento original
+   some, um clone visual (ghost) flutua com o toque, e um placeholder marca o
+   slot de destino. Dados só mudam no drop — sem mutações durante o drag.
 
-const JOURNAL_STORE = 'bloc_journals';
+   HISTÓRICO DE BUGS CORRIGIDOS (v1 → v2):
+   1. Ghost deslocado: v1 usava left/top absolutos ignorando scroll e max-width
+      do #app. v2 usa transform:translate (relativo ao viewport).
+   2. DOM corrompido: v1 mutava blocks[dk] em tempo real e recriava o DOM durante
+      o drag, perdendo referências. v2 usa placeholder estático.
+   3. Índice acumulado: fromIndex era reincrementado a cada frame. Agora é fixo.
+   4. Conflito iOS: touch-action:none no CSS + preventDefault resolve o conflito
+      entre scroll e drag no Safari.
+
+   CONTEÚDO:
+   · _drag / _exDrag       — estado interno (resetado a cada drag).
+   · enterReorderMode()    — ativa modo reordenação para blocos do dia.
+   · exitReorderMode()     — encerra modo, re-renderiza.
+   · attachExReorderListeners() — liga drag nos exercícios dentro de um bloco.
+   · attachReorderListeners()   — liga drag nos blocos de um dia.
+   · _onStart/_onMove/_onEnd    — handlers de blocos (touch + mouse).
+   · _exOnStart/_exOnMove/_exOnEnd — handlers de exercícios.
+   · _calcDropIndex()      — calcula índice de destino pela posição Y do cursor.
+   · _startAutoScroll()/_stopAutoScroll() — scroll automático nas bordas.
+   · reopenDay()           — reabre o detalhe de dia após exit de reorder.
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Estado interno — resetado a cada drag */
+const _drag = {
+  active: false,
+  el: null,          /* elemento original (some durante drag) */
+  ghost: null,       /* clone visual flutuante */
+  placeholder: null, /* div que marca o slot de destino */
+  dk: null,          /* dia sendo reorganizado */
+  fromIndex: -1,     /* índice de origem (fixo durante o drag) */
+  toIndex: -1,       /* índice de destino atual */
+  offsetX: 0,        /* distância do ponto de toque à borda esquerda do card */
+  offsetY: 0,        /* distância do ponto de toque à borda superior do card */
+  ghostW: 0,         /* largura do ghost */
+  scrollEl: null,
+  scrollRaf: null,   /* requestAnimationFrame do auto-scroll */
+  clientY: 0,        /* última posição Y conhecida do ponteiro */
+};
+
+/* ── Entrada/saída do modo de reorganização ── */
+function enterReorderMode(dk){
+  reorderState.active=true;
+  reorderState.dk=dk;
+  Object.keys(openBlk).forEach(k=>{if(k.startsWith('sem'+dk))openBlk[k]=false;});
+  openDayDetail(dk);
+  toast('Segure e arraste para reorganizar');
+}
+
+function exitReorderMode(){
+  /* Garante que qualquer drag em andamento é cancelado */
+  if(_drag.active)_dragCancel();
+  reorderState.active=false;
+  reorderState.dk=null;
+  saveStore();
+  if(_lastDayDetail)openDayDetail(_lastDayDetail);
+  toast('Ordem salva');
+}
+
+/* ═══════════════════════════════════════════════════════════════════
+   EXERCISE REORDER ENGINE — drag-and-drop dentro do modal reorderEx
+   Mesmo padrão do block reorder, adaptado para exercícios inline no modal.
+   Salva imediatamente em blocks ao soltar; modal re-renderiza automaticamente.
+   ═══════════════════════════════════════════════════════════════════ */
+const _exDrag = {
+  active:false, el:null, ghost:null, placeholder:null,
+  fromIndex:-1, toIndex:-1, offsetX:0, offsetY:0,
+  dk:null, bi:-1, scrollEl:null, scrollRaf:null, clientY:0,
+};
+
+function attachExReorderListeners(){
+  const list=document.getElementById('ex-reorder-list');
+  if(!list)return;
+  list.querySelectorAll('.ex-reorder-item').forEach(item=>{
+    item.addEventListener('mousedown',_exOnStart,{passive:false});
+    item.addEventListener('touchstart',_exOnStart,{passive:false});
+  });
+}
+
+function _exOnStart(e){
+  e.preventDefault();
+  const el=e.currentTarget;
+  const isTouchEvt=e.type==='touchstart';
+  const pt=isTouchEvt?e.touches[0]:e;
+  const rect=el.getBoundingClientRect();
+
+  const ph=document.createElement('div');
+  ph.className='bc-placeholder';ph.style.height=rect.height+'px';ph.style.borderRadius='var(--r-md)';
+  el.parentNode.insertBefore(ph,el.nextSibling);
+
+  const ghost=el.cloneNode(true);
+  ghost.style.cssText=`position:fixed;top:0;left:0;z-index:9999;pointer-events:none;will-change:transform;width:${rect.width}px;border-radius:var(--r-md);background:var(--s3);border:1px solid var(--b2);box-shadow:0 12px 32px rgba(0,0,0,0.45);opacity:0.97;transform:translate(${rect.left}px,${rect.top}px)`;
+  document.getElementById('app').appendChild(ghost);
+
+  el.style.opacity='0';el.style.pointerEvents='none';
+
+  const m=modal;
+  _exDrag.active=true;_exDrag.el=el;_exDrag.ghost=ghost;_exDrag.placeholder=ph;
+  _exDrag.fromIndex=parseInt(el.dataset.ei);_exDrag.toIndex=_exDrag.fromIndex;
+  _exDrag.offsetX=pt.clientX-rect.left;_exDrag.offsetY=pt.clientY-rect.top;
+  _exDrag.dk=m.dk;_exDrag.bi=m.bi;
+  _exDrag.scrollEl=document.querySelector('.modal-ov .modal');
+  _exDrag.clientY=pt.clientY;
+
+  if(isTouchEvt){
+    document.addEventListener('touchmove',_exOnMove,{passive:false});
+    document.addEventListener('touchend',_exOnEnd,{passive:false});
+    document.addEventListener('touchcancel',_exDragCancel,{passive:false});
+  } else {
+    document.addEventListener('mousemove',_exOnMove);
+    document.addEventListener('mouseup',_exOnEnd);
+  }
+}
+
+function _exOnMove(e){
+  if(!_exDrag.active)return;e.preventDefault();
+  const pt=e.type==='touchmove'?e.touches[0]:e;
+  const cx=pt.clientX;const cy=pt.clientY;_exDrag.clientY=cy;
+  if(_exDrag.ghost){_exDrag.ghost.style.transition='none';_exDrag.ghost.style.transform=`translate(${cx-_exDrag.offsetX}px,${cy-_exDrag.offsetY}px)`;}
+  _exCalcDropIndex(cy);
+}
+
+function _exOnEnd(e){
+  if(!_exDrag.active)return;e.preventDefault();
+  _exDrag.active=false;
+  document.removeEventListener('touchmove',_exOnMove);document.removeEventListener('touchend',_exOnEnd);
+  document.removeEventListener('touchcancel',_exDragCancel);document.removeEventListener('mousemove',_exOnMove);document.removeEventListener('mouseup',_exOnEnd);
+  const from=_exDrag.fromIndex;const to=_exDrag.toIndex;
+  if(from!==to&&blocks[_exDrag.dk]&&blocks[_exDrag.dk][_exDrag.bi]){
+    const arr=blocks[_exDrag.dk][_exDrag.bi].exercises;
+    const item=arr.splice(from,1)[0];arr.splice(to,0,item);
+    saveStore();
+    if(_exDrag.dk===todayKey)resetTodaySession();
+  }
+  if(_exDrag.ghost){_exDrag.ghost.remove();_exDrag.ghost=null;}
+  if(_exDrag.placeholder){_exDrag.placeholder.remove();_exDrag.placeholder=null;}
+  /* Re-abre o modal reorderEx para refletir nova ordem */
+  openModal({t:'reorderEx',dk:_exDrag.dk,bi:_exDrag.bi});
+  setTimeout(()=>attachExReorderListeners(),30);
+}
+
+function _exDragCancel(){
+  if(!_exDrag.active)return;_exDrag.active=false;
+  document.removeEventListener('touchmove',_exOnMove);document.removeEventListener('touchend',_exOnEnd);
+  document.removeEventListener('touchcancel',_exDragCancel);document.removeEventListener('mousemove',_exOnMove);document.removeEventListener('mouseup',_exOnEnd);
+  if(_exDrag.ghost){_exDrag.ghost.remove();_exDrag.ghost=null;}
+  if(_exDrag.placeholder){_exDrag.placeholder.remove();_exDrag.placeholder=null;}
+  if(_exDrag.el){_exDrag.el.style.opacity='';_exDrag.el.style.pointerEvents='';}
+  openModal({t:'reorderEx',dk:_exDrag.dk,bi:_exDrag.bi});
+  setTimeout(()=>attachExReorderListeners(),30);
+}
+
+function _exCalcDropIndex(clientY){
+  const list=document.getElementById('ex-reorder-list');
+  if(!list||!_exDrag.placeholder)return;
+  const items=[...list.querySelectorAll('.ex-reorder-item')].filter(el=>el.style.opacity!=='0');
+  if(!items.length)return;
+  let newTo=_exDrag.fromIndex;let insertBefore=null;let placed=false;
+  for(let i=0;i<items.length;i++){
+    const r=items[i].getBoundingClientRect();
+    if(clientY<r.top+r.height*0.5){
+      newTo=parseInt(items[i].dataset.ei);
+      if(newTo>_exDrag.fromIndex)newTo=newTo-1;
+      insertBefore=items[i];placed=true;break;
+    }
+  }
+  if(!placed){
+    const last=items[items.length-1];
+    newTo=parseInt(last.dataset.ei);
+    if(newTo<_exDrag.fromIndex)newTo=newTo+1;
+    insertBefore=last.nextSibling;
+  }
+  if(newTo!==_exDrag.toIndex)_exDrag.toIndex=newTo;
+  list.insertBefore(_exDrag.placeholder,insertBefore||null);
+}
+
+
+function attachReorderListeners(dk){
+  const list=document.getElementById('reorder-list-'+dk);
+  if(!list)return;
+  list.querySelectorAll('.bc-reorder').forEach(item=>{
+    item.addEventListener('mousedown', _onStart, {passive:false});
+    item.addEventListener('touchstart', _onStart, {passive:false});
+  });
+}
+
+/* ── Início do drag ── */
+function _onStart(e){
+  if(e.target.closest('button'))return; /* não inicia em botões */
+  e.preventDefault();
+
+  const el = e.currentTarget;
+  const isTouchEvt = e.type === 'touchstart';
+  const pt = isTouchEvt ? e.touches[0] : e;
+  const rect = el.getBoundingClientRect();
+
+  /* Cria placeholder com mesma altura do card */
+  const ph = document.createElement('div');
+  ph.className = 'bc-placeholder';
+  ph.style.height = rect.height + 'px';
+  el.parentNode.insertBefore(ph, el.nextSibling); /* insere após o original */
+
+  /* Cria ghost (clone visual) posicionado via transform */
+  const ghost = el.cloneNode(true);
+  ghost.className = 'bc bc-drag-ghost';
+  ghost.style.width = rect.width + 'px';
+  ghost.style.transform = `translate(${rect.left}px, ${rect.top}px)`;
+  /* Anima entrada: escala leve para feedback tátil */
+  ghost.style.transition = 'transform 0.12s var(--ease-spring), box-shadow 0.12s ease';
+  document.getElementById('app').appendChild(ghost);
+  requestAnimationFrame(()=>{
+    ghost.style.boxShadow = '0 20px 50px rgba(0,0,0,0.55), 0 4px 14px rgba(0,0,0,0.4)';
+    ghost.style.transition = 'box-shadow 0.12s ease'; /* remove transform transition após entrada */
+  });
+
+  /* Esconde o original */
+  el.classList.add('bc-dragging');
+
+  /* Inicializa estado */
+  _drag.active      = true;
+  _drag.el          = el;
+  _drag.ghost       = ghost;
+  _drag.placeholder = ph;
+  _drag.dk          = el.dataset.dk;
+  _drag.fromIndex   = parseInt(el.dataset.bi);
+  _drag.toIndex     = _drag.fromIndex;
+  _drag.offsetX     = pt.clientX - rect.left;
+  _drag.offsetY     = pt.clientY - rect.top;
+  _drag.ghostW      = rect.width;
+  _drag.scrollEl    = document.getElementById('content');
+  _drag.clientY     = pt.clientY;
+
+  if(isTouchEvt){
+    document.addEventListener('touchmove',  _onMove,  {passive:false});
+    document.addEventListener('touchend',   _onEnd,   {passive:false});
+    document.addEventListener('touchcancel',_dragCancel,{passive:false});
+  } else {
+    document.addEventListener('mousemove', _onMove);
+    document.addEventListener('mouseup',   _onEnd);
+  }
+}
+
+/* ── Movimento ── */
+function _onMove(e){
+  if(!_drag.active)return;
+  e.preventDefault();
+
+  const isTouchEvt = e.type === 'touchmove';
+  const pt = isTouchEvt ? e.touches[0] : e;
+  const cx = pt.clientX;
+  const cy = pt.clientY;
+  _drag.clientY = cy;
+
+  /* Move o ghost usando transform — correto independente de scroll ou max-width */
+  if(_drag.ghost){
+    _drag.ghost.style.transition = 'none'; /* sem transition durante movimento */
+    _drag.ghost.style.transform = `translate(${cx - _drag.offsetX}px, ${cy - _drag.offsetY}px)`;
+  }
+
+  /* Auto-scroll */
+  _startAutoScroll();
+
+  /* Calcula novo índice de destino olhando os itens visiveis no DOM */
+  _calcDropIndex(cy);
+}
+
+/* ── Fim do drag ── */
+function _onEnd(e){
+  if(!_drag.active)return;
+  e.preventDefault();
+
+  _drag.active = false;
+  _stopAutoScroll();
+
+  /* Remove listeners globais */
+  document.removeEventListener('touchmove',   _onMove);
+  document.removeEventListener('touchend',    _onEnd);
+  document.removeEventListener('touchcancel', _dragCancel);
+  document.removeEventListener('mousemove',   _onMove);
+  document.removeEventListener('mouseup',     _onEnd);
+
+  /* Aplica a reordenação nos dados (só agora, no drop) */
+  const from = _drag.fromIndex;
+  const to   = _drag.toIndex;
+  if(from !== to && blocks[_drag.dk]){
+    const arr = blocks[_drag.dk];
+    const item = arr.splice(from, 1)[0];
+    arr.splice(to, 0, item);
+    saveStore();
+  }
+
+  /* Remove ghost e placeholder e re-renderiza a lista */
+  if(_drag.ghost){ _drag.ghost.remove(); _drag.ghost=null; }
+  if(_drag.placeholder){ _drag.placeholder.remove(); _drag.placeholder=null; }
+  if(_drag.el){ _drag.el.classList.remove('bc-dragging'); _drag.el=null; }
+
+  /* Re-renderiza apenas o detail do dia (não full render) */
+  if(_lastDayDetail)openDayDetail(_lastDayDetail);
+}
+
+/* ── Cancela drag (touchcancel ou saída de emergência) ── */
+function _dragCancel(){
+  if(!_drag.active)return;
+  _drag.active = false;
+  _stopAutoScroll();
+  document.removeEventListener('touchmove',   _onMove);
+  document.removeEventListener('touchend',    _onEnd);
+  document.removeEventListener('touchcancel', _dragCancel);
+  document.removeEventListener('mousemove',   _onMove);
+  document.removeEventListener('mouseup',     _onEnd);
+  if(_drag.ghost){ _drag.ghost.remove(); _drag.ghost=null; }
+  if(_drag.placeholder){ _drag.placeholder.remove(); _drag.placeholder=null; }
+  if(_drag.el){ _drag.el.classList.remove('bc-dragging'); _drag.el=null; }
+  /* Cancela sem salvar — ordem original permanece */
+  if(_lastDayDetail)openDayDetail(_lastDayDetail);
+}
+
+/* ── Calcula onde o placeholder deve ficar e move-o ── */
+function _calcDropIndex(clientY){
+  const list = document.getElementById('reorder-list-'+_drag.dk);
+  if(!list||!_drag.placeholder)return;
+
+  /* Coleta itens reais (exclui o original invisível e o placeholder) */
+  const items = [...list.querySelectorAll('.bc-reorder:not(.bc-dragging)')];
+  if(!items.length)return;
+
+  let newTo = _drag.fromIndex;
+  let insertBefore = null; /* referência DOM de onde inserir o placeholder */
+
+  let placed = false;
+  for(let i=0;i<items.length;i++){
+    const r = items[i].getBoundingClientRect();
+    if(clientY < r.top + r.height * 0.5){
+      /* Cursor está na metade superior deste item → placeholder fica antes dele */
+      newTo = parseInt(items[i].dataset.bi);
+      /* Se o item vem depois do from, ajusta para compensar a remoção */
+      if(newTo > _drag.fromIndex) newTo = newTo - 1;
+      insertBefore = items[i];
+      placed = true;
+      break;
+    }
+  }
+  if(!placed){
+    /* Cursor abaixo de todos → vai para o final */
+    const last = items[items.length-1];
+    newTo = parseInt(last.dataset.bi);
+    if(newTo < _drag.fromIndex) newTo = newTo + 1;
+    /* Insere depois do último */
+    insertBefore = last.nextSibling;
+  }
+
+  /* Move o placeholder no DOM só se a posição mudou */
+  if(newTo !== _drag.toIndex){
+    _drag.toIndex = newTo;
+  }
+  /* Sempre move o placeholder para refletir posição visual correta */
+  list.insertBefore(_drag.placeholder, insertBefore || null);
+}
+
+/* ── Auto-scroll suave usando rAF ── */
+function _startAutoScroll(){
+  _stopAutoScroll();
+  function _frame(){
+    if(!_drag.active)return;
+    const ct = _drag.scrollEl;
+    if(ct){
+      const cr = ct.getBoundingClientRect();
+      const zone = 72, speed = 10;
+      const cy = _drag.clientY;
+      if(cy < cr.top + zone){
+        ct.scrollTop -= speed * (1 - (cy - cr.top) / zone);
+      } else if(cy > cr.bottom - zone){
+        ct.scrollTop += speed * (1 - (cr.bottom - cy) / zone);
+      }
+    }
+    _drag.scrollRaf = requestAnimationFrame(_frame);
+  }
+  _drag.scrollRaf = requestAnimationFrame(_frame);
+}
+function _stopAutoScroll(){
+  if(_drag.scrollRaf){ cancelAnimationFrame(_drag.scrollRaf); _drag.scrollRaf=null; }
+}
+
+/* R5: parâmetro dk removido — nunca foi usado; função sempre usa _lastDayDetail */
+function reopenDay(){if(_lastDayDetail)openDayDetail(_lastDayDetail)}
+
+/* ════════════════════════════════════════════════════════════════════════════
+   § 11 · JOURNAL — Sistema completo de diário de treino
+   ────────────────────────────────────────────────────────────────────────────
+   Sistema de diário por bloco/data: o usuário pode registrar texto, fotos e
+   áudios para cada bloco em cada dia de treino. Persistido em localStorage
+   separado (JOURNAL_STORE) para não inflar o store principal com base64.
+
+   ARQUITETURA DE DADOS:
+   journals = { "[dk]-[bi]-[date]": { text, mood, photos[], audios[], updatedAt } }
+   Chave determinística: dia (dk) + índice do bloco (bi) + data do registro.
+   Cada journal é vinculado a um bloco específico em um dia específico.
+
+   REGRA: loadJournals() e saveJournals() vivem aqui por coesão — o journal é
+   uma unidade funcional completa. A inicialização (let journals) foi movida
+   para §3 STATE (R8) para garantir ordem de dependência segura independente
+   de reorganizações futuras de seções.
+
+   CONTEÚDO:
+   · loadJournals()/saveJournals() — persistência (localStorage separado).
+   · journalKey()                  — chave determinística dk+bi+date.
+   · journalHasEntry()             — verifica se há entrada para um bloco/data.
+   · openJournal()/closeJournal()  — abre/fecha o painel de journal.
+   · renderJournalScreen()         — HTML completo da tela de journal.
+   · journalTextInput()            — auto-resize do textarea.
+   · journalSetMood()              — seleciona humor do treino.
+   · journalAutoSave()             — salva automaticamente a cada mudança.
+   · journalSaveAndClose()         — salva e fecha o journal.
+   · journalAddPhotos()            — adiciona fotos (base64) ao journal.
+   · journalDelPhoto()/journalDelAudio() — remove mídia do journal.
+   · stopRecording()               — para gravação de áudio e processa blob.
+   · updateJournalNavDot()         — atualiza indicador de journal na nav.
+   · renderJournals()              — HTML da lista de todos os journals.
+   · viewJournalEntry()            — abre entrada individual para leitura.
+   ════════════════════════════════════════════════════════════════════════════ */
 
 /* Carrega todos os journals */
 function loadJournals(){
@@ -5346,8 +5576,6 @@ function saveJournals(j){
     toast('Erro ao salvar — armazenamento cheio');
   }
 }
-
-let journals = loadJournals();
 
 /* ── Chave do journal ── */
 function journalKey(dk,bi,date){return`${dk}-${bi}-${date}`;}
@@ -5373,7 +5601,7 @@ function openJournal(dk,bi){
   render();
   /* Scroll ao topo */
   const ct = document.getElementById('content');
-  if(ct) ct.scrollTop = 0;
+  if(ct) ct.scrollTo({top:0,behavior:'instant'});
   /* Foca o textarea após animação */
   setTimeout(()=>{
     const ta = document.getElementById('journal-ta');
@@ -5516,14 +5744,26 @@ function journalSetMood(moodId){
   const ta = document.getElementById('journal-ta');
   const entry = journals[key] || {text:'',photos:[],audios:[],meta:{}};
   if(ta) entry.text = ta.value;
+  /* UX-05: salvar posição do cursor antes do render().
+     render() recria o textarea inteiro, resetando o cursor para o final.
+     Restauramos selectionStart/End no setTimeout pós-render. */
+  const selStart = ta ? ta.selectionStart : null;
+  const selEnd   = ta ? ta.selectionEnd   : null;
   entry.mood = (entry.mood === moodId) ? null : moodId;
   entry.meta = { dk:journalState.dk, bi:journalState.bi, date:journalState.date };
   journals[key] = entry;
   saveJournals(journals);
-  /* Re-render preservando posição de scroll */
+  /* Re-render preservando posição de scroll e cursor */
   const scrollY = document.getElementById('content')?.scrollTop || 0;
   render();
-  setTimeout(()=>{ const ct=document.getElementById('content'); if(ct) ct.scrollTop=scrollY; },0);
+  setTimeout(()=>{
+    const ct=document.getElementById('content');
+    if(ct) ct.scrollTo({top:scrollY,behavior:'instant'});
+    if(selStart!==null){
+      const newTa=document.getElementById('journal-ta');
+      if(newTa){ newTa.focus(); newTa.setSelectionRange(selStart,selEnd); }
+    }
+  },0);
 }
 
 /* ── Autosave ── */
@@ -5573,24 +5813,67 @@ function journalAddPhotos(input){
   const ta = document.getElementById('journal-ta');
   if(ta) entry.text = ta.value;
 
-  let pending = files.length;
-  files.forEach(file=>{
-    if(entry.photos.length >= 9){ pending--;return; }
-    const reader = new FileReader();
-    reader.onload = e=>{
-      entry.photos.push(e.target.result);
+  /* BUG-09: processar fotos sequencialmente em vez de concorrentemente.
+     O processamento concorrente causava dois problemas:
+     1. A checagem do limite de 9 fotos ocorria antes de qualquer onload → todos
+        os FileReaders iniciavam antes de qualquer push, ultrapassando o limite.
+     2. Se fotos de tamanhos muito diferentes chegassem fora de ordem, o render()
+        podia disparar antes de todas as fotos estarem prontas (pending<=0 prematuro).
+     Solução: fila de Promises que processa uma foto por vez. */
+  /* P-06: redimensionar imagens antes de salvar no journal.
+     Uma foto típica de celular (~2-4MB) como base64 = 2.7-5.3MB de string.
+     O localStorage tem limite de ~5MB no iOS Safari (principal alvo do app).
+     Solução: canvas resize para max 1024px no lado maior + recompressão JPEG 0.82.
+     Resultado típico: 2MB → ~180KB. Adiantamos o limite de quota indefinidamente. */
+  function resizeAndEncode(file, callback){
+    const img = new Image();
+    const objectUrl = URL.createObjectURL(file);
+    img.onload = ()=>{
+      URL.revokeObjectURL(objectUrl);
+      const MAX = 1024;
+      let {naturalWidth:w, naturalHeight:h} = img;
+      if(w > MAX || h > MAX){
+        if(w >= h){ h = Math.round(h * MAX / w); w = MAX; }
+        else       { w = Math.round(w * MAX / h); h = MAX; }
+      }
+      const canvas = document.createElement('canvas');
+      canvas.width = w; canvas.height = h;
+      canvas.getContext('2d').drawImage(img, 0, 0, w, h);
+      callback(canvas.toDataURL('image/jpeg', 0.82));
+    };
+    img.onerror = ()=>{ URL.revokeObjectURL(objectUrl); callback(null); };
+    img.src = objectUrl;
+  }
+
+  const queue = files.slice(); /* cópia para não mutar o original */
+  function processNext(){
+    if(!queue.length){
       journals[key] = entry;
       saveJournals(journals);
-      pending--;
-      if(pending<=0){
-        const scrollY = document.getElementById('content')?.scrollTop || 0;
-        render();
-        setTimeout(()=>{ const ct=document.getElementById('content'); if(ct) ct.scrollTop=scrollY; },0);
-        updateJournalNavDot();
-      }
-    };
-    reader.readAsDataURL(file);
-  });
+      const scrollY = document.getElementById('content')?.scrollTop || 0;
+      render();
+      setTimeout(()=>{ const ct=document.getElementById('content'); if(ct) ct.scrollTo({top:scrollY,behavior:'instant'}); },0);
+      updateJournalNavDot();
+      return;
+    }
+    /* Checa o limite dentro do processamento, não antes de iniciar */
+    if(entry.photos.length >= 9){
+      queue.length = 0; /* descarta fotos restantes */
+      journals[key] = entry;
+      saveJournals(journals);
+      const scrollY = document.getElementById('content')?.scrollTop || 0;
+      render();
+      setTimeout(()=>{ const ct=document.getElementById('content'); if(ct) ct.scrollTo({top:scrollY,behavior:'instant'}); },0);
+      updateJournalNavDot();
+      return;
+    }
+    const file = queue.shift();
+    resizeAndEncode(file, dataUrl=>{
+      if(dataUrl) entry.photos.push(dataUrl);
+      processNext();
+    });
+  }
+  processNext();
   input.value = '';
 }
 
@@ -5604,7 +5887,7 @@ function journalDelPhoto(pi){
     saveJournals(journals);
     const scrollY = document.getElementById('content')?.scrollTop || 0;
     render();
-    setTimeout(()=>{ const ct=document.getElementById('content'); if(ct) ct.scrollTop=scrollY; },0);
+    setTimeout(()=>{ const ct=document.getElementById('content'); if(ct) ct.scrollTo({top:scrollY,behavior:'instant'}); },0);
   }
 }
 
@@ -5637,7 +5920,7 @@ async function startRecording(){
     }
     const scrollY = document.getElementById('content')?.scrollTop || 0;
     render();
-    setTimeout(()=>{ const ct=document.getElementById('content'); if(ct) ct.scrollTop=scrollY; },0);
+    setTimeout(()=>{ const ct=document.getElementById('content'); if(ct) ct.scrollTo({top:scrollY,behavior:'instant'}); },0);
   } catch(err){
     toast('Acesso ao microfone negado');
   }
@@ -5692,7 +5975,7 @@ function journalDelAudio(ai){
     saveJournals(journals);
     const scrollY = document.getElementById('content')?.scrollTop || 0;
     render();
-    setTimeout(()=>{ const ct=document.getElementById('content'); if(ct) ct.scrollTop=scrollY; },0);
+    setTimeout(()=>{ const ct=document.getElementById('content'); if(ct) ct.scrollTo({top:scrollY,behavior:'instant'}); },0);
   }
 }
 
@@ -5723,7 +6006,7 @@ function renderJournals(){
   });
 
   /* ── Busca ── */
-  const searchVal = (window._journalSearch||'').toLowerCase();
+  const searchVal = (_journalSearch||'').toLowerCase();
 
   /* ── Ordena datas desc ── */
   function toISO(d){ const p=d.split('/'); return p.length===3?`${p[2]}-${p[1]}-${p[0]}`:''; }
@@ -5744,7 +6027,7 @@ function renderJournals(){
   let h = `<div class="sec">Journals</div>`;
 
   if(Object.keys(byDate).length > 3 || searchVal){
-    h += `<input class="jsearch" type="search" placeholder="Buscar nos journals..." value="${searchVal}" oninput="window._journalSearch=this.value;render()" autocomplete="off">`;
+    h += `<input class="jsearch" type="search" placeholder="Buscar nos journals..." value="${searchVal}" oninput="_journalSearch=this.value;render()" autocomplete="off">`;
   }
 
   if(!dates.length){
@@ -5840,16 +6123,33 @@ function viewJournalEntry(key){
   journalOpen = true;
   render();
   const ct = document.getElementById('content');
-  if(ct) ct.scrollTop = 0;
+  if(ct) ct.scrollTo({top:0,behavior:'instant'});
 }
 
 /* ── Integração com saveLog: o autosave já cobre o fluxo de registro ── */
+
+/* ════════════════════════════════════════════════════════════════════════════
+   § 12 · BOOT — Inicialização da aplicação
+   ────────────────────────────────────────────────────────────────────────────
+   Sequência de boot executada uma única vez no carregamento da página.
+   Toda inicialização de estado já ocorreu nas seções §1–§11 (declarações e
+   let/const executados na ordem do arquivo). O boot apenas aplica aparência,
+   dispara o primeiro render e registra listeners de sistema.
+
+   CONTEÚDO:
+   · applyAppearance()       — aplica tema/fonte/radius salvos no localStorage.
+   · render()                — primeiro render: monta o DOM inicial do app.
+   · updateJournalNavDot()   — sincroniza o indicador de journal na nav.
+   · _fixViewportHeight()    — corrige altura do #app no iOS Safari (barra de
+                               endereço e teclado causam resize do viewport).
+   · Listeners de resize/orientationchange — mantém height correto no iOS.
+   ════════════════════════════════════════════════════════════════════════════ */
 
 applyAppearance();
 render();
 updateJournalNavDot();
 
-/* -------- FIX #3: viewport resize listener -------- */
+/* ── Viewport resize listener — corrige altura no iOS Safari ── */
 /* No iOS Safari o viewport muda ao recarregar (barra de endereço, teclado).
    Sem este listener, o #app fica com height errado após o reload. */
 function _fixViewportHeight(){
