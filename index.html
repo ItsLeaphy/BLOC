@@ -3024,6 +3024,91 @@ function renderHeatmap(){
   return `<svg width="100%" viewBox="0 0 ${W+20} ${H}" style="display:block">${cells}${labels}</svg>`;
 }
 
+/* Retorna [{name, vals:[{date,w,r,t}]}] dos exercícios com mais histórico de carga */
+function getTopExercisesEvolution(limit){
+  const map={};
+  history.forEach(entry=>{
+    const exList=Array.isArray(entry.exercises)?entry.exercises:(entry.entries||[]).flatMap(b=>b.exercises||[]);
+    exList.forEach(e=>{
+      if(!e.weight&&!e.reps&&!e.time)return;
+      if(!map[e.name])map[e.name]=[];
+      map[e.name].push({date:entry.date,w:e.weight||0,r:e.reps||0,t:e.time||0});
+    });
+  });
+  /* Só exercícios com peso registrado e ao menos 3 entradas */
+  return Object.entries(map)
+    .filter(([,v])=>v.length>=3&&v.some(x=>x.w>0))
+    .sort((a,b)=>b[1].length-a[1].length)
+    .slice(0,limit)
+    .map(([name,vals])=>({name,vals:[...vals].reverse()})); /* cronológico */
+}
+
+/* Análise por dia da semana: retorna [{dow, label, total, done, rate}] */
+function calcDayOfWeekStats(){
+  const map={};
+  DAYS.forEach((dk,i)=>{
+    map[dk]={dow:i,label:dk,planned:0,done:0};
+  });
+  /* Conta planejados: cada bloco em cada dia = 1 planejado por semana no período */
+  const doneByDate={};
+  history.forEach(entry=>{
+    if(!doneByDate[entry.date])doneByDate[entry.date]=new Set();
+    doneByDate[entry.date].add(entry.dayKey);
+  });
+  /* Conta registros por dayKey */
+  history.forEach(entry=>{
+    if(map[entry.dayKey])map[entry.dayKey].done++;
+  });
+  /* Planejado = semanas no histórico × blocos por dia */
+  const allDates=Object.keys(doneByDate);
+  if(!allDates.length)return[];
+  const parseDate=d=>{const[dd,mm,yy]=d.split('/');return new Date(yy,mm-1,dd);};
+  const sorted=allDates.map(parseDate).sort((a,b)=>a-b);
+  const firstDate=sorted[0],lastDate=sorted[sorted.length-1];
+  const totalWeeks=Math.max(1,Math.ceil((lastDate-firstDate)/86400000/7)+1);
+  DAYS.forEach(dk=>{
+    const blockCount=(blocks[dk]||[]).length;
+    map[dk].planned=totalWeeks*blockCount;
+  });
+  return Object.values(map)
+    .filter(d=>d.planned>0||d.done>0)
+    .map(d=>({...d,rate:d.planned>0?Math.round((d.done/d.planned)*100):0}));
+}
+
+/* PR por exercício: retorna [{name, weight, date}] dos melhores pesos */
+function getAllPRs(){
+  const map={};
+  history.forEach(entry=>{
+    const exList=Array.isArray(entry.exercises)?entry.exercises:(entry.entries||[]).flatMap(b=>b.exercises||[]);
+    exList.forEach(e=>{
+      if(!e.weight||e.weight<=0)return;
+      if(!map[e.name]||e.weight>map[e.name].weight)
+        map[e.name]={name:e.name,weight:e.weight,date:entry.date};
+    });
+  });
+  return Object.values(map).sort((a,b)=>b.weight-a.weight);
+}
+
+/* Renderiza mini sparkline SVG de evolução de carga para um exercício */
+function renderSparkline(vals,useWeight){
+  const points=vals.filter(v=>useWeight?v.w>0:v.r>0||v.t>0).slice(-12);
+  if(points.length<2)return'';
+  const series=points.map(v=>useWeight?v.w:(v.r||v.t));
+  const mn=Math.min(...series),mx=Math.max(...series);
+  const range=mx-mn||1;
+  const W=80,H=28,PAD=2;
+  const xs=series.map((_,i)=>PAD+i*(W-PAD*2)/(series.length-1));
+  const ys=series.map(v=>H-PAD-(v-mn)/range*(H-PAD*2));
+  const path='M'+xs.map((x,i)=>`${x.toFixed(1)},${ys[i].toFixed(1)}`).join('L');
+  const last=series[series.length-1];
+  const prev=series[series.length-2];
+  const color=last>prev?'var(--green)':last<prev?'var(--red)':'var(--t2)';
+  return`<svg viewBox="0 0 ${W} ${H}" width="${W}" height="${H}" style="display:block">
+    <path d="${path}" fill="none" stroke="${color}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+    <circle cx="${xs[xs.length-1].toFixed(1)}" cy="${ys[ys.length-1].toFixed(1)}" r="2" fill="${color}"/>
+  </svg>`;
+}
+
 /* FASE 2 — PR detection: verifica se novo peso bate recorde */
 function isPR(exName, newWeight){
   if(!newWeight||newWeight<=0)return false;
@@ -4280,94 +4365,278 @@ function renderHistorico(){
   return h;
 }
 
+/* ════════════════════════════════════════════════════════════════════════════
+   ANALYTICS — FASE 3
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Frequência por grupo muscular — retorna [{group, sessions, lastDate}]
+   Cada registro de bloco contribui com os grupos do seu blockType.
+   'full_body' é expandido para todos os grupos conhecidos. */
+function calcMuscleFrequency(){
+  const ALL_GROUPS=['peito','costas','ombro','bíceps','tríceps','perna','glúteo',
+                    'posterior','core','lombar','pescoço','antebraço','cardio'];
+  const map={};
+  ALL_GROUPS.forEach(g=>{map[g]={group:g,sessions:0,lastDate:null};});
+
+  history.forEach(entry=>{
+    const groups=MUSCLE_GROUPS[entry.blockType]||[];
+    const expanded=groups.includes('full_body')?ALL_GROUPS:groups;
+    expanded.forEach(g=>{
+      if(!map[g])return;
+      map[g].sessions++;
+      if(!map[g].lastDate||entry.date>map[g].lastDate)map[g].lastDate=entry.date;
+    });
+  });
+
+  return Object.values(map)
+    .filter(g=>g.sessions>0)
+    .sort((a,b)=>b.sessions-a.sessions);
+}
+
+/* Comparação plano vs realidade por bloco —
+   retorna [{dk, label, type, planned, done, rate}] ordenado por rate asc */
+function calcBlockAdherence(){
+  /* Conta semanas no período histórico */
+  const dates=history.map(h=>{
+    const[dd,mm,yy]=h.date.split('/');return new Date(yy,mm-1,dd);
+  });
+  if(!dates.length)return[];
+  const minDate=new Date(Math.min(...dates));
+  const maxDate=new Date(Math.max(...dates));
+  const totalWeeks=Math.max(1,Math.ceil((maxDate-minDate)/86400000/7)+1);
+
+  /* Conta registros por dk+label */
+  const doneMap={};
+  history.forEach(h=>{
+    const k=`${h.dayKey}||${h.blockLabel}`;
+    doneMap[k]=(doneMap[k]||0)+1;
+  });
+
+  const result=[];
+  DAYS.forEach(dk=>{
+    (blocks[dk]||[]).forEach(b=>{
+      const k=`${dk}||${b.label}`;
+      const done=doneMap[k]||0;
+      const planned=totalWeeks;
+      const rate=planned>0?Math.round((done/planned)*100):0;
+      result.push({dk,label:b.label,type:b.type,planned,done,rate});
+    });
+  });
+
+  return result.sort((a,b)=>a.rate-b.rate);
+}
+
+/* Resumo semanal — dados da semana que acabou de fechar (offset=1) ou atual (0) */
+function calcWeeklySummary(weekOffset){
+  const now=new Date();
+  const dow=now.getDay();
+  const start=new Date(now);
+  start.setDate(now.getDate()-dow-(weekOffset*7));
+  start.setHours(0,0,0,0);
+  const end=new Date(start);end.setDate(start.getDate()+7);
+
+  const entries=history.filter(h=>{
+    const[dd,mm,yy]=h.date.split('/');
+    const d=new Date(yy,mm-1,dd);
+    return d>=start&&d<end;
+  });
+
+  if(!entries.length)return null;
+
+  const vol=entries.reduce((s,h)=>{
+    const exList=Array.isArray(h.exercises)?h.exercises:(h.entries||[]).flatMap(b=>b.exercises||[]);
+    return s+exList.reduce((a,e)=>a+(e.sets*(e.weight||0)),0);
+  },0);
+
+  const days=new Set(entries.map(h=>h.date)).size;
+
+  /* Exercícios únicos treinados */
+  const exSet=new Set();
+  entries.forEach(h=>{
+    const exList=Array.isArray(h.exercises)?h.exercises:(h.entries||[]).flatMap(b=>b.exercises||[]);
+    exList.forEach(e=>exSet.add(e.name));
+  });
+
+  /* PRs da semana */
+  const weekPRs=[];
+  entries.forEach(h=>{
+    const exList=Array.isArray(h.exercises)?h.exercises:(h.entries||[]).flatMap(b=>b.exercises||[]);
+    exList.forEach(e=>{
+      if(e.weight>0&&isPR_before(e.name,e.weight,start))
+        weekPRs.push({name:e.name,weight:e.weight});
+    });
+  });
+
+  /* Blocos mais pulados na semana */
+  const skipMap={};
+  entries.forEach(h=>{
+    const exList=Array.isArray(h.exercises)?h.exercises:(h.entries||[]).flatMap(b=>b.exercises||[]);
+    exList.forEach(e=>{
+      if(e.status==='skipped'){skipMap[e.name]=(skipMap[e.name]||0)+1;}
+    });
+  });
+  const topSkipped=Object.entries(skipMap).sort((a,b)=>b[1]-a[1]).slice(0,2);
+
+  /* Label da semana */
+  const fmt=d=>d.toLocaleDateString('pt-BR',{day:'2-digit',month:'2-digit'});
+  const label=`${fmt(start)} – ${fmt(new Date(end.getTime()-86400000))}`;
+
+  return{label,days,vol,exercises:exSet.size,prs:weekPRs,topSkipped,blocks:entries.length};
+}
+
+/* Helper: verifica se um peso é PR considerando apenas registros ANTES de uma data */
+function isPR_before(exName,weight,beforeDate){
+  const prev=history
+    .filter(h=>{
+      const[dd,mm,yy]=h.date.split('/');
+      return new Date(yy,mm-1,dd)<beforeDate;
+    })
+    .flatMap(h=>Array.isArray(h.exercises)?h.exercises:(h.entries||[]).flatMap(b=>b.exercises||[]))
+    .filter(e=>e.name===exName&&e.weight>0);
+  if(!prev.length)return false;
+  return weight>Math.max(...prev.map(e=>e.weight));
+}
+
 function renderStats(){
-  /* ── Fase 1: analytics core ─────────────────────────────────────────────
-     Esta função será construída em fases. Por ora exibe os dados fundacionais
-     já disponíveis no histórico e prepara o terreno para os cards de analytics.
-     ─────────────────────────────────────────────────────────────────────── */
   const totalRegistros = history.length;
+  const streak    = calcStreak();
+  const weekRate  = calcWeekRate();
+  const volThis   = calcWeeklyVolume(0);
+  const volPrev   = calcWeeklyVolume(1);
+  const volDiff   = volPrev > 0 ? Math.round(((volThis-volPrev)/volPrev)*100) : null;
+  const skipped   = getSkippedExercises().slice(0,5);
+  const topEx     = getTopExercisesEvolution(6);
+  const dowStats  = calcDayOfWeekStats();
+  const prs       = getAllPRs().slice(0,5);
 
-  /* Streak — dias consecutivos com ao menos 1 registro */
-  const streak = calcStreak();
-
-  /* Taxa de conclusão da semana atual */
-  const weekRate = calcWeekRate();
-
-  /* Volume desta semana vs semana anterior */
-  const volThis = calcWeeklyVolume(0);
-  const volPrev = calcWeeklyVolume(1);
-  const volDiff = volPrev > 0 ? Math.round(((volThis - volPrev) / volPrev) * 100) : null;
-
-  /* Exercícios mais pulados */
-  const skipped = getSkippedExercises().slice(0, 3);
+  /* ── helpers de estilo inline reutilizáveis ── */
+  const card=(content,mb)=>`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:16px;margin-bottom:${mb||16}px">${content}</div>`;
+  const secLabel=(txt)=>`<div style="font-size:var(--fs-micro);color:var(--t2);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">${txt}</div>`;
+  const divider=`<div style="height:0.5px;background:var(--t4);margin:0 0 0"></div>`;
 
   let h = `<div class="sec">Stats</div>`;
 
-  if (!totalRegistros) {
+  if(!totalRegistros){
     h += `<div class="empty"><strong>Nenhum treino registrado</strong>Registre seu primeiro bloco para ver seus stats.</div>`;
     return h;
   }
 
-  /* ── Cards de pulso ─────────────────────────────────────────────────── */
+  /* ════════════════════════════════════
+     § 1 — PULSO
+     ════════════════════════════════════ */
+
+  /* Streak + taxa da semana */
+  const streakSub = streak.best > streak.current
+    ? `<div style="font-size:var(--fs-micro);color:var(--t2);margin-top:4px">recorde ${streak.best}d</div>` : '';
+  const rateColor = weekRate>=80?'var(--green)':weekRate>=50?'var(--yellow)':'var(--t2)';
+
   h += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">`;
-
-  /* Streak */
-  const streakBest = streak.best > streak.current ? `<div style="font-size:var(--fs-micro);color:var(--t2);margin-top:4px;letter-spacing:.5px">recorde ${streak.best}d</div>` : '';
-  h += `<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:16px">
-    <div style="font-size:var(--fs-micro);color:var(--t2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Sequência</div>
-    <div style="font-size:var(--fs-display);font-weight:var(--fw-medium);color:var(--tc)">${streak.current}<span style="font-size:var(--fs-body);color:var(--t2);margin-left:3px">d</span></div>
-    ${streakBest}
-  </div>`;
-
-  /* Taxa da semana */
-  const rateColor = weekRate >= 80 ? 'var(--green)' : weekRate >= 50 ? 'var(--yellow)' : 'var(--t2)';
-  h += `<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:16px">
-    <div style="font-size:var(--fs-micro);color:var(--t2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Esta semana</div>
-    <div style="font-size:var(--fs-display);font-weight:var(--fw-medium);color:${rateColor}">${weekRate}<span style="font-size:var(--fs-body);color:var(--t2);margin-left:2px">%</span></div>
-    <div style="font-size:var(--fs-micro);color:var(--t2);margin-top:4px;letter-spacing:.5px">conclusão</div>
-  </div>`;
-
+  h += card(`${secLabel('Sequência')}<div style="font-size:var(--fs-display);font-weight:var(--fw-medium);color:var(--tc)">${streak.current}<span style="font-size:var(--fs-body);color:var(--t2);margin-left:3px">d</span></div>${streakSub}`,0);
+  h += card(`${secLabel('Esta semana')}<div style="font-size:var(--fs-display);font-weight:var(--fw-medium);color:${rateColor}">${weekRate}<span style="font-size:var(--fs-body);color:var(--t2);margin-left:2px">%</span></div><div style="font-size:var(--fs-micro);color:var(--t2);margin-top:4px">conclusão</div>`,0);
   h += `</div>`;
 
-  /* Volume */
-  const volDiffStr = volDiff !== null
-    ? `<span style="color:${volDiff>=0?'var(--green)':'var(--red)'}"> ${volDiff>=0?'+':''}${volDiff}%</span> vs semana anterior`
-    : 'sem dados da semana anterior';
-  h += `<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:16px;margin-bottom:16px">
-    <div style="font-size:var(--fs-micro);color:var(--t2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Volume desta semana</div>
-    <div style="font-size:var(--fs-display);font-weight:var(--fw-medium);color:var(--tc)">${volThis}<span style="font-size:var(--fs-body);color:var(--t2);margin-left:3px">kg</span></div>
-    <div style="font-size:var(--fs-sub);color:var(--t2);margin-top:4px">${volDiffStr}</div>
-  </div>`;
+  /* Volume semanal */
+  const volDiffStr = volDiff!==null
+    ? `<span style="color:${volDiff>=0?'var(--green)':'var(--red)'}">${volDiff>=0?'+':''}${volDiff}%</span> vs semana anterior`
+    : `<span style="color:var(--t2)">sem dados da semana anterior</span>`;
+  h += card(`${secLabel('Volume desta semana')}<div style="font-size:var(--fs-display);font-weight:var(--fw-medium);color:var(--tc)">${volThis}<span style="font-size:var(--fs-body);color:var(--t2);margin-left:3px">kg</span></div><div style="font-size:var(--fs-sub);color:var(--t2);margin-top:4px">${volDiffStr}</div>`);
 
-  /* ── Heatmap de frequência ───────────────────────────────────────────── */
-  h += `<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:16px;margin-bottom:16px">`;
-  h += `<div style="font-size:var(--fs-micro);color:var(--t2);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">Frequência — últimas 12 semanas</div>`;
-  h += renderHeatmap();
-  h += `</div>`;
+  /* ════════════════════════════════════
+     § 2 — FREQUÊNCIA (heatmap)
+     ════════════════════════════════════ */
+  h += card(`${secLabel('Frequência — últimas 12 semanas')}${renderHeatmap()}`);
 
-  /* ── Exercícios mais pulados ─────────────────────────────────────────── */
-  if (skipped.length) {
-    h += `<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:16px;margin-bottom:16px">`;
-    h += `<div style="font-size:var(--fs-micro);color:var(--t2);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">Mais evitados</div>`;
-    skipped.forEach(({name, count, total}) => {
-      const pct = total > 0 ? Math.round((count/total)*100) : 0;
-      h += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--t4)">
-        <div style="font-size:var(--fs-body);color:var(--tc)">${name}</div>
-        <div style="font-size:var(--fs-sub);color:var(--yellow)">pulado ${count}×<span style="color:var(--t2);margin-left:4px">(${pct}%)</span></div>
+  /* ════════════════════════════════════
+     § 3 — COMPORTAMENTO POR DIA
+     ════════════════════════════════════ */
+  if(dowStats.length){
+    const maxRate=Math.max(...dowStats.map(d=>d.rate),1);
+    let rows='';
+    dowStats.forEach(d=>{
+      const barW=Math.round((d.rate/maxRate)*100);
+      const barColor=d.rate>=80?'var(--green)':d.rate>=50?'var(--yellow)':'var(--red)';
+      rows+=`<div style="display:grid;grid-template-columns:28px 1fr 34px;align-items:center;gap:8px;margin-bottom:7px">
+        <div style="font-size:var(--fs-micro);color:var(--t2);letter-spacing:.5px">${d.label}</div>
+        <div style="height:5px;background:var(--s3);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${barW}%;background:${barColor};border-radius:3px;transition:width .3s"></div>
+        </div>
+        <div style="font-size:var(--fs-micro);color:var(--t2);text-align:right">${d.rate}%</div>
       </div>`;
     });
-    h += `</div>`;
+    h += card(`${secLabel('Consistência por dia')}${rows}`);
   }
 
-  /* ── Total geral ─────────────────────────────────────────────────────── */
-  h += `<div style="text-align:center;padding:16px 0 8px">
-    <div style="font-size:var(--fs-sub);color:var(--t2)">${totalRegistros} treino${totalRegistros!==1?'s':''} registrado${totalRegistros!==1?'s':''}</div>
+  /* ════════════════════════════════════
+     § 4 — EVOLUÇÃO DE CARGA
+     ════════════════════════════════════ */
+  if(topEx.length){
+    let rows='';
+    topEx.forEach(({name,vals})=>{
+      const useW=vals.some(v=>v.w>0);
+      const series=vals.map(v=>useW?v.w:(v.r||v.t));
+      const last=series[series.length-1];
+      const first=series[0];
+      const unit=useW?'kg':vals[vals.length-1]?.t?'s':'rep';
+      const diff=last-first;
+      const diffColor=diff>0?'var(--green)':diff<0?'var(--red)':'var(--t2)';
+      const diffStr=diff>0?`+${diff}`:diff===0?'=':`${diff}`;
+      const spark=renderSparkline(vals,useW);
+      rows+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:0.5px solid var(--t4)">
+        <div style="flex:1;min-width:0;margin-right:12px">
+          <div style="font-size:var(--fs-body);color:var(--tc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+          <div style="font-size:var(--fs-micro);color:var(--t2);margin-top:2px">${first}${unit} → <strong style="color:var(--tc)">${last}${unit}</strong> <span style="color:${diffColor}">(${diffStr}${unit})</span></div>
+        </div>
+        <div style="flex-shrink:0">${spark}</div>
+      </div>`;
+    });
+    h += card(`${secLabel('Evolução de carga')}${rows}`);
+  }
+
+  /* ════════════════════════════════════
+     § 5 — PRs
+     ════════════════════════════════════ */
+  if(prs.length){
+    let rows='';
+    prs.forEach(({name,weight,date})=>{
+      rows+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--t4)">
+        <div style="font-size:var(--fs-body);color:var(--tc)">${name}</div>
+        <div style="display:flex;align-items:center;gap:10px">
+          <div style="font-size:var(--fs-sub);color:var(--t2)">${date}</div>
+          <div style="font-size:var(--fs-body);font-weight:var(--fw-medium);color:var(--ac)">${weight}kg</div>
+        </div>
+      </div>`;
+    });
+    h += card(`${secLabel('Records pessoais')}${rows}`);
+  }
+
+  /* ════════════════════════════════════
+     § 6 — MAIS EVITADOS
+     ════════════════════════════════════ */
+  if(skipped.length){
+    let rows='';
+    skipped.forEach(({name,count,total})=>{
+      const pct=total>0?Math.round((count/total)*100):0;
+      const barW=pct;
+      rows+=`<div style="padding:9px 0;border-bottom:0.5px solid var(--t4)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
+          <div style="font-size:var(--fs-body);color:var(--tc)">${name}</div>
+          <div style="font-size:var(--fs-sub);color:var(--yellow)">pulado ${count}× <span style="color:var(--t2)">(${pct}%)</span></div>
+        </div>
+        <div style="height:3px;background:var(--s3);border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:${barW}%;background:var(--yellow);border-radius:2px"></div>
+        </div>
+      </div>`;
+    });
+    h += card(`${secLabel('Mais evitados')}${rows}`);
+  }
+
+  /* ── rodapé ── */
+  h += `<div style="text-align:center;padding:12px 0 4px">
+    <div style="font-size:var(--fs-sub);color:var(--t2)">${totalRegistros} registro${totalRegistros!==1?'s':''} no histórico</div>
   </div>`;
 
   return h;
 }
-
-
 
 /* -------- CONFIG -------- */
 function renderConfig(){
