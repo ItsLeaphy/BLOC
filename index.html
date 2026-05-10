@@ -680,6 +680,395 @@ body{
   font-weight:var(--fw-medium);
 }
 
+/* wm-root: container da overlay fullscreen de treino */
+#wm-root{
+  position:absolute;
+  inset:0;
+  pointer-events:none; /* transparente quando vazio */
+  z-index:60;
+}
+#wm-root:not(:empty){
+  pointer-events:auto;
+}
+
+/* ============================================================
+   § REST TIMER BANNER
+   ────────────────────────────────────────────────────────────
+   Banner fixo no topo do #content (abaixo do header) durante
+   o intervalo de descanso. Render parcial via DOM direto —
+   não dispara render() a cada tick para preservar performance.
+   ============================================================ */
+#rest-timer-banner{
+  position:sticky;
+  top:0;
+  z-index:40;
+  background:var(--s1);
+  border-bottom:0.5px solid var(--b1);
+  padding:10px var(--sp-16);
+  display:flex;
+  align-items:center;
+  justify-content:space-between;
+  gap:var(--sp-8);
+  margin:-16px -16px var(--sp-16);  /* sangra até as bordas do padding do #content */
+  animation:slideDown var(--dur-base) var(--ease-out);
+}
+.rtb-left{
+  display:flex;
+  align-items:center;
+  gap:var(--sp-8);
+}
+.rtb-label{
+  font-size:var(--fs-micro);
+  color:var(--t2);
+  letter-spacing:1px;
+  text-transform:uppercase;
+  font-weight:var(--fw-medium);
+}
+.rtb-ex{
+  font-size:var(--fs-sub);
+  color:var(--tc);
+  font-weight:var(--fw-medium);
+}
+.rtb-time{
+  font-size:var(--fs-display);
+  font-weight:var(--fw-medium);
+  color:var(--ac);
+  font-variant-numeric:tabular-nums;
+  letter-spacing:-0.5px;
+  line-height:1;
+  min-width:52px;
+  text-align:right;
+}
+.rtb-time.urgent{ color:var(--red); }
+.rtb-skip{
+  font-size:var(--fs-micro);
+  color:var(--t2);
+  background:transparent;
+  border:0.5px solid var(--b1);
+  border-radius:var(--r-sm);
+  padding:4px 10px;
+  cursor:pointer;
+  font-family:inherit;
+  font-weight:var(--fw-medium);
+  letter-spacing:.5px;
+  transition:background var(--dur-fast),border-color var(--dur-fast),color var(--dur-fast);
+}
+.rtb-skip:hover{ background:var(--s3); border-color:var(--b2); color:var(--tc); }
+.rtb-progress{
+  height:2px;
+  background:var(--s3);
+  position:absolute;
+  bottom:0;
+  left:0;
+  right:0;
+}
+.rtb-progress-fill{
+  height:100%;
+  background:var(--ac);
+  transition:width 1s linear;
+  border-radius:1px;
+}
+
+/* ============================================================
+   § WORKOUT MODE — Fullscreen guided training view
+   ────────────────────────────────────────────────────────────
+   Camada de UI sobre todaySession. Não altera template, não
+   altera todaySession — apenas lê e aciona toggleExStatus +
+   saveLog ao concluir. Estado: workoutMode (bool) +
+   workoutCursor {dk, bi, ei} — posição atual no treino.
+   ============================================================ */
+.wm-overlay{
+  position:absolute;
+  inset:0;
+  background:var(--bg);
+  z-index:60;
+  display:flex;
+  flex-direction:column;
+  overflow:hidden;
+  animation:slideUp var(--dur-base) var(--ease-out);
+}
+
+@keyframes slideUp{
+  from{transform:translateY(20px);opacity:0}
+  to{transform:translateY(0);opacity:1}
+}
+
+.wm-hdr{
+  padding:var(--sp-16);
+  border-bottom:0.5px solid var(--b1);
+  display:flex;
+  align-items:center;
+  gap:var(--sp-12);
+  flex-shrink:0;
+}
+.wm-close{
+  width:32px; height:32px;
+  border-radius:var(--r-sm);
+  border:0.5px solid var(--b1);
+  background:transparent;
+  display:flex; align-items:center; justify-content:center;
+  cursor:pointer;
+  color:var(--t2);
+  flex-shrink:0;
+  transition:background var(--dur-fast),color var(--dur-fast);
+}
+.wm-close:hover{ background:var(--s3); color:var(--tc); }
+.wm-close svg{ width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; }
+.wm-hdr-info{ flex:1; min-width:0; }
+.wm-hdr-title{
+  font-size:var(--fs-micro);
+  color:var(--t2);
+  letter-spacing:1.5px;
+  text-transform:uppercase;
+  font-weight:var(--fw-medium);
+}
+.wm-hdr-block{
+  font-size:var(--fs-sub);
+  color:var(--tc);
+  font-weight:var(--fw-medium);
+  margin-top:2px;
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.wm-prog-pill{
+  font-size:var(--fs-micro);
+  color:var(--t2);
+  background:var(--s3);
+  border:0.5px solid var(--b1);
+  border-radius:var(--r-pill);
+  padding:3px 10px;
+  flex-shrink:0;
+  font-weight:var(--fw-medium);
+}
+
+.wm-body{
+  flex:1;
+  overflow-y:auto;
+  padding:var(--sp-24) var(--sp-16);
+  display:flex;
+  flex-direction:column;
+  gap:var(--sp-16);
+}
+
+/* Card do exercício atual */
+.wm-ex-card{
+  background:var(--s1);
+  border:0.5px solid var(--b2);
+  border-radius:var(--r-lg);
+  padding:var(--sp-24) var(--sp-16);
+  border-left:2px solid var(--ac);
+  animation:slideDown var(--dur-base) var(--ease-out);
+}
+.wm-ex-label{
+  font-size:var(--fs-micro);
+  color:var(--t2);
+  letter-spacing:1px;
+  text-transform:uppercase;
+  font-weight:var(--fw-medium);
+  margin-bottom:var(--sp-8);
+}
+.wm-ex-name{
+  font-size:var(--fs-title);
+  font-weight:var(--fw-medium);
+  color:var(--tc);
+  line-height:1.2;
+  margin-bottom:var(--sp-12);
+}
+.wm-ex-meta{
+  display:flex;
+  gap:var(--sp-8);
+  flex-wrap:wrap;
+}
+.wm-ex-chip{
+  font-size:var(--fs-sub);
+  color:var(--t2);
+  background:var(--s3);
+  border:0.5px solid var(--b1);
+  border-radius:var(--r-sm);
+  padding:3px var(--sp-8);
+}
+.wm-ex-chip.hl{
+  color:var(--tc);
+  background:var(--s4);
+  border-color:var(--b2);
+}
+
+/* Inputs de registro no workout mode */
+.wm-inputs{
+  display:flex;
+  gap:var(--sp-8);
+  margin-top:var(--sp-16);
+  padding-top:var(--sp-16);
+  border-top:0.5px solid var(--t4);
+}
+.wm-inp-g{
+  display:flex;
+  flex-direction:column;
+  align-items:center;
+  gap:var(--sp-4);
+  flex:1;
+}
+.wm-inp-g input{
+  width:100%;
+  background:var(--s3);
+  border:0.5px solid var(--b1);
+  border-radius:var(--r-sm);
+  padding:10px var(--sp-4);
+  font-size:var(--fs-body);
+  color:var(--tc);
+  text-align:center;
+  outline:none;
+  font-family:inherit;
+  font-weight:var(--fw-medium);
+  transition:border-color var(--dur-fast);
+  -moz-appearance:textfield;
+}
+.wm-inp-g input::-webkit-inner-spin-button,
+.wm-inp-g input::-webkit-outer-spin-button{-webkit-appearance:none}
+.wm-inp-g input:focus{ border-color:var(--b2); background:var(--s4); }
+
+/* Histórico contextual do exercício */
+.wm-last{
+  font-size:var(--fs-sub);
+  color:var(--t2);
+  display:flex;
+  align-items:center;
+  gap:var(--sp-4);
+  margin-top:var(--sp-8);
+}
+.wm-last-badge{
+  font-size:9px;
+  color:var(--t2);
+  background:var(--s3);
+  border:0.5px solid var(--b1);
+  border-radius:var(--r-sm);
+  padding:1px 6px;
+  text-transform:uppercase;
+  letter-spacing:.8px;
+}
+
+/* Lista de próximos exercícios */
+.wm-queue{
+  display:flex;
+  flex-direction:column;
+  gap:var(--sp-4);
+}
+.wm-queue-label{
+  font-size:var(--fs-micro);
+  color:var(--t2);
+  letter-spacing:1px;
+  text-transform:uppercase;
+  font-weight:var(--fw-medium);
+  margin-bottom:var(--sp-4);
+}
+.wm-queue-item{
+  background:var(--s1);
+  border:0.5px solid var(--b1);
+  border-radius:var(--r-md);
+  padding:10px var(--sp-12);
+  display:flex;
+  align-items:center;
+  gap:var(--sp-8);
+}
+.wm-queue-item.done-item{
+  opacity:0.45;
+}
+.wm-queue-item.done-item .wm-qi-name{
+  text-decoration:line-through;
+  color:var(--t2);
+}
+.wm-qi-num{
+  font-size:var(--fs-micro);
+  color:var(--t3);
+  font-weight:var(--fw-medium);
+  width:16px;
+  flex-shrink:0;
+  text-align:right;
+}
+.wm-qi-name{
+  flex:1;
+  font-size:var(--fs-sub);
+  color:var(--tc);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.wm-qi-tag{
+  font-size:10px;
+  color:var(--t2);
+  background:var(--s3);
+  border:0.5px solid var(--b1);
+  border-radius:var(--r-sm);
+  padding:1px 6px;
+  flex-shrink:0;
+}
+.wm-qi-status{
+  width:16px;
+  height:16px;
+  border-radius:var(--r-sm);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+  flex-shrink:0;
+}
+.wm-qi-status.done{ background:rgba(34,197,94,0.15); color:var(--green); }
+.wm-qi-status.skipped{ background:rgba(245,158,11,0.15); color:var(--yellow); }
+
+/* Footer de ações */
+.wm-footer{
+  padding:var(--sp-16);
+  padding-bottom:max(var(--sp-16), env(safe-area-inset-bottom));
+  border-top:0.5px solid var(--b1);
+  display:flex;
+  gap:var(--sp-8);
+  flex-shrink:0;
+}
+.wm-btn-skip{
+  flex:0 0 auto;
+  padding:12px var(--sp-16);
+  font-size:var(--fs-sub);
+  font-weight:var(--fw-medium);
+  font-family:inherit;
+  border-radius:var(--r-md);
+  cursor:pointer;
+  background:transparent;
+  border:0.5px solid var(--b1);
+  color:var(--t2);
+  transition:background var(--dur-fast),border-color var(--dur-fast),color var(--dur-fast);
+}
+.wm-btn-skip:hover{ background:var(--s3); border-color:var(--b2); color:var(--tc); }
+.wm-btn-done{
+  flex:1;
+  padding:14px var(--sp-16);
+  font-size:var(--fs-body);
+  font-weight:var(--fw-medium);
+  font-family:inherit;
+  border-radius:var(--r-md);
+  cursor:pointer;
+  background:var(--ac);
+  border:none;
+  color:var(--bg);
+  transition:opacity var(--dur-fast),transform var(--dur-fast) var(--ease-spring);
+  letter-spacing:.3px;
+}
+.wm-btn-done:active{ opacity:0.85; transform:scale(0.98); }
+.wm-btn-finish{
+  flex:1;
+  padding:14px var(--sp-16);
+  font-size:var(--fs-body);
+  font-weight:var(--fw-medium);
+  font-family:inherit;
+  border-radius:var(--r-md);
+  cursor:pointer;
+  background:rgba(34,197,94,0.15);
+  border:0.5px solid rgba(34,197,94,0.3);
+  color:var(--green);
+  transition:background var(--dur-fast),border-color var(--dur-fast);
+  letter-spacing:.3px;
+}
+.wm-btn-finish:active{ opacity:0.85; }
+
 /* ============================================================
    § TREND BADGES
    ============================================================ */
@@ -991,6 +1380,10 @@ body{
 
 /* ============================================================
    § EMPTY STATES
+   ────────────────────────────────────────────────────────────
+   Padrão unificado para todos os estados vazios do app.
+   Usar .empty em todas as guias — não criar variantes ad hoc.
+   .jlist-empty mantém override para manter compatibilidade.
    ============================================================ */
 .empty{
   text-align:center;
@@ -999,6 +1392,7 @@ body{
   padding:var(--sp-48) var(--sp-16);
   line-height:2;
   letter-spacing:0.2px;
+  animation:fadeIn var(--dur-base) var(--ease-out);
 }
 .empty strong{
   display:block;
@@ -1006,6 +1400,123 @@ body{
   color:var(--tc);
   font-weight:var(--fw-medium);
   margin-bottom:var(--sp-4);
+}
+
+/* ============================================================
+   § STAT CARDS — cards de dashboard nos Stats
+   ────────────────────────────────────────────────────────────
+   Classe CSS para os cards gerados pela função card() inline
+   em renderStats(). Substitui inline styles hardcoded por
+   tokens do design system, garantindo resposta a:
+   · temas (var(--s1), var(--b1))
+   · borderRadius customizado (var(--r-lg))
+   · animações e hover consistentes com o restante do app
+   
+   REGRA: card() em renderStats() gera <div class="stat-card">.
+   Não usar para outros contextos.
+   ============================================================ */
+.stat-card{
+  background:var(--s1);
+  border:0.5px solid var(--b1);
+  border-radius:var(--r-lg);
+  padding:var(--sp-16);
+  margin-bottom:var(--sp-12);
+  transition:border-color var(--dur-fast) var(--ease-sharp);
+  animation:fadeIn var(--dur-base) var(--ease-out);
+}
+.stat-card:last-child{ margin-bottom:0; }
+
+/* Insight cards — accent border left, sem hover (são informativos, não clicáveis) */
+.stat-insight{
+  background:var(--s1);
+  border:0.5px solid var(--b1);
+  border-radius:var(--r-md);
+  padding:var(--sp-12) var(--sp-12);
+  display:flex;
+  align-items:flex-start;
+  gap:var(--sp-8);
+  animation:slideDown var(--dur-base) var(--ease-out);
+}
+
+/* Pulso top: 3 mini-cards lado a lado */
+.stat-pulse-grid{
+  display:grid;
+  grid-template-columns:1fr 1fr 1fr;
+  gap:var(--sp-8);
+  margin-bottom:var(--sp-12);
+}
+.stat-pulse-cell{
+  background:var(--s1);
+  border:0.5px solid var(--b1);
+  border-radius:var(--r-lg);
+  padding:14px var(--sp-12);
+  transition:border-color var(--dur-fast) var(--ease-sharp);
+}
+
+/* Label dentro de stat-card — substitui lbl() inline */
+.stat-lbl{
+  font-size:var(--fs-micro);
+  color:var(--t2);
+  letter-spacing:.8px;
+  text-transform:uppercase;
+  margin-bottom:var(--sp-8);
+  font-weight:var(--fw-medium);
+}
+
+/* Número grande nos cards de pulso — alinhado ao scale */
+.stat-num-lg{
+  font-size:var(--fs-display); /* 22px — topo da escala */
+  font-weight:var(--fw-medium);
+  color:var(--tc);
+  line-height:1;
+  letter-spacing:-0.5px;
+}
+.stat-num-xl{
+  font-size:26px; /* excepcional: único uso justificado acima do scale */
+  font-weight:var(--fw-medium);
+  line-height:1;
+  letter-spacing:-0.5px;
+}
+/* Número médio — grids internos de resumo (Semana passada + banner Hoje).
+   20px justificado pelo contexto de grade compacta de período: precisa de
+   destaque visual maior que --fs-title(17) mas menor que --fs-display(22).
+   Único contexto autorizado: células de grid 4-col em cards de resumo. */
+.stat-num-md{
+  font-size:20px;
+  font-weight:var(--fw-medium);
+  line-height:1;
+}
+
+/* Período seletor — botões 7d/30d/90d/Tudo */
+.stat-period-bar{
+  display:flex;
+  gap:var(--sp-4);
+  margin-bottom:var(--sp-16);
+  background:var(--s2);
+  border:0.5px solid var(--b1);
+  border-radius:var(--r-md);
+  padding:3px;
+}
+.stat-period-btn{
+  flex:1;
+  padding:7px 4px;
+  background:transparent;
+  border:none;
+  border-radius:var(--r-sm);
+  color:var(--t2);
+  font-size:var(--fs-micro);
+  letter-spacing:.5px;
+  font-weight:var(--fw-medium);
+  font-family:inherit;
+  cursor:pointer;
+  transition:background var(--dur-fast) var(--ease-sharp),
+             color var(--dur-fast) var(--ease-sharp);
+  text-align:center;
+}
+.stat-period-btn.active{
+  background:var(--s3);
+  color:var(--tc);
+  border:0.5px solid var(--b2);
 }
 
 /* ============================================================
@@ -2723,6 +3234,32 @@ let _journalSearch='';
    ─────────────────────────────────────────────────────────────────────────── */
 let statsPeriod='30d';
 
+/* ── Fase 3 · Item 9: Timer de descanso entre séries ────────────────────────
+   Estado em memória — intencional: timer não sobrevive ao fechar o app.
+   O timer é ativado por toggleExStatus('done') e expirado automaticamente.
+   Render: DOM direto no banner (#rest-timer-banner) via setInterval.
+   Nunca persiste em todaySession nem em blocks.
+   CAMPOS:
+   · active    — timer rodando
+   · exName    — nome do exercício que disparou o timer
+   · total     — duração total em segundos
+   · remaining — segundos restantes
+   · intervalId — referência ao setInterval (para cleanup obrigatório)
+   ─────────────────────────────────────────────────────────────────────────── */
+let timerState = { active: false, exName: '', total: 90, remaining: 0, intervalId: null };
+const TIMER_DEFAULT_SECONDS = 90;
+
+/* ── Fase 3 · Item 10: Modo "Treino em andamento" ───────────────────────────
+   View guiada fullscreen: exercício por exercício, um bloco por vez.
+   Lê todaySession — não altera template.
+   CAMPOS:
+   · active   — modo ativo
+   · dk       — dayKey do bloco em execução
+   · bi       — blockIndex do bloco em execução
+   · ei       — exerciseIndex atual dentro do bloco
+   ─────────────────────────────────────────────────────────────────────────── */
+let workoutMode = { active: false, dk: '', bi: 0, ei: 0 };
+
 /* ── Fase 2 · Item 7: PR expandido ─────────────────────────────────────────
    null = nenhum PR aberto. String = nome do exercício com view ativa.
    A cache key de renderStats() inclui openPR para garantir que o cache
@@ -2776,15 +3313,31 @@ function exStatusKey(dk, bi, exName) {
 }
 
 /* Alterna o status de um exercício. Se clicar no mesmo status ativo, remove-o (toggle).
-   Aceita: 'done' | 'skipped' */
+   Aceita: 'done' | 'skipped'
+   Fase 3 · Item 9: ao marcar 'done' (não desmarcar), inicia o timer de descanso. */
 function toggleExStatus(dk, bi, exName, newStatus) {
   const k = exStatusKey(dk, bi, exName);
-  if (sessionExStatus[k] === newStatus) {
+  const wasActive = sessionExStatus[k] === newStatus;
+  if (wasActive) {
     delete sessionExStatus[k]; /* toggle off */
   } else {
     sessionExStatus[k] = newStatus;
   }
   saveTodayCache(); /* persiste status imediatamente */
+
+  /* Fase 3 · Item 9: inicia timer de descanso ao marcar como 'done' (não ao desmarcar) */
+  if(!wasActive && newStatus === 'done'){
+    /* Não inicia timer dentro do workout mode — o wmNext() já controla o fluxo lá */
+    if(!workoutMode.active){
+      _timerStart(exName, TIMER_DEFAULT_SECONDS);
+    }
+  } else if(wasActive || newStatus !== 'done'){
+    /* Se desmarcou ou marcou como skipped, cancela timer ativo se era deste exercício */
+    if(timerState.active && timerState.exName === exName){
+      _timerCancel();
+    }
+  }
+
   render();
   /* Micro-animação no botão clicado — dispara após render */
   setTimeout(() => {
@@ -3827,6 +4380,19 @@ function renderBlockCard(b,dk,bi,prefix){
     body+=`<button class="sreg btn-ripple${hasDone?' done':''}" onclick="saveLog('${dk}',${bi})">
       ${hasDone?'✓ Registrado — atualizar':'Registrar bloco'}
     </button>`;
+    /* ── Fase 3 · Item 10: botão de iniciar treino guiado ────────────────
+       Só aparece na guia Hoje (não em fromSemanaCtx).
+       Inicia o workoutMode lendo todaySession[bi] — não afeta blocks.
+       ────────────────────────────────────────────────────────────────── */
+    if(!fromSemanaCtx && b.exercises.length > 0){
+      const _isWmActive = workoutMode.active && workoutMode.dk === dk && workoutMode.bi === bi;
+      if(!_isWmActive){
+        body+=`<button class="add-b" style="border-color:rgba(96,165,250,0.2);color:var(--blue)" onclick="wmStart('${dk}',${bi})">
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2l7 4-7 4z" fill="currentColor" stroke="none"/></svg>
+          Iniciar treino guiado
+        </button>`;
+      }
+    }
     /* Botão Journal — sempre presente quando bloco está aberto */
     const hasJournal=journalHasEntry(dk,bi,new Date().toLocaleDateString('pt-BR'));
     body+=`<button class="journal-btn${hasJournal?' has-entry':''}" onclick="openJournal('${dk}',${bi})">
@@ -4329,18 +4895,18 @@ function renderHoje(){
     /* Cor do indicador de blocos do dia */
     const _doneColor=_allDone?'var(--green)':_doneTodayCount>0?'var(--yellow)':'var(--t2)';
 
-    h+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:0">
-      <div style="text-align:center;padding:0 4px">
-        <div style="font-size:20px;font-weight:500;color:${_doneColor};line-height:1">${_doneTodayCount}<span style="font-size:12px;color:var(--t2)">/${_totalBlocks}</span></div>
-        <div style="font-size:9px;color:var(--t2);margin-top:4px;letter-spacing:.5px;text-transform:uppercase">blocos</div>
+    h+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:var(--sp-16);margin-bottom:var(--sp-16);display:grid;grid-template-columns:1fr 1fr 1fr;gap:0">
+      <div style="text-align:center;padding:0 var(--sp-4)">
+        <div class="stat-num-md" style="color:${_doneColor}">${_doneTodayCount}<span style="font-size:var(--fs-sub);color:var(--t2)">/${_totalBlocks}</span></div>
+        <div style="font-size:var(--fs-micro);color:var(--t2);margin-top:var(--sp-4);letter-spacing:.5px;text-transform:uppercase">blocos</div>
       </div>
-      <div style="text-align:center;padding:0 4px;border-left:0.5px solid var(--t4)">
-        <div style="font-size:20px;font-weight:500;color:var(--tc);line-height:1">${_estVol}<span style="font-size:11px;color:var(--t2);margin-left:1px">kg</span></div>
-        <div style="font-size:9px;color:var(--t2);margin-top:4px;letter-spacing:.5px;text-transform:uppercase">vol. est.</div>
+      <div style="text-align:center;padding:0 var(--sp-4);border-left:0.5px solid var(--t4)">
+        <div class="stat-num-md" style="color:var(--tc)">${_estVol}<span style="font-size:var(--fs-sub);color:var(--t2);margin-left:1px">kg</span></div>
+        <div style="font-size:var(--fs-micro);color:var(--t2);margin-top:var(--sp-4);letter-spacing:.5px;text-transform:uppercase">vol. est.</div>
       </div>
-      <div style="text-align:center;padding:0 4px;border-left:0.5px solid var(--t4)">
-        <div style="font-size:20px;font-weight:500;color:${_wrColor};line-height:1">${_wr}<span style="font-size:11px;color:var(--t2);margin-left:1px">%</span></div>
-        <div style="font-size:9px;color:var(--t2);margin-top:4px;letter-spacing:.5px;text-transform:uppercase">semana</div>
+      <div style="text-align:center;padding:0 var(--sp-4);border-left:0.5px solid var(--t4)">
+        <div class="stat-num-md" style="color:${_wrColor}">${_wr}<span style="font-size:var(--fs-sub);color:var(--t2);margin-left:1px">%</span></div>
+        <div style="font-size:var(--fs-micro);color:var(--t2);margin-top:var(--sp-4);letter-spacing:.5px;text-transform:uppercase">semana</div>
       </div>
     </div>`;
   }
@@ -4359,27 +4925,27 @@ function renderHoje(){
       const _gi=goals.indexOf(g); /* índice real para updGoal/delGoal */
       const _pct=Math.max(0,Math.min(100,g.progress||0));
       const _bc=_pct>=80?'var(--green)':_pct>=50?'var(--ac)':'var(--t2)';
-      _goalsHtml+=`<div style="margin-bottom:${i<Math.min(_activeGoals.length,3)-1?8:0}px">
+      _goalsHtml+=`<div style="margin-bottom:${i<Math.min(_activeGoals.length,3)-1?'var(--sp-8)':'0'}">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <div style="font-size:12px;color:var(--tc);font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.name}</div>
-          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px">
-            <div style="font-size:11px;font-weight:500;color:${_bc}">${_pct}%</div>
-            <button onclick="updGoal(${_gi},+10)" style="font-size:10px;color:var(--t2);background:var(--s3);border:0.5px solid var(--b1);border-radius:var(--r-sm);padding:2px 7px;cursor:pointer;font-family:inherit">+10</button>
+          <div style="font-size:var(--fs-sub);color:var(--tc);font-weight:var(--fw-medium);flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.name}</div>
+          <div style="display:flex;align-items:center;gap:var(--sp-8);flex-shrink:0;margin-left:var(--sp-8)">
+            <div style="font-size:var(--fs-sub);font-weight:var(--fw-medium);color:${_bc}">${_pct}%</div>
+            <button onclick="updGoal(${_gi},+10)" style="font-size:var(--fs-micro);color:var(--t2);background:var(--s3);border:0.5px solid var(--b1);border-radius:var(--r-sm);padding:2px 7px;cursor:pointer;font-family:inherit;transition:background var(--dur-fast)">+10</button>
           </div>
         </div>
         <div style="height:3px;background:var(--s3);border-radius:2px;overflow:hidden">
-          <div style="height:100%;width:${_pct}%;background:${_bc};border-radius:2px;transition:width .3s"></div>
+          <div style="height:100%;width:${_pct}%;background:${_bc};border-radius:2px;transition:width .3s var(--ease-out)"></div>
         </div>
       </div>`;
     });
     const _moreCount=_activeGoals.length>3?_activeGoals.length-3:0;
-    h+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:12px 14px;margin-bottom:16px">
-      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
-        <div style="font-size:10px;color:var(--t2);letter-spacing:.8px;text-transform:uppercase;font-weight:500">Metas ativas</div>
-        <button onclick="page='stats';render()" style="font-size:10px;color:var(--t2);background:none;border:none;cursor:pointer;padding:0;font-family:inherit;letter-spacing:.3px">ver todas →</button>
+    h+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:var(--sp-12) var(--sp-16);margin-bottom:var(--sp-16)">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-8)">
+        <div style="font-size:var(--fs-micro);color:var(--t2);letter-spacing:.8px;text-transform:uppercase;font-weight:var(--fw-medium)">Metas ativas</div>
+        <button onclick="page='stats';render()" style="font-size:var(--fs-micro);color:var(--t2);background:none;border:none;cursor:pointer;padding:0;font-family:inherit;letter-spacing:.3px">ver todas →</button>
       </div>
       ${_goalsHtml}
-      ${_moreCount?`<div style="font-size:10px;color:var(--t2);margin-top:6px">+${_moreCount} outras metas</div>`:''}
+      ${_moreCount?`<div style="font-size:var(--fs-micro);color:var(--t2);margin-top:var(--sp-4)">+${_moreCount} outras metas</div>`:''}
     </div>`;
   }
 
@@ -4388,6 +4954,17 @@ function renderHoje(){
     <svg viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke-width="2" stroke-linecap="round"/></svg>
     Novo bloco
   </button>`;
+
+  /* ── Fase 3 · Item 9: banner de timer de descanso ────────────────────────
+     Só presente em renderHoje; conteúdo preenchido por _timerReattach()
+     após o render, evitando chamar render() a cada segundo.
+     position:sticky para flutuar no topo do scroll.
+     ─────────────────────────────────────────────────────────────────────── */
+  if(timerState.active){
+    /* Insere o placeholder antes de todo o conteúdo — será o sticky banner */
+    h = `<div id="rest-timer-banner" style="position:relative"></div>` + h;
+  }
+
   return h;
 }
 
@@ -4631,8 +5208,8 @@ function renderStats(){
   const adherence=calcBlockAdherence();
   const summary=calcWeeklySummary(1);
 
-  const card=(content,extra)=>`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:16px;margin-bottom:12px;${extra||''}">${content}</div>`;
-  const lbl=(txt)=>`<div style="font-size:10px;color:var(--t2);letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px;font-weight:500">${txt}</div>`;
+  const card=(content,extra)=>`<div class="stat-card"${extra?` style="${extra}"`:''}>${content}</div>`;
+  const lbl=(txt)=>`<div class="stat-lbl">${txt}</div>`;
 
   let h=`<div class="sec">Stats</div>`;
 
@@ -4641,10 +5218,10 @@ function renderStats(){
      Posicionado antes de tudo — afeta todos os cards abaixo.
      ─────────────────────────────────────────────────────────────────────── */
   const _periods=[{k:'7d',l:'7d'},{k:'30d',l:'30d'},{k:'90d',l:'90d'},{k:'all',l:'Tudo'}];
-  let _periodBtns='<div style="display:flex;gap:6px;margin-bottom:14px">';
+  let _periodBtns='<div class="stat-period-bar">';
   _periods.forEach(({k,l})=>{
     const _active=statsPeriod===k;
-    _periodBtns+=`<button onclick="_setStatsPeriod('${k}')" style="flex:1;padding:6px 0;font-size:11px;font-weight:500;font-family:inherit;letter-spacing:.5px;border-radius:var(--r-sm);cursor:pointer;transition:all var(--dur-fast);background:${_active?'var(--s3)':'transparent'};border:0.5px solid ${_active?'var(--b2)':'var(--b1)'};color:${_active?'var(--tc)':'var(--t2)'}">${l}</button>`;
+    _periodBtns+=`<button class="stat-period-btn${_active?' active':''}" onclick="_setStatsPeriod('${k}')">${l}</button>`;
   });
   _periodBtns+='</div>';
   h+=_periodBtns;
@@ -4665,10 +5242,10 @@ function renderStats(){
     ?`<span style="color:${volDiff>=0?'var(--green)':'var(--red)'}">${volDiff>=0?'+':''}${volDiff}%</span>`
     :`<span style="color:var(--t2)">—</span>`;
 
-  h+=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">`;
-  h+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:14px 12px">
+  h+=`<div class="stat-pulse-grid">`;
+  h+=`<div class="stat-pulse-cell">
     ${lbl('Sequência')}
-    <div style="font-size:26px;font-weight:500;color:var(--tc);line-height:1">${streak.current}<span style="font-size:12px;color:var(--t2);margin-left:2px">d</span></div>
+    <div class="stat-num-xl" style="color:var(--tc)">${streak.current}<span style="font-size:12px;color:var(--t2);margin-left:2px">d</span></div>
     ${streakSub}
   </div>`;
   /* Item 2 — Fase 1: bolinhas de dias da semana no lugar do % seco.
@@ -4699,14 +5276,14 @@ function renderStats(){
     </div>`;
   }
   _weekDots+='</div>';
-  h+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:14px 12px">
+  h+=`<div class="stat-pulse-cell">
     ${lbl('Semana')}
-    <div style="font-size:22px;font-weight:500;color:${rateColor};line-height:1">${weekRate}<span style="font-size:12px;color:var(--t2);margin-left:2px">%</span></div>
+    <div class="stat-num-lg" style="color:${rateColor}">${weekRate}<span style="font-size:12px;color:var(--t2);margin-left:2px">%</span></div>
     ${_weekDots}
   </div>`;
-  h+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:14px 12px">
+  h+=`<div class="stat-pulse-cell">
     ${lbl('Volume')}
-    <div style="font-size:22px;font-weight:500;color:var(--tc);line-height:1">${volThis}<span style="font-size:11px;color:var(--t2);margin-left:2px">kg</span></div>
+    <div class="stat-num-lg" style="color:var(--tc)">${volThis}<span style="font-size:11px;color:var(--t2);margin-left:2px">kg</span></div>
     <div style="font-size:10px;color:var(--t2);margin-top:3px">${volDiffStr} vs ant.</div>
   </div>`;
   h+=`</div>`;
@@ -4745,31 +5322,31 @@ function renderStats(){
 
     const _volC=calcWeeklySummary(0);
     const _dc=_volC&&summary.vol>0?(()=>{const d=Math.round(((_volC.vol-summary.vol)/summary.vol)*100);return`<span style="color:${d>=0?'var(--green)':'var(--red)'};font-weight:500">${d>=0?'+':''}${d}%</span>`;})():'—';
-    const _prBadges=summary.prs.length?summary.prs.map(p=>`<span style="font-size:10px;background:rgba(255,255,255,0.04);border:0.5px solid var(--b2);border-radius:6px;padding:2px 8px;color:var(--ac)">${p.name} ${p.weight}kg</span>`).join(''):'';
-    const _skipBadges=summary.topSkipped.length?summary.topSkipped.map(([n,c])=>`<span style="font-size:10px;background:rgba(245,158,11,0.06);border:0.5px solid rgba(245,158,11,0.25);border-radius:6px;padding:2px 8px;color:var(--yellow)">${n} (${c}×)</span>`).join(''):'';
+    const _prBadges=summary.prs.length?summary.prs.map(p=>`<span style="font-size:var(--fs-micro);background:rgba(255,255,255,0.04);border:0.5px solid var(--b2);border-radius:var(--r-sm);padding:2px var(--sp-8);color:var(--ac)">${p.name} ${p.weight}kg</span>`).join(''):'';
+    const _skipBadges=summary.topSkipped.length?summary.topSkipped.map(([n,c])=>`<span style="font-size:var(--fs-micro);background:rgba(245,158,11,0.06);border:0.5px solid rgba(245,158,11,0.25);border-radius:var(--r-sm);padding:2px var(--sp-8);color:var(--yellow)">${n} (${c}×)</span>`).join(''):'';
 
     h+=card(`${lbl('Semana passada — '+summary.label)}
       ${_prevDots}
-      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:0.5px solid var(--t4);padding-top:10px;margin-bottom:${summary.prs.length||summary.topSkipped.length?10:0}px">
-        <div style="text-align:center;padding:0 4px">
-          <div style="font-size:20px;font-weight:500;color:var(--tc);line-height:1">${summary.days}</div>
-          <div style="font-size:9px;color:var(--t2);margin-top:3px;letter-spacing:.5px;text-transform:uppercase">dias</div>
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:0.5px solid var(--t4);padding-top:var(--sp-8);margin-bottom:${summary.prs.length||summary.topSkipped.length?'var(--sp-8)':'0'}">
+        <div style="text-align:center;padding:0 var(--sp-4)">
+          <div class="stat-num-md" style="color:var(--tc)">${summary.days}</div>
+          <div style="font-size:var(--fs-micro);color:var(--t2);margin-top:3px;letter-spacing:.5px;text-transform:uppercase">dias</div>
         </div>
-        <div style="text-align:center;padding:0 4px;border-left:0.5px solid var(--t4)">
-          <div style="font-size:20px;font-weight:500;color:var(--tc);line-height:1">${summary.blocks}</div>
-          <div style="font-size:9px;color:var(--t2);margin-top:3px;letter-spacing:.5px;text-transform:uppercase">blocos</div>
+        <div style="text-align:center;padding:0 var(--sp-4);border-left:0.5px solid var(--t4)">
+          <div class="stat-num-md" style="color:var(--tc)">${summary.blocks}</div>
+          <div style="font-size:var(--fs-micro);color:var(--t2);margin-top:3px;letter-spacing:.5px;text-transform:uppercase">blocos</div>
         </div>
-        <div style="text-align:center;padding:0 4px;border-left:0.5px solid var(--t4)">
-          <div style="font-size:20px;font-weight:500;color:var(--tc);line-height:1">${summary.exercises}</div>
-          <div style="font-size:9px;color:var(--t2);margin-top:3px;letter-spacing:.5px;text-transform:uppercase">exerc.</div>
+        <div style="text-align:center;padding:0 var(--sp-4);border-left:0.5px solid var(--t4)">
+          <div class="stat-num-md" style="color:var(--tc)">${summary.exercises}</div>
+          <div style="font-size:var(--fs-micro);color:var(--t2);margin-top:3px;letter-spacing:.5px;text-transform:uppercase">exerc.</div>
         </div>
-        <div style="text-align:center;padding:0 4px;border-left:0.5px solid var(--t4)">
-          <div style="font-size:16px;font-weight:500;color:var(--tc);line-height:1;margin-top:2px">${summary.vol}<span style="font-size:10px;color:var(--t2);margin-left:1px">kg</span></div>
-          <div style="font-size:9px;color:var(--t2);margin-top:3px;letter-spacing:.5px">${_dc} vs esta</div>
+        <div style="text-align:center;padding:0 var(--sp-4);border-left:0.5px solid var(--t4)">
+          <div style="font-size:var(--fs-title);font-weight:var(--fw-medium);color:var(--tc);line-height:1;margin-top:2px">${summary.vol}<span style="font-size:var(--fs-micro);color:var(--t2);margin-left:1px">kg</span></div>
+          <div style="font-size:var(--fs-micro);color:var(--t2);margin-top:3px;letter-spacing:.5px">${_dc} vs esta</div>
         </div>
       </div>
-      ${_prBadges?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px">${_prBadges}</div>`:''}
-      ${_skipBadges?`<div style="display:flex;flex-wrap:wrap;gap:5px">${_skipBadges}</div>`:''}`);
+      ${_prBadges?`<div style="display:flex;flex-wrap:wrap;gap:var(--sp-4);margin-bottom:var(--sp-4)">${_prBadges}</div>`:''}
+      ${_skipBadges?`<div style="display:flex;flex-wrap:wrap;gap:var(--sp-4)">${_skipBadges}</div>`:''}`);
   }
 
   /* ══════════════════════════════
@@ -4784,17 +5361,17 @@ function renderStats(){
     topExCount.forEach(({name,count,lastDate},_ti)=>{
       const _bw=Math.round((count/_maxCount)*100);
       const _fill=_ti===0?'var(--ac)':_bw>=70?'var(--t2)':'var(--t3)';
-      _topRows+=`<div style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;margin-bottom:8px">
+      _topRows+=`<div style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:var(--sp-8);margin-bottom:var(--sp-8)">
         <div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
-            <div style="font-size:12px;color:var(--tc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">${name}</div>
-            <div style="font-size:10px;color:var(--t2);flex-shrink:0;margin-left:8px">${lastDate}</div>
+            <div style="font-size:var(--fs-body);color:var(--tc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">${name}</div>
+            <div style="font-size:var(--fs-micro);color:var(--t2);flex-shrink:0;margin-left:var(--sp-8)">${lastDate}</div>
           </div>
           <div style="height:3px;background:var(--s3);border-radius:2px;overflow:hidden">
             <div style="height:100%;width:${_bw}%;background:${_fill};border-radius:2px;opacity:${_ti===0?1:0.7}"></div>
           </div>
         </div>
-        <div style="font-size:11px;font-weight:500;color:var(--t2);text-align:right;flex-shrink:0;min-width:28px">${count}×</div>
+        <div style="font-size:var(--fs-sub);font-weight:var(--fw-medium);color:var(--t2);text-align:right;flex-shrink:0;min-width:28px">${count}×</div>
       </div>`;
     });
     h+=card(`${lbl('Mais treinados — total de sessões')}${_topRows}`);
@@ -4809,15 +5386,15 @@ function renderStats(){
     let cards='';
     insights.forEach(({type,icon,text,sub})=>{
       const accent=iconMap[type]||'var(--t2)';
-      cards+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-left:2px solid ${accent};border-radius:var(--r-md);padding:10px 12px;display:flex;align-items:flex-start;gap:10px">
+      cards+=`<div class="stat-insight" style="border-left:2px solid ${accent}">
         <div style="font-size:16px;flex-shrink:0;margin-top:1px">${icon}</div>
         <div>
-          <div style="font-size:13px;color:var(--tc);font-weight:500;line-height:1.3">${text}</div>
-          <div style="font-size:11px;color:var(--t2);margin-top:2px;line-height:1.4">${sub}</div>
+          <div style="font-size:var(--fs-body);color:var(--tc);font-weight:var(--fw-medium);line-height:1.3">${text}</div>
+          <div style="font-size:var(--fs-sub);color:var(--t2);margin-top:2px;line-height:1.4">${sub}</div>
         </div>
       </div>`;
     });
-    h+=`<div style="display:flex;flex-direction:column;gap:7px;margin-bottom:12px">${cards}</div>`;
+    h+=`<div style="display:flex;flex-direction:column;gap:var(--sp-8);margin-bottom:var(--sp-12)">${cards}</div>`;
   }
 
   /* ══════════════════════════════
@@ -4847,12 +5424,12 @@ function renderStats(){
     dowStats.forEach(d=>{
       const bw=Math.round((d.rate/maxRate)*100);
       const bc=d.rate>=80?'var(--green)':d.rate>=50?'var(--yellow)':'var(--red)';
-      bars+=`<div style="display:grid;grid-template-columns:22px 1fr 30px;align-items:center;gap:6px">
-        <div style="font-size:10px;color:var(--t2)">${d.label}</div>
+      bars+=`<div style="display:grid;grid-template-columns:22px 1fr 30px;align-items:center;gap:var(--sp-4)">
+        <div style="font-size:var(--fs-micro);color:var(--t2)">${d.label}</div>
         <div style="height:4px;background:var(--s3);border-radius:2px;overflow:hidden">
           <div style="height:100%;width:${bw}%;background:${bc};border-radius:2px"></div>
         </div>
-        <div style="font-size:10px;color:var(--t2);text-align:right">${d.rate}%</div>
+        <div style="font-size:var(--fs-micro);color:var(--t2);text-align:right">${d.rate}%</div>
       </div>`;
     });
     bars+='</div>';
@@ -4898,10 +5475,10 @@ function renderStats(){
       const dc=diff>0?'var(--green)':diff<0?'var(--red)':'var(--t2)';
       const ds=diff>0?`+${diff}`:diff===0?'=':String(diff);
       const chart=renderLineChart(vals,useW);
-      rows+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--t4)">
-        <div style="flex:1;min-width:0;margin-right:10px">
-          <div style="font-size:13px;color:var(--tc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
-          <div style="font-size:10px;color:var(--t2);margin-top:2px">${first}${unit} → <strong style="color:var(--tc)">${last}${unit}</strong> <span style="color:${dc}">(${ds}${unit})</span></div>
+      rows+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:var(--sp-8) 0;border-bottom:0.5px solid var(--t4)">
+        <div style="flex:1;min-width:0;margin-right:var(--sp-8)">
+          <div style="font-size:var(--fs-body);color:var(--tc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+          <div style="font-size:var(--fs-micro);color:var(--t2);margin-top:2px">${first}${unit} → <strong style="color:var(--tc)">${last}${unit}</strong> <span style="color:${dc}">(${ds}${unit})</span></div>
         </div>
         ${chart}
       </div>`;
@@ -5023,35 +5600,35 @@ function renderStats(){
       const _tl=[..._prEntries].reverse(); /* mais recente primeiro para display */
       _tl.forEach((e,ti)=>{
         const _isPR2=e.w===_prBest;
-        _timeline+=`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--t4)${ti===_tl.length-1?';border-bottom:none':''}">
-          <div style="font-size:10px;color:var(--t2);min-width:52px;flex-shrink:0">${e.date}</div>
+        _timeline+=`<div style="display:flex;align-items:center;gap:var(--sp-8);padding:7px 0;border-bottom:0.5px solid var(--t4)${ti===_tl.length-1?';border-bottom:none':''}">
+          <div style="font-size:var(--fs-micro);color:var(--t2);min-width:52px;flex-shrink:0">${e.date}</div>
           <div style="flex:1;height:3px;background:var(--s3);border-radius:2px;overflow:hidden">
             <div style="height:100%;width:${Math.round((e.w/_prBest)*100)}%;background:${_isPR2?'var(--green)':'var(--t2)'};border-radius:2px;opacity:${_isPR2?1:0.5}"></div>
           </div>
-          <div style="font-size:12px;font-weight:500;color:${_isPR2?'var(--green)':'var(--tc)'};min-width:48px;text-align:right;flex-shrink:0">${e.w}kg${_isPR2?' 🏆':''}</div>
+          <div style="font-size:var(--fs-sub);font-weight:var(--fw-medium);color:${_isPR2?'var(--green)':'var(--tc)'};min-width:48px;text-align:right;flex-shrink:0">${e.w}kg${_isPR2?' 🏆':''}</div>
         </div>`;
       });
 
-      h+=card(`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+      h+=card(`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-8)">
         <div>
-          <div style="font-size:10px;color:var(--t2);letter-spacing:.8px;text-transform:uppercase;font-weight:500">Record pessoal</div>
-          <div style="font-size:15px;color:var(--tc);font-weight:500;margin-top:2px">${_prName}</div>
+          <div class="stat-lbl" style="margin-bottom:2px">Record pessoal</div>
+          <div style="font-size:15px;color:var(--tc);font-weight:var(--fw-medium)">${_prName}</div>
         </div>
-        <button onclick="_togglePR(null)" style="font-size:11px;color:var(--t2);background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-sm);padding:4px 10px;cursor:pointer;font-family:inherit">← voltar</button>
+        <button onclick="_togglePR(null)" style="font-size:var(--fs-sub);color:var(--t2);background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-sm);padding:4px 10px;cursor:pointer;font-family:inherit;font-weight:var(--fw-medium);transition:background var(--dur-fast),border-color var(--dur-fast)">← voltar</button>
       </div>
-      <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;padding:10px 12px;background:var(--s2);border-radius:var(--r-md);border:0.5px solid var(--b1)">
+      <div style="display:flex;align-items:center;gap:var(--sp-16);margin-bottom:var(--sp-12);padding:var(--sp-12);background:var(--s2);border-radius:var(--r-md);border:0.5px solid var(--b1)">
         <div style="text-align:center">
-          <div style="font-size:26px;font-weight:500;color:var(--green);line-height:1">${_prBest}<span style="font-size:13px;color:var(--t2);margin-left:2px">kg</span></div>
+          <div style="font-size:26px;font-weight:var(--fw-medium);color:var(--green);line-height:1">${_prBest}<span style="font-size:var(--fs-body);color:var(--t2);margin-left:2px">kg</span></div>
           <div style="font-size:9px;color:var(--t2);margin-top:2px;text-transform:uppercase;letter-spacing:.5px">máximo</div>
         </div>
         <div style="width:0.5px;background:var(--t4);align-self:stretch"></div>
         <div style="text-align:center">
-          <div style="font-size:22px;font-weight:500;color:var(--tc);line-height:1">${_prEntries.length}</div>
+          <div class="stat-num-lg" style="color:var(--tc)">${_prEntries.length}</div>
           <div style="font-size:9px;color:var(--t2);margin-top:2px;text-transform:uppercase;letter-spacing:.5px">sessões</div>
         </div>
         <div style="width:0.5px;background:var(--t4);align-self:stretch"></div>
         <div style="text-align:center">
-          <div style="font-size:14px;font-weight:500;color:var(--tc);line-height:1;margin-top:4px">${_prEntries[_prEntries.length-1]?.date||'—'}</div>
+          <div style="font-size:var(--fs-body);font-weight:var(--fw-medium);color:var(--tc);line-height:1;margin-top:4px">${_prEntries[_prEntries.length-1]?.date||'—'}</div>
           <div style="font-size:9px;color:var(--t2);margin-top:2px;text-transform:uppercase;letter-spacing:.5px">início</div>
         </div>
       </div>
@@ -5063,11 +5640,11 @@ function renderStats(){
       let prCards='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
       prs.forEach(({name,weight,date})=>{
         const _hasHistory=(_historyIndex[name]||[]).filter(e=>e.w>0).length>=2;
-        prCards+=`<div onclick="${_hasHistory?`_togglePR('${name.replace(/'/g,"\\'")}')`:''}" style="background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-md);padding:10px 12px;${_hasHistory?'cursor:pointer;':''}transition:border-color var(--dur-fast)">
-          <div style="font-size:10px;color:var(--t2);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
-          <div style="font-size:18px;font-weight:500;color:var(--ac)">${weight}<span style="font-size:11px;color:var(--t2);margin-left:2px">kg</span></div>
+        prCards+=`<div onclick="${_hasHistory?`_togglePR('${name.replace(/'/g,"\\'")}')`:''}" style="background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-md);padding:var(--sp-8) var(--sp-12);${_hasHistory?'cursor:pointer;':''}transition:border-color var(--dur-fast)">
+          <div style="font-size:var(--fs-sub);color:var(--t2);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+          <div style="font-size:18px;font-weight:var(--fw-medium);color:var(--ac)">${weight}<span style="font-size:var(--fs-sub);color:var(--t2);margin-left:2px">kg</span></div>
           <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">
-            <div style="font-size:10px;color:var(--t2)">${date}</div>
+            <div style="font-size:var(--fs-micro);color:var(--t2)">${date}</div>
             ${_hasHistory?`<div style="font-size:9px;color:var(--t3);letter-spacing:.3px">ver →</div>`:''}
           </div>
         </div>`;
@@ -5089,12 +5666,12 @@ function renderStats(){
     muscleFreq.forEach(g=>{
       const bw=Math.round((g.sessions/maxS)*100);
       const fill=bw>=80?'var(--green)':bw>=50?'var(--ac)':'var(--t2)';
-      rows+=`<div style="display:grid;grid-template-columns:62px 1fr 28px;align-items:center;gap:8px;margin-bottom:7px">
-        <div style="font-size:11px;color:var(--t2)">${MLABELS[g.group]||g.group}</div>
+      rows+=`<div style="display:grid;grid-template-columns:62px 1fr 28px;align-items:center;gap:var(--sp-8);margin-bottom:7px">
+        <div style="font-size:var(--fs-sub);color:var(--t2)">${MLABELS[g.group]||g.group}</div>
         <div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden">
           <div style="height:100%;width:${bw}%;background:${fill};border-radius:3px;opacity:.8"></div>
         </div>
-        <div style="font-size:10px;color:var(--t2);text-align:right">${g.sessions}×</div>
+        <div style="font-size:var(--fs-micro);color:var(--t2);text-align:right">${g.sessions}×</div>
       </div>`;
     });
     h+=card(`${lbl('Frequência muscular')}${rows}`);
@@ -5107,10 +5684,10 @@ function renderStats(){
     let rows='';
     skipped.forEach(({name,count,total})=>{
       const pct=total>0?Math.round((count/total)*100):0;
-      rows+=`<div style="padding:8px 0;border-bottom:0.5px solid var(--t4)">
+      rows+=`<div style="padding:var(--sp-8) 0;border-bottom:0.5px solid var(--t4)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <div style="font-size:13px;color:var(--tc)">${name}</div>
-          <div style="font-size:10px;color:var(--yellow)">pulado ${count}× <span style="color:var(--t2)">(${pct}%)</span></div>
+          <div style="font-size:var(--fs-body);color:var(--tc)">${name}</div>
+          <div style="font-size:var(--fs-micro);color:var(--yellow)">pulado ${count}× <span style="color:var(--t2)">(${pct}%)</span></div>
         </div>
         <div style="height:3px;background:var(--s3);border-radius:2px;overflow:hidden">
           <div style="height:100%;width:${pct}%;background:var(--yellow);border-radius:2px"></div>
@@ -5129,13 +5706,13 @@ function renderStats(){
     worst.forEach(({label,type,done,planned,rate})=>{
       const icon=BTYPE_ICONS[type]||BTYPE_ICONS.custom;
       const bc=rate>=80?'var(--green)':rate>=50?'var(--yellow)':'var(--red)';
-      rows+=`<div style="padding:8px 0;border-bottom:0.5px solid var(--t4)">
+      rows+=`<div style="padding:var(--sp-8) 0;border-bottom:0.5px solid var(--t4)">
         <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
-          <div style="display:flex;align-items:center;gap:6px">
-            <span style="font-size:13px">${icon}</span>
-            <span style="font-size:13px;color:var(--tc)">${label}</span>
+          <div style="display:flex;align-items:center;gap:var(--sp-4)">
+            <span style="font-size:var(--fs-body)">${icon}</span>
+            <span style="font-size:var(--fs-body);color:var(--tc)">${label}</span>
           </div>
-          <div style="font-size:10px;color:var(--t2)">${done}/${planned} <span style="color:${bc};font-weight:500">${rate}%</span></div>
+          <div style="font-size:var(--fs-micro);color:var(--t2)">${done}/${planned} <span style="color:${bc};font-weight:var(--fw-medium)">${rate}%</span></div>
         </div>
         <div style="height:3px;background:var(--s3);border-radius:2px;overflow:hidden">
           <div style="height:100%;width:${rate}%;background:${bc};border-radius:2px"></div>
@@ -5150,14 +5727,14 @@ function renderStats(){
   /* ══════════════════════════════
      § 11  METAS
      ══════════════════════════════ */
-  h+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;margin-top:4px">
-    <div style="font-size:10px;color:var(--t2);letter-spacing:.8px;text-transform:uppercase;font-weight:500">Metas</div>
-    <button style="font-size:11px;color:var(--tc);background:var(--s2);border:0.5px solid var(--b2);border-radius:var(--r-sm);padding:4px 10px;cursor:pointer" onclick="openModal({t:'addGoal'})">+ nova</button>
+  h+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:var(--sp-8);margin-top:var(--sp-4)">
+    <div class="stat-lbl" style="margin-bottom:0">Metas</div>
+    <button style="font-size:var(--fs-sub);color:var(--tc);background:var(--s2);border:0.5px solid var(--b2);border-radius:var(--r-sm);padding:4px 10px;cursor:pointer;font-family:inherit;font-weight:var(--fw-medium)" onclick="openModal({t:'addGoal'})">+ nova</button>
   </div>`;
   h+=renderGoals();
 
   /* rodapé */
-  h+=`<div style="text-align:center;padding:10px 0 4px"><div style="font-size:11px;color:var(--t2)">${totalRegistros} registro${totalRegistros!==1?'s':''} no histórico</div></div>`;
+  h+=`<div style="text-align:center;padding:var(--sp-8) 0 var(--sp-4)"><div style="font-size:var(--fs-sub);color:var(--t2)">${totalRegistros} registro${totalRegistros!==1?'s':''} no histórico</div></div>`;
   /* P-02: salva no cache antes de retornar */
   _statsCache = { key: statsCacheKey, html: h };
   return h;
@@ -5165,33 +5742,33 @@ function renderStats(){
 
 function renderGoals(){
   if(!goals.length){
-    return`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:16px;margin-bottom:12px;text-align:center">
-      <div style="font-size:12px;color:var(--t2)">Nenhuma meta ainda.</div>
+    return`<div class="stat-card" style="text-align:center">
+      <div style="font-size:var(--fs-sub);color:var(--t2)">Nenhuma meta ainda.</div>
     </div>`;
   }
   let h='';
   goals.forEach((g,i)=>{
     const pct=Math.max(0,Math.min(100,g.progress||0));
     const barColor=pct>=100?'var(--green)':pct>=60?'var(--ac)':'var(--t2)';
-    h+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:8px">
-      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+    h+=`<div class="stat-card">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:var(--sp-8)">
         <div>
-          <div style="font-size:14px;color:var(--tc);font-weight:500">${g.name}</div>
-          ${g.note?`<div style="font-size:11px;color:var(--t2);margin-top:2px">${g.note}</div>`:''}
+          <div style="font-size:var(--fs-body);color:var(--tc);font-weight:var(--fw-medium)">${g.name}</div>
+          ${g.note?`<div style="font-size:var(--fs-sub);color:var(--t2);margin-top:2px">${g.note}</div>`:''}
         </div>
-        <div style="display:flex;align-items:center;gap:6px">
-          <div style="font-size:13px;font-weight:500;color:${barColor}">${pct}%</div>
-          <button style="font-size:11px;color:var(--t2);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="delGoal(${i})" title="Remover">✕</button>
+        <div style="display:flex;align-items:center;gap:var(--sp-4)">
+          <div style="font-size:var(--fs-body);font-weight:var(--fw-medium);color:${barColor}">${pct}%</div>
+          <button style="font-size:var(--fs-sub);color:var(--t2);background:none;border:none;cursor:pointer;padding:2px var(--sp-4);font-family:inherit" onclick="delGoal(${i})" title="Remover">✕</button>
         </div>
       </div>
-      <div style="height:5px;background:var(--s3);border-radius:3px;overflow:hidden;margin-bottom:8px">
-        <div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;transition:width .3s"></div>
+      <div style="height:5px;background:var(--s3);border-radius:3px;overflow:hidden;margin-bottom:var(--sp-8)">
+        <div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;transition:width .3s var(--ease-out)"></div>
       </div>
-      <div style="display:flex;gap:6px">
-        <button style="flex:1;padding:5px 0;font-size:12px;background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-sm);color:var(--t2);cursor:pointer" onclick="updGoal(${i},-5)">−5%</button>
-        <button style="flex:1;padding:5px 0;font-size:12px;background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-sm);color:var(--t2);cursor:pointer" onclick="updGoal(${i},-1)">−1%</button>
-        <button style="flex:1;padding:5px 0;font-size:12px;background:var(--s2);border:0.5px solid var(--b2);border-radius:var(--r-sm);color:var(--tc);cursor:pointer" onclick="updGoal(${i},+1)">+1%</button>
-        <button style="flex:1;padding:5px 0;font-size:12px;background:var(--s2);border:0.5px solid var(--b2);border-radius:var(--r-sm);color:var(--tc);cursor:pointer" onclick="updGoal(${i},+5)">+5%</button>
+      <div style="display:flex;gap:var(--sp-4)">
+        <button style="flex:1;padding:5px 0;font-size:var(--fs-sub);background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-sm);color:var(--t2);cursor:pointer;font-family:inherit;transition:background var(--dur-fast),border-color var(--dur-fast)" onclick="updGoal(${i},-5)">−5%</button>
+        <button style="flex:1;padding:5px 0;font-size:var(--fs-sub);background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-sm);color:var(--t2);cursor:pointer;font-family:inherit;transition:background var(--dur-fast),border-color var(--dur-fast)" onclick="updGoal(${i},-1)">−1%</button>
+        <button style="flex:1;padding:5px 0;font-size:var(--fs-sub);background:var(--s2);border:0.5px solid var(--b2);border-radius:var(--r-sm);color:var(--tc);cursor:pointer;font-family:inherit;transition:background var(--dur-fast),border-color var(--dur-fast)" onclick="updGoal(${i},+1)">+1%</button>
+        <button style="flex:1;padding:5px 0;font-size:var(--fs-sub);background:var(--s2);border:0.5px solid var(--b2);border-radius:var(--r-sm);color:var(--tc);cursor:pointer;font-family:inherit;transition:background var(--dur-fast),border-color var(--dur-fast)" onclick="updGoal(${i},+5)">+5%</button>
       </div>
     </div>`;
   });
@@ -5517,6 +6094,353 @@ function confirmDanger(action){
   if(action==='reset'){const emptyStore={version:DATA_VERSION,blocks:{},history:[],goals:[],appearance:JSON.parse(JSON.stringify(DEFAULT_APPEARANCE))};localStorage.setItem(STORE,JSON.stringify(emptyStore));localStorage.removeItem(JOURNAL_STORE);localStorage.removeItem(TODAY_CACHE_STORE);location.reload();}
 }
 
+/* ════════════════════════════════════════════════════════════════════════════
+   § FASE 3 · TIMER DE DESCANSO E MODO TREINO
+   ────────────────────────────────────────────────────────────────────────────
+   Item 9: Timer de descanso entre séries.
+   Item 10: Modo "Treino em andamento" — view guiada fullscreen.
+
+   FRONTEIRAS ARQUITETURAIS:
+   · Timer: estado em memória (timerState). Render direto no DOM via
+     _timerTick() — nunca chama render() a cada segundo.
+     Cleanup obrigatório: _timerStop() chamado no início de todo render().
+   · Workout mode: lê todaySession + sessionExStatus. Não altera blocks.
+     Estado: workoutMode { active, dk, bi, ei }.
+     Render: injetado no #app via renderWorkoutMode() chamado por render().
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* ──────────────────────────────────────────────────────────────────────────
+   TIMER DE DESCANSO
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Para o timer e limpa o interval — chamado no início de render() e ao cancelar */
+function _timerStop(){
+  if(timerState.intervalId){
+    clearInterval(timerState.intervalId);
+    timerState.intervalId = null;
+  }
+  timerState.active = false;
+}
+
+/* Inicia o timer para um exercício recém-marcado como 'done'.
+   Chamado por toggleExStatus quando o novo status é 'done'.
+   Se já há um timer ativo, reinicia com o novo exercício. */
+function _timerStart(exName, seconds){
+  _timerStop(); /* cleanup antes de iniciar novo */
+  timerState.active = true;
+  timerState.exName = exName;
+  timerState.total = seconds || TIMER_DEFAULT_SECONDS;
+  timerState.remaining = timerState.total;
+
+  /* Renderiza o banner imediatamente antes do primeiro tick */
+  _timerRenderBanner();
+
+  timerState.intervalId = setInterval(()=>{
+    timerState.remaining--;
+    if(timerState.remaining <= 0){
+      _timerStop();
+      _timerRemoveBanner();
+      toast('Descanso concluído — próximo exercício!');
+    } else {
+      _timerRenderBanner();
+    }
+  }, 1000);
+}
+
+/* Atualiza o banner via DOM direto — sem chamar render() */
+function _timerRenderBanner(){
+  const banner = document.getElementById('rest-timer-banner');
+  if(!banner) return;
+  const r = timerState.remaining;
+  const mins = Math.floor(r / 60);
+  const secs = r % 60;
+  const timeStr = mins > 0
+    ? `${mins}:${String(secs).padStart(2,'0')}`
+    : `${secs}s`;
+  const pct = Math.round((timerState.remaining / timerState.total) * 100);
+  const urgent = timerState.remaining <= 10;
+  banner.innerHTML = `
+    <div class="rtb-left">
+      <div>
+        <div class="rtb-label">Descanso</div>
+        <div class="rtb-ex">${timerState.exName}</div>
+      </div>
+    </div>
+    <div class="${urgent?'rtb-time urgent':'rtb-time'}">${timeStr}</div>
+    <button class="rtb-skip" onclick="_timerCancel()">Pular</button>
+    <div class="rtb-progress"><div class="rtb-progress-fill" style="width:${pct}%"></div></div>`;
+}
+
+/* Remove o banner do DOM */
+function _timerRemoveBanner(){
+  const banner = document.getElementById('rest-timer-banner');
+  if(banner) banner.innerHTML = '';
+  /* Colapsa o banner reduzindo sua presença visual */
+  if(banner){
+    banner.style.padding = '0';
+    banner.style.borderBottomWidth = '0';
+    banner.style.marginBottom = '0';
+  }
+}
+
+/* Cancela o timer manualmente (botão "Pular") */
+function _timerCancel(){
+  _timerStop();
+  _timerRemoveBanner();
+}
+
+/* Gera o HTML estático do banner (montado por renderHoje).
+   O conteúdo é preenchido dinamicamente por _timerRenderBanner(). */
+function _timerBannerHTML(){
+  if(!timerState.active) return '';
+  /* Banner vazio — _timerRenderBanner() preencherá via DOM direto */
+  return `<div id="rest-timer-banner" style="position:relative"></div>`;
+}
+
+/* Chamado após render(): reinjecta o conteúdo do banner se timer ativo */
+function _timerReattach(){
+  if(timerState.active) _timerRenderBanner();
+}
+
+/* ──────────────────────────────────────────────────────────────────────────
+   WORKOUT MODE
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* Inicia o modo treino para um bloco específico */
+function wmStart(dk, bi){
+  const block = todaySession[bi];
+  if(!block || !block.exercises.length) return;
+  /* Encontra o primeiro exercício não marcado como done */
+  const extras = sessionExtraExercises[dk+'-'+bi] || [];
+  const allEx = [...block.exercises, ...extras];
+  /* Começa no primeiro exercício sem status 'done' */
+  let startEi = allEx.findIndex((e,i) => sessionExStatus[exStatusKey(dk,bi,e.name)] !== 'done');
+  if(startEi === -1) startEi = 0; /* todos já feitos — começa do zero */
+  workoutMode = { active: true, dk, bi, ei: startEi };
+  render();
+}
+
+/* Avança para o próximo exercício, marcando o atual como done */
+function wmNext(sets, reps, time, weight){
+  const { dk, bi, ei } = workoutMode;
+  const block = todaySession[bi];
+  if(!block) return;
+  const extras = sessionExtraExercises[dk+'-'+bi] || [];
+  const allEx = [...block.exercises, ...extras];
+  const ex = allEx[ei];
+  if(!ex) return;
+
+  /* Persiste os valores editados */
+  if(ei < block.exercises.length){
+    /* Exercício do template — atualiza todaySession */
+    const tEx = block.exercises[ei];
+    if(sets > 0)   tEx.sets   = sets;
+    if(reps > 0)   tEx.reps   = reps;
+    if(time > 0)   tEx.time   = time;
+    if(weight > 0) tEx.weight = weight;
+    todaySessionDirty = true;
+    saveTodayCache();
+  } else {
+    /* Exercício extra — atualiza sessionExtraExercises */
+    const exIdx = ei - block.exercises.length;
+    const xEx = extras[exIdx];
+    if(xEx){
+      if(sets > 0)   xEx.sets   = sets;
+      if(reps > 0)   xEx.reps   = reps;
+      if(time > 0)   xEx.time   = time;
+      if(weight > 0) xEx.weight = weight;
+      saveTodayCache();
+    }
+  }
+
+  /* Marca como done e inicia timer */
+  const k = exStatusKey(dk, bi, ex.name);
+  sessionExStatus[k] = 'done';
+  saveTodayCache();
+  _timerStart(ex.name, TIMER_DEFAULT_SECONDS);
+
+  /* Avança o cursor para o próximo não-done */
+  let nextEi = ei + 1;
+  while(nextEi < allEx.length && sessionExStatus[exStatusKey(dk,bi,allEx[nextEi].name)] === 'done'){
+    nextEi++;
+  }
+  workoutMode.ei = nextEi;
+  render();
+}
+
+/* Pula o exercício atual sem marcar como done */
+function wmSkip(){
+  const { dk, bi, ei } = workoutMode;
+  const block = todaySession[bi];
+  if(!block) return;
+  const extras = sessionExtraExercises[dk+'-'+bi] || [];
+  const allEx = [...block.exercises, ...extras];
+  const ex = allEx[ei];
+  if(!ex) return;
+  const k = exStatusKey(dk, bi, ex.name);
+  sessionExStatus[k] = 'skipped';
+  saveTodayCache();
+  /* Avança */
+  workoutMode.ei = ei + 1;
+  render();
+}
+
+/* Fecha o modo treino sem registrar */
+function wmClose(){
+  workoutMode = { active: false, dk: '', bi: 0, ei: 0 };
+  render();
+}
+
+/* Finaliza e registra o bloco */
+function wmFinish(){
+  const { dk, bi } = workoutMode;
+  workoutMode = { active: false, dk: '', bi: 0, ei: 0 };
+  render();
+  saveLog(dk, bi);
+}
+
+/* Lê input do workout mode sem expor null (fallback para valor original do exercício) */
+function _wmReadInput(id, fallback){
+  const el = document.getElementById(id);
+  if(!el) return fallback;
+  return parseFloat(el.value) || fallback;
+}
+
+/* Confirma o exercício atual lendo os inputs do workout mode */
+function wmConfirm(){
+  const { dk, bi, ei } = workoutMode;
+  const block = todaySession[bi];
+  if(!block) return;
+  const extras = sessionExtraExercises[dk+'-'+bi] || [];
+  const allEx = [...block.exercises, ...extras];
+  const ex = allEx[ei];
+  if(!ex) return;
+  const hasTime = ex.time > 0 && ex.reps === 0;
+  const sets   = _wmReadInput('wm-sets',   ex.sets);
+  const reps   = _wmReadInput('wm-reps',   ex.reps);
+  const time   = _wmReadInput('wm-time',   ex.time);
+  const weight = _wmReadInput('wm-weight', ex.weight);
+  wmNext(sets, hasTime ? 0 : reps, hasTime ? time : 0, weight);
+}
+
+/* ── renderWorkoutMode(): HTML da overlay fullscreen de treino ── */
+function renderWorkoutMode(){
+  const { dk, bi, ei } = workoutMode;
+  const block = todaySession[bi];
+  if(!block) return '';
+  const extras = sessionExtraExercises[dk+'-'+bi] || [];
+  const allEx  = [...block.exercises, ...extras];
+  const total  = allEx.length;
+
+  /* Exercício além do fim da lista → mostra tela de conclusão */
+  const finished = ei >= total;
+
+  const closeSvg = `<svg viewBox="0 0 14 14"><path d="M2 2l10 10M12 2L2 12"/></svg>`;
+
+  let header = `<div class="wm-hdr">
+    <button class="wm-close" onclick="wmClose()">${closeSvg}</button>
+    <div class="wm-hdr-info">
+      <div class="wm-hdr-title">Treino em andamento</div>
+      <div class="wm-hdr-block">${block.label}</div>
+    </div>
+    <div class="wm-prog-pill">${finished ? total : ei+1} / ${total}</div>
+  </div>`;
+
+  if(finished){
+    /* Tela de conclusão */
+    const doneCnt  = allEx.filter(e => sessionExStatus[exStatusKey(dk,bi,e.name)] === 'done').length;
+    const skipCnt  = allEx.filter(e => sessionExStatus[exStatusKey(dk,bi,e.name)] === 'skipped').length;
+    return `<div class="wm-overlay">
+      ${header}
+      <div class="wm-body" style="align-items:center;justify-content:center;text-align:center;gap:var(--sp-8)">
+        <div style="font-size:40px;margin-bottom:8px">🏁</div>
+        <div style="font-size:var(--fs-title);font-weight:var(--fw-medium);color:var(--tc)">Bloco concluído</div>
+        <div style="font-size:var(--fs-sub);color:var(--t2);margin-top:4px">${doneCnt} feito${doneCnt!==1?'s':''} · ${skipCnt} pulado${skipCnt!==1?'s':''}</div>
+      </div>
+      <div class="wm-footer">
+        <button class="wm-btn-skip" onclick="wmClose()">Voltar</button>
+        <button class="wm-btn-finish" onclick="wmFinish()">Registrar bloco ✓</button>
+      </div>
+    </div>`;
+  }
+
+  const ex = allEx[ei];
+  const hasTime = ex.time > 0 && ex.reps === 0;
+  const lastReg = getLastRegistered(ex.name);
+
+  /* Chips de alvo */
+  const targetChips = [
+    `<span class="wm-ex-chip hl">${ex.sets} séries</span>`,
+    hasTime
+      ? `<span class="wm-ex-chip">${ex.time}s</span>`
+      : `<span class="wm-ex-chip">${ex.reps} reps</span>`,
+    ex.weight ? `<span class="wm-ex-chip">${ex.weight}kg</span>` : ''
+  ].join('');
+
+  /* Contexto de histórico */
+  let lastHtml = '';
+  if(lastReg){
+    const prev = lastReg.w > 0 ? `${lastReg.w}kg` : (lastReg.t > 0 ? `${lastReg.t}s` : `${lastReg.r}rep`);
+    lastHtml = `<div class="wm-last"><span class="wm-last-badge">última</span> ${prev} em ${lastReg.date}</div>`;
+  }
+
+  /* Inputs de registro */
+  const inputs = `<div class="wm-inputs">
+    <div class="wm-inp-g">
+      <input id="wm-sets" type="number" value="${ex.sets}" min="1" inputmode="numeric">
+      <div class="inp-lbl">séries</div>
+    </div>
+    ${hasTime
+      ? `<div class="wm-inp-g"><input id="wm-time" type="number" value="${ex.time}" min="0" inputmode="numeric"><div class="inp-lbl">seg</div></div>`
+      : `<div class="wm-inp-g"><input id="wm-reps" type="number" value="${ex.reps}" min="0" inputmode="numeric"><div class="inp-lbl">reps</div></div>`
+    }
+    <div class="wm-inp-g">
+      <input id="wm-weight" type="number" value="${ex.weight || 0}" min="0" step="2.5" inputmode="decimal">
+      <div class="inp-lbl">kg</div>
+    </div>
+  </div>`;
+
+  /* Queue — lista de todos os exercícios do bloco */
+  let queueItems = '';
+  allEx.forEach((e, i)=>{
+    const st = sessionExStatus[exStatusKey(dk, bi, e.name)];
+    const isCurrent = i === ei;
+    const hasT = e.time > 0 && e.reps === 0;
+    if(isCurrent) return; /* exercício atual não aparece na fila */
+    const checkSvg = `<svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6l3 3 5-5"/></svg>`;
+    const fwdSvg   = `<svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h8M7 3l3 3-3 3"/></svg>`;
+    queueItems += `<div class="wm-queue-item${st?' done-item':''}">
+      <div class="wm-qi-num">${i+1}</div>
+      <div class="wm-qi-name">${e.name}</div>
+      <span class="wm-qi-tag">${e.sets}×${hasT?e.time+'s':e.reps}</span>
+      <div class="wm-qi-status ${st||''}">${st==='done'?checkSvg:st==='skipped'?fwdSvg:''}</div>
+    </div>`;
+  });
+
+  const queueHtml = queueItems ? `<div class="wm-queue">
+    <div class="wm-queue-label">Fila</div>
+    ${queueItems}
+  </div>` : '';
+
+  return `<div class="wm-overlay">
+    ${header}
+    <div class="wm-body">
+      <div class="wm-ex-card">
+        <div class="wm-ex-label">Exercício ${ei+1} de ${total}</div>
+        <div class="wm-ex-name">${ex.name}</div>
+        <div class="wm-ex-meta">${targetChips}</div>
+        ${inputs}
+        ${lastHtml}
+      </div>
+      ${queueHtml}
+    </div>
+    <div class="wm-footer">
+      <button class="wm-btn-skip" onclick="wmSkip()">Pular</button>
+      <button class="wm-btn-done" onclick="wmConfirm()">Feito →</button>
+    </div>
+  </div>`;
+}
+
 /* ── render() — dispatcher principal: decide qual sub-render executar ── */
 function render(){
   /* BUG-04: Cancelar drag ativo antes de destruir o DOM.
@@ -5540,7 +6464,17 @@ function render(){
   /* Modal vai para #modal-root (fora do scroll container) */
   const modalRoot=document.getElementById('modal-root');
   if(modalRoot)modalRoot.innerHTML=renderModal();
+  /* Fase 3 · Item 10: injeta o workout mode overlay no #app (fora do scroll) */
+  let wmRoot=document.getElementById('wm-root');
+  if(!wmRoot){
+    wmRoot=document.createElement('div');
+    wmRoot.id='wm-root';
+    document.getElementById('app').appendChild(wmRoot);
+  }
+  wmRoot.innerHTML=workoutMode.active?renderWorkoutMode():'';
   restoreScroll();   /* restaura scroll depois de inserir o conteúdo */
+  /* Fase 3 · Item 9: re-injeta conteúdo do timer banner após rebuild do DOM */
+  _timerReattach();
 }
 
 /* ════════════════════════════════════════════════════════════════════════════

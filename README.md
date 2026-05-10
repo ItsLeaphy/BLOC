@@ -137,6 +137,40 @@ A implementação deve:
 
 ---
 
+# DOCUMENTAÇÃO É OBRIGATÓRIA
+
+Toda alteração no BLOC DEVE atualizar a documentação correspondente.
+
+Isso inclui:
+
+* comentários de seção;
+* blocos explicativos;
+* fluxos documentados;
+* observações arquiteturais;
+* contratos implícitos;
+* warnings;
+* comentários de estado;
+* comentários de cache;
+* comentários de invalidação;
+* TODOs relacionados;
+* documentação de migração;
+* roadmap interno quando necessário.
+
+Se o comportamento mudou:
+a documentação também deve mudar.
+
+Código e documentação DEVEM permanecer sincronizados.
+
+Documentação desatualizada é considerada bug arquitetural.
+
+Nenhuma feature é considerada concluída sem:
+
+* implementação;
+* validação;
+* atualização da documentação.
+
+---
+
 # REGRAS DE ARQUITETURA
 
 ## 1. NÃO criar lógica escondida
