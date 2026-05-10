@@ -2572,18 +2572,18 @@ function loadStore() {
    O app tem três camadas de estado com papéis distintos e fronteiras rígidas:
 
      1. TEMPLATE PERMANENTE  →  blocks        (localStorage, persiste entre sessões)
-     2. SESSÃO DE HOJE       →  todaySession  (só memória, clone independente)
+     2. SESSÃO DE HOJE       →  todaySession  (localStorage/dia, cache diário)
      3. HISTÓRICO            →  history       (localStorage, snapshots imutáveis)
 
    O fluxo de dados é UNIDIRECIONAL e NÃO pode ser invertido:
 
      blocks[todayKey]
          │
-         │  deep clone ao iniciar (JSON.parse/stringify)
+         │  deep clone ao iniciar (ou reidratação de todayCache se mesmo dia)
          ▼
      todaySession  ──────────────────────────────────────────────┐
          │  edições do usuário via updExToday()                   │
-         │  (guia Hoje)                                           │
+         │  persiste via saveTodayCache() (chave por data)        │
          ▼                                                        │
      saveLog()  →  history.unshift(snapshot)                     │
                                                                   │
@@ -2601,7 +2601,7 @@ function loadStore() {
    • PODE ser mutado SOMENTE pelas funções da guia Semana/Config:
        updExBase, setBlockColor, setBlockType, setBlockIcon,
        confEditBlock, confAddBlock, confAddEx (quando fromSemana=true),
-       addMedia, delMedia, delEx, delBlock, reorderBlocks.
+       addMedia, delMedia, delEx, delBlock, reorderBlocks, moveBlock.
    • NUNCA deve ser mutado por código da guia Hoje.
    • TODA função que muta blocks[todayKey] DEVE chamar
      resetTodaySession() imediatamente após o sv() — sem exceção.
@@ -2612,52 +2612,44 @@ function loadStore() {
    ────────────────────────────────────────────────────────────────────────────
    • Estrutura: Array de entradas, mais recente primeiro.
      Cada entrada: { date, dayKey, day, blockLabel, blockType, exercises[] }
-     exercises[]: [{ name, sets, reps, weight, time }]  ← valores reais do treino
-   • Persiste em localStorage via sv('bv2_history', history).
+     exercises[]: [{ name, sets, reps, weight, time, status? }]
+   • Persiste em localStorage via sv().
    • Gerado por saveLog() a partir de todaySession — NUNCA a partir de blocks.
    • Entradas nunca são editadas após inserção (append-only).
    • Limite: 180 entradas (history.slice(0,180)).
-   • Usado para: cálculo de PRs (isPR), tendências (getExHistory, trend),
-     indicadores de "feito hoje" (hasDone em renderBlockCard), sumário
-     de volume pós-registro.
-   • CRÍTICO: history é fonte de verdade para métricas e PRs. Se saveLog()
-     ler de blocks em vez de todaySession, PRs e histórico ficam errados.
 
-   todaySession  [CLONE MUTÁVEL DA SESSÃO — SÓ MEMÓRIA]
+   todaySession  [CACHE DIÁRIO DA SESSÃO — PERSISTE POR DATA]
    ────────────────────────────────────────────────────────────────────────────
    • Estrutura: Array de BlockObj — mesma forma que blocks[todayKey].
-   • Criado via JSON.parse(JSON.stringify(blocks[todayKey])) ao iniciar.
-   • NUNCA salvo em localStorage. Zerado ao recarregar a página.
+   • Ao iniciar: reidratado de bloc_today_cache se a data bater com hoje.
+     Caso contrário, recriado como deep clone de blocks[todayKey].
+   • Persiste via saveTodayCache() — chave separada do store principal.
+   • Ao virar o dia, o cache expira automaticamente (comparação de data).
    • É o único objeto que a guia Hoje pode ler e mutar.
-   • Mutado exclusivamente por updExToday() quando o usuário edita
-     séries/reps/peso/tempo na guia Hoje.
+   • Mutado por: updExToday(), confAddBlockToday(), confAddEx (Hoje).
    • Quando blocks[todayKey] muda (via guia Semana), resetTodaySession()
      re-sincroniza — mas SÓ se todaySessionDirty === false.
 
    todaySessionDirty  [FLAG DE PROTEÇÃO]
    ────────────────────────────────────────────────────────────────────────────
-   • boolean, inicia false.
-   • Vira true quando updExToday() é chamado pela primeira vez.
+   • boolean. Inicia false (sessão nova) ou true (sessão reidratada do cache).
    • Enquanto true, resetTodaySession() é um no-op — protege edições
      em andamento de serem sobrescritas por mudanças no template.
-   • Não é resetado durante a sessão (fica true até o app ser recarregado).
 
-   sessionExtraExercises  [EXERCÍCIOS EXTRAS DA SESSÃO — SÓ MEMÓRIA]
+   sessionExtraExercises  [EXERCÍCIOS EXTRAS DA SESSÃO]
    ────────────────────────────────────────────────────────────────────────────
    • Estrutura: { "SEG-0": [ExObj, ...], "SEG-1": [...], ... }
    • Exercícios adicionados por confAddEx() quando fromSemana=false.
-     Não entram em blocks nem em todaySession — existem só para a sessão.
-   • Incluídos em saveLog() via allExercises = [...b.exercises, ...extraEx].
+     Não entram em blocks — existem só para a sessão.
+   • Persistidos via saveTodayCache() junto com todaySession.
    • Removidos de sessionExtraExercises após saveLog() para o bloco.
-   • Zerados ao recarregar a página.
 
-   sessionDraft  [DEPRECATED — NÃO USAR]
+   sessionExStatus  [STATUS INDIVIDUAL POR EXERCÍCIO]
    ────────────────────────────────────────────────────────────────────────────
-   • Existia para sobrescritas temporárias de sets/reps/weight/time.
-   • Foi substituído pelo sistema todaySession + updExToday (Mudança 3).
-   • As funções getDraftVal, setDraftVal, updExDraft ainda existem no
-     código mas não são mais chamadas pelos inputs da guia Hoje.
-   • Não remover até confirmar que nenhum caminho de código ainda as usa.
+   • Estrutura: { "SEG-0-Supino reto": "done" | "skipped" }
+   • Persistido via saveTodayCache() — expira ao virar o dia.
+   • Lido por renderExRow() (fromSemana=false) para classes visuais.
+   • Lido por saveLog() para gravar 'status' no snapshot do histórico.
 
    ════════════════════════════════════════════════════════════════════════════
    FLUXO COMPLETO — SEMANA → HOJE → HISTÓRICO
@@ -2665,29 +2657,26 @@ function loadStore() {
 
    [GUIA SEMANA]
    O usuário edita blocos e exercícios do plano semanal.
-   Funções: updExBase, setBlockColor/Type/Icon, confEditBlock, etc.
+   Funções: updExBase, setBlockColor/Type/Icon, confEditBlock, moveBlock, etc.
    Destino: blocks (template) → localStorage.
    Efeito colateral obrigatório: resetTodaySession() se dk === todayKey.
 
    [GUIA HOJE]
-   renderHoje() lê todaySession (clone independente, não blocks[todayKey]).
+   renderHoje() lê todaySession (cache diário, não blocks[todayKey]).
    renderBlockCard() recebe objetos de todaySession como parâmetro b.
    renderExRow() com fromSemana=false:
      • Lê valores de e (que vem de todaySession) para exibir nos inputs.
-     • onchange dos inputs chama updExToday() → muta todaySession diretamente.
-     • updExToday() marca todaySessionDirty = true.
+     • onchange dos inputs chama updExToday() → muta todaySession + saveTodayCache.
    O usuário aperta "Registrar bloco" → saveLog(dk, bi).
 
    [saveLog]  ← CRÍTICO — não alterar a fonte de leitura
    1. Lê todaySession[bi] (NÃO blocks[dk][bi]).
    2. Combina com sessionExtraExercises[dk+'-'+bi].
-   3. Monta exArr com os valores reais do treino.
-   4. Detecta PRs via isPR() (compara com history).
+   3. Monta exArr com valores reais do treino + status de sessionExStatus.
+   4. Detecta PRs via isPR().
    5. Insere snapshot em history[0] via history.unshift().
-   6. Persiste history no localStorage.
+   6. Persiste history + saveTodayCache().
    7. Limpa sessionExtraExercises[dk+'-'+bi].
-   8. Dispara toast de feedback (PR / volume / simples).
-   9. Chama render() — a guia Hoje atualiza para mostrar "done".
 
    [HISTÓRICO]
    history é append-only. Leituras: renderHistorico(), getExHistory(),
@@ -2700,26 +2689,26 @@ function loadStore() {
    ❌  Nunca ler blocks[todayKey] dentro de renderHoje() ou renderBlockCard()
        quando chamado com prefix='hoje'. Use todaySession.
 
-   ❌  Nunca chamar sv('bv2_blocks',...) de código da guia Hoje.
+   ❌  Nunca chamar sv() de código da guia Hoje para mutar blocks.
        Apenas código da guia Semana/Config pode mutar blocks.
 
    ❌  Nunca passar blocks[dk][bi] para saveLog(). saveLog() usa todaySession[bi].
 
-   ❌  Nunca salvar todaySession em localStorage.
-       É um objeto de sessão — deve ser zerado ao recarregar.
+   ❌  prefix === 'sem' é a ÚNICA condição que autoriza fromSemana=true em modais.
+       prefix === 'hoje' (truthy) NÃO autoriza — esse foi o Bug 3A corrigido.
 
-   ❌  Nunca chamar resetTodaySession() depois de updExToday() já ter sido
-       chamado (todaySessionDirty=true protege disso automaticamente, mas não
-       chamar explicitamente é igualmente importante).
+   ❌  Nunca chamar resetTodaySession() depois de todaySessionDirty=true.
+       O flag protege automaticamente, mas não chamar explicitamente é igualmente
+       importante.
 
    ✅  Toda função que chama sv() e toca blocks[todayKey] DEVE chamar
        resetTodaySession() imediatamente após. Sem exceção.
 
-   ✅  saveLog() deve sempre ler de todaySession. Se precisar de fallback,
-       o fallback correto é todaySession — nunca blocks.
+   ✅  Toda função que muta todaySession, sessionExStatus ou sessionExtraExercises
+       DEVE chamar saveTodayCache() após a mutação.
 
-   ✅  renderExRow() com fromSemana=false deve sempre usar updExToday como
-       updFn. Se fromSemana=true, usa updExBase (muta blocks, não todaySession).
+   ✅  renderExRow() com fromSemana=false usa updExToday como updFn.
+       renderExRow() com fromSemana=true usa updExBase (muta blocks).
 
    ════════════════════════════════════════════════════════════════════════════ */
 
