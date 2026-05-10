@@ -13,6 +13,96 @@ const manifest={name:"BLOC",short_name:"BLOC",start_url:".",display:"standalone"
 const blob=new Blob([JSON.stringify(manifest)],{type:'application/json'});
 const link=document.createElement('link');link.rel='manifest';link.href=URL.createObjectURL(blob);document.currentScript.after(link);
 </script>
+<script>
+/* ── Service Worker inline — necessário para notificações fora do app ────────
+   Registra um SW mínimo via Blob URL. O SW fica ativo mesmo com o site fechado
+   no Android Chrome. No iOS 16.4+ funciona apenas quando instalado como PWA.
+   
+   FLUXO:
+   1. Ao carregar: registra o SW (silencioso, só pede permissão quando necessário)
+   2. _notifRequestPermission(): pede permissão UMA VEZ, grava resultado
+   3. _notifSchedule(seconds, title, body): agenda notificação via postMessage ao SW
+   4. _notifCancel(): cancela notificação pendente
+   ────────────────────────────────────────────────────────────────────────── */
+
+/* SW mínimo: só lida com notificações agendadas via postMessage */
+const _swCode = `
+self.onmessage = function(e){
+  const { type, delay, title, body, tag } = e.data || {};
+  if(type === 'SCHEDULE'){
+    /* Cancela timer anterior com a mesma tag */
+    if(self._notifTimers) clearTimeout(self._notifTimers[tag]);
+    if(!self._notifTimers) self._notifTimers = {};
+    self._notifTimers[tag] = setTimeout(function(){
+      self.registration.showNotification(title || 'BLOC', {
+        body: body || '',
+        tag: tag || 'bloc-timer',
+        icon: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%23060606%22/><rect x=%2222%22 y=%2222%22 width=%2224%22 height=%2224%22 rx=%224%22 fill=%22%23fff%22/></svg>',
+        badge: 'data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><rect width=%22100%22 height=%22100%22 fill=%22%23060606%22/></svg>',
+        vibrate: [150, 80, 150],
+        requireInteraction: false,
+        silent: false
+      });
+    }, delay || 0);
+  } else if(type === 'CANCEL'){
+    if(self._notifTimers && self._notifTimers[tag]) clearTimeout(self._notifTimers[tag]);
+  }
+};
+self.onnotificationclick = function(e){ e.notification.close(); };
+`;
+
+let _swReg = null;
+
+/* Registra o SW uma vez ao carregar */
+async function _swRegister(){
+  if(!('serviceWorker' in navigator)) return;
+  try {
+    const blob = new Blob([_swCode], { type: 'application/javascript' });
+    const swUrl = URL.createObjectURL(blob);
+    _swReg = await navigator.serviceWorker.register(swUrl, { scope: './' });
+  } catch(e) { /* SW não disponível (HTTP sem HTTPS, etc.) — degrada graciosamente */ }
+}
+_swRegister();
+
+/* Estado de permissão de notificação */
+let _notifPermission = localStorage.getItem('bloc_notif_perm') || 'default';
+
+/* Pede permissão UMA VEZ — chama ao iniciar o primeiro treino guiado */
+async function _notifRequestPermission(){
+  if(_notifPermission === 'granted') return true;
+  if(_notifPermission === 'denied')  return false;
+  if(!('Notification' in window))    return false;
+  const result = await Notification.requestPermission();
+  _notifPermission = result;
+  localStorage.setItem('bloc_notif_perm', result);
+  return result === 'granted';
+}
+
+/* Agenda notificação para daqui X segundos via SW */
+async function _notifSchedule(seconds, title, body){
+  const granted = await _notifRequestPermission();
+  if(!granted) return;
+  /* Garante que o SW está pronto */
+  const reg = _swReg || (await navigator.serviceWorker.ready.catch(()=>null));
+  if(!reg || !reg.active) return;
+  reg.active.postMessage({
+    type: 'SCHEDULE',
+    delay: seconds * 1000,
+    title,
+    body,
+    tag: 'bloc-rest-timer'
+  });
+}
+
+/* Cancela notificação pendente (ex: usuário pulou o descanso) */
+function _notifCancel(){
+  if(!_swReg || !_swReg.active) return;
+  _swReg.active.postMessage({ type: 'CANCEL', tag: 'bloc-rest-timer' });
+  /* Também fecha qualquer notificação já exibida */
+  if(_swReg.getNotifications) _swReg.getNotifications({ tag: 'bloc-rest-timer' })
+    .then(ns => ns.forEach(n => n.close())).catch(()=>{});
+}
+</script>
 </head>
 <body>
 <style>
@@ -509,6 +599,12 @@ body{
   color:rgba(245,158,11,0.65);
   border:0.5px solid rgba(245,158,11,0.2);
 }
+/* MOD-3: badge de séries parciais (ex: "2/3 séries") */
+.hist-ex-status.partial{
+  background:rgba(245,158,11,0.1);
+  color:rgba(245,158,11,0.7);
+  border:0.5px solid rgba(245,158,11,0.25);
+}
 
 /* Animação leve ao marcar status */
 @keyframes statusPop{
@@ -680,16 +776,57 @@ body{
   font-weight:var(--fw-medium);
 }
 
-/* wm-root: container da overlay fullscreen de treino */
+/* wm-root: container da overlay fullscreen de treino.
+   Fica sempre no DOM (position:fixed), visível/invisível via .wm-hidden.
+   Isso implementa a "segunda tela" — o treino nunca é destruído ao trocar de aba. */
 #wm-root{
-  position:absolute;
-  inset:0;
-  pointer-events:none; /* transparente quando vazio */
+  position:fixed;
+  top:0;
+  bottom:0;
+  left:50%;
+  transform:translateX(-50%);
+  width:100%;
+  max-width:430px; /* espelha o max-width do #app */
+  pointer-events:none;
   z-index:60;
 }
-#wm-root:not(:empty){
+#wm-root:not(.wm-hidden){
   pointer-events:auto;
 }
+#wm-root.wm-hidden{
+  visibility:hidden;   /* esconde sem remover do DOM — estado do treino preservado */
+  pointer-events:none;
+}
+/* Indicador flutuante "treino ativo" quando overlay está em background */
+#wm-pip{
+  position:fixed;
+  bottom:80px; /* acima da nav */
+  /* Alinha à direita dentro do #app (max 430px centrado) */
+  right:max(16px, calc(50vw - 215px + 16px));
+  z-index:61;
+  background:var(--blue,#60a5fa);
+  color:#fff;
+  border-radius:24px;
+  padding:8px 16px 8px 12px;
+  font-size:var(--fs-micro,11px);
+  font-weight:var(--fw-medium,500);
+  letter-spacing:.5px;
+  display:flex;
+  align-items:center;
+  gap:8px;
+  box-shadow:0 4px 16px rgba(96,165,250,0.4);
+  cursor:pointer;
+  border:none;
+  font-family:inherit;
+  transition:transform var(--dur-fast) var(--ease-out),box-shadow var(--dur-fast);
+  animation:pipIn .25s var(--ease-out);
+}
+#wm-pip:hover{ transform:scale(1.04); box-shadow:0 6px 20px rgba(96,165,250,0.5); }
+@keyframes pipIn{
+  from{transform:translateY(12px);opacity:0}
+  to{transform:translateY(0);opacity:1}
+}
+#wm-pip.pip-hidden{ display:none; }
 
 /* ============================================================
    § REST TIMER BANNER
@@ -813,7 +950,25 @@ body{
   transition:background var(--dur-fast),color var(--dur-fast);
 }
 .wm-close:hover{ background:var(--s3); color:var(--tc); }
-.wm-close svg{ width:14px; height:14px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; }
+.wm-close svg{ width:14px; height:10px; stroke:currentColor; fill:none; stroke-width:1.8; stroke-linecap:round; }
+/* Botão "Encerrar" — aparece discretamente no header, só confirma com alert */
+.wm-abort-btn{
+  flex:0 0 auto;
+  font-size:var(--fs-micro);
+  color:var(--t2);
+  background:transparent;
+  border:0.5px solid var(--b1);
+  border-radius:var(--r-sm);
+  padding:4px 10px;
+  cursor:pointer;
+  font-family:inherit;
+  font-weight:var(--fw-medium);
+  letter-spacing:.5px;
+  transition:background var(--dur-fast),border-color var(--dur-fast),color var(--dur-fast);
+  white-space:nowrap;
+}
+.wm-abort-btn:hover{ background:rgba(239,68,68,0.08); border-color:rgba(239,68,68,0.3); color:var(--red); }
+.wm-abort-pending{ background:rgba(239,68,68,0.12) !important; border-color:rgba(239,68,68,0.5) !important; color:var(--red) !important; }
 .wm-hdr-info{ flex:1; min-width:0; }
 .wm-hdr-title{
   font-size:var(--fs-micro);
@@ -1068,6 +1223,146 @@ body{
   letter-spacing:.3px;
 }
 .wm-btn-finish:active{ opacity:0.85; }
+
+/* Timer de descanso — banner compacto na overlay do workout mode */
+.wm-rest-banner{
+  position:relative;
+  margin:0 var(--sp-16) var(--sp-8);
+  background:var(--s2);
+  border:0.5px solid var(--b2);
+  border-radius:var(--r-md);
+  padding:10px var(--sp-12);
+  display:flex;
+  align-items:center;
+  gap:var(--sp-8);
+  overflow:hidden;
+  animation:slideDown var(--dur-base) var(--ease-out);
+  transition:border-color var(--dur-fast);
+}
+.wm-rest-banner.urgent{
+  border-color:rgba(239,68,68,0.4);
+  background:rgba(239,68,68,0.06);
+}
+.wm-rest-banner-bar{
+  position:absolute;
+  bottom:0;left:0;right:0;
+  height:2px;
+  background:var(--s3);
+}
+.wm-rest-banner-fill{
+  height:100%;
+  background:var(--ac);
+  transition:width 1s linear;
+  border-radius:1px;
+}
+.wm-rest-banner.urgent .wm-rest-banner-fill{ background:var(--red); }
+.wm-rest-banner-left{
+  flex:1;
+  min-width:0;
+  display:flex;
+  flex-direction:column;
+  gap:1px;
+}
+.wm-rest-banner-label{
+  font-size:var(--fs-micro);
+  color:var(--t2);
+  letter-spacing:1px;
+  text-transform:uppercase;
+  font-weight:var(--fw-medium);
+}
+.wm-rest-banner-ex{
+  font-size:var(--fs-sub);
+  color:var(--tc);
+  white-space:nowrap;
+  overflow:hidden;
+  text-overflow:ellipsis;
+}
+.wm-rest-banner-time{
+  font-size:var(--fs-title);
+  font-weight:var(--fw-medium);
+  font-variant-numeric:tabular-nums;
+  color:var(--tc);
+  letter-spacing:-0.5px;
+  flex-shrink:0;
+}
+.wm-rest-banner-time.urgent{ color:var(--red); }
+.wm-rest-banner-skip{
+  background:none;
+  border:0.5px solid var(--b1);
+  border-radius:var(--r-sm);
+  color:var(--t2);
+  font-size:var(--fs-micro);
+  font-family:inherit;
+  font-weight:var(--fw-medium);
+  padding:5px 10px;
+  cursor:pointer;
+  flex-shrink:0;
+  transition:background var(--dur-fast),color var(--dur-fast);
+  letter-spacing:.3px;
+}
+.wm-rest-banner-skip:active{ background:var(--s3); color:var(--tc); }
+
+
+/* MOD-2: controle de tempo de descanso no header */
+.wm-rest-ctrl{
+  display:flex;
+  align-items:center;
+  gap:4px;
+  background:var(--s2);
+  border:0.5px solid var(--b1);
+  border-radius:var(--r-sm);
+  padding:3px 6px;
+}
+.wm-rest-val{
+  font-size:11px;
+  font-weight:var(--fw-medium);
+  color:var(--t2);
+  min-width:30px;
+  text-align:center;
+}
+.wm-rest-btn{
+  background:none;
+  border:none;
+  color:var(--t2);
+  font-size:14px;
+  cursor:pointer;
+  padding:0 2px;
+  line-height:1;
+  font-family:inherit;
+}
+.wm-rest-btn:disabled{ opacity:0.3; cursor:default; }
+.wm-rest-btn:not(:disabled):active{ color:var(--tc); }
+
+/* MOD-1: display fixo de séries (não input) */
+.wm-sets-display{
+  font-size:var(--fs-title);
+  font-weight:var(--fw-medium);
+  color:var(--tc);
+  text-align:center;
+  padding:8px 0;
+  min-width:48px;
+}
+
+/* MOD-4: botões de reordenação na queue */
+.wm-qi-reorder{
+  display:flex;
+  flex-direction:column;
+  gap:2px;
+  margin-left:4px;
+}
+.wm-qi-arrow{
+  background:none;
+  border:none;
+  color:var(--t3);
+  cursor:pointer;
+  padding:2px 4px;
+  border-radius:var(--r-sm);
+  display:flex;
+  align-items:center;
+  justify-content:center;
+}
+.wm-qi-arrow:active{ background:var(--s3); color:var(--tc); }
+.wm-qi-arrow-ph{ display:inline-block; width:18px; height:16px; }
 
 /* ============================================================
    § TREND BADGES
@@ -3133,10 +3428,10 @@ function saveStore() {
 }
 
 /* ── saveTodayCache — persiste a sessão atual do dia ──────────────────────────
-   Salva todaySession, sessionExStatus e sessionExtraExercises em localStorage
-   com a data de hoje como chave de validade.
-   Chamada após qualquer mutação de estado da sessão:
-   updExToday, toggleExStatus, confAddEx (Hoje), saveLog.
+   Salva todaySession, sessionExStatus, sessionExtraExercises e workoutMode
+   em localStorage com a data de hoje como chave de validade.
+   Chamada após qualquer mutação de estado da sessão.
+   workoutMode é incluído para permitir restauração do treino após fechamento.
    NÃO faz parte do store principal — chave separada para não inflar o payload.
    ─────────────────────────────────────────────────────────────────────────── */
 function saveTodayCache() {
@@ -3146,6 +3441,7 @@ function saveTodayCache() {
     session: todaySession,
     exStatus: sessionExStatus,
     extraExercises: sessionExtraExercises,
+    workoutMode: workoutMode, /* MOD-1: persiste estado do treino guiado */
   };
   try { localStorage.setItem(TODAY_CACHE_STORE, JSON.stringify(cache)); } catch(e) {}
 }
@@ -3235,8 +3531,11 @@ let _journalSearch='';
 let statsPeriod='30d';
 
 /* ── Fase 3 · Item 9: Timer de descanso entre séries ────────────────────────
-   Estado em memória — intencional: timer não sobrevive ao fechar o app.
-   O timer é ativado por toggleExStatus('done') e expirado automaticamente.
+   MOD-1/MOD-2: o timer agora dispara por SÉRIE concluída (não por exercício).
+   Cada clique em "Iniciar"/"Continuar" no workout mode aciona _timerStart().
+   A duração vem de workoutMode.restTime (personalizável — padrão 90s).
+   Estado em memória — o timer em si não precisa sobreviver ao fechar o app
+   (workoutMode.restTime já está no cache para preservar a preferência).
    Render: DOM direto no banner (#rest-timer-banner) via setInterval.
    Nunca persiste em todaySession nem em blocks.
    CAMPOS:
@@ -3251,14 +3550,39 @@ const TIMER_DEFAULT_SECONDS = 90;
 
 /* ── Fase 3 · Item 10: Modo "Treino em andamento" ───────────────────────────
    View guiada fullscreen: exercício por exercício, um bloco por vez.
-   Lê todaySession — não altera template.
+   Lê todaySession — NUNCA altera blocks.
+
+   REGRA DE ESCOPO HOJE/SEMANA:
+   Tudo feito na guia Hoje fica apenas na guia Hoje, a menos que o usuário
+   clique explicitamente em "Salvar na Semana". Registrar bloco vai para
+   history. Escrever no journal vai para journals. Nenhuma outra operação
+   de Hoje muta blocks. Esta regra se aplica a todas as funções wm*().
+
    CAMPOS:
-   · active   — modo ativo
-   · dk       — dayKey do bloco em execução
-   · bi       — blockIndex do bloco em execução
-   · ei       — exerciseIndex atual dentro do bloco
+   · active        — overlay fullscreen visível
+   · dk            — dayKey do bloco em execução
+   · bi            — blockIndex em todaySession
+   · ei            — índice do exercício atual em allEx=[...exercises,...extras]
+   · setsRemaining — séries restantes no exercício atual (MOD-1)
+                     init: ex.sets ao entrar em cada exercício
+                     decrementa a cada clique "Iniciar"/"Continuar"
+                     chega a 0 → avança para o próximo exercício
+   · restTime      — segundos de descanso entre séries (MOD-2)
+                     padrão = TIMER_DEFAULT_SECONDS; alterável durante treino
+                     o timer dispara por SÉRIE concluída, não por exercício
+
+   PERSISTÊNCIA: workoutMode é salvo em saveTodayCache() e restaurado no boot.
+   Se o usuário fechar o app no meio do treino, ao reabrir volta exatamente
+   onde estava (mesmo exercício, mesma série).
    ─────────────────────────────────────────────────────────────────────────── */
-let workoutMode = { active: false, dk: '', bi: 0, ei: 0 };
+let workoutMode = { active: false, dk: '', bi: 0, ei: 0, setsRemaining: 0, restTime: 90 };
+
+/* ── Segunda tela: flags de UI da overlay ────────────────────────────────────
+   _wmOverlayVisible: true = overlay fullscreen visível; false = overlay em background
+   _wmNeedsRender: true = forçar re-render da overlay no próximo render() call
+   Separados do workoutMode para não poluir o cache salvo.
+   ─────────────────────────────────────────────────────────────────────────── */
+let _wmAbortPending = false; /* true = botão Encerrar aguardando segunda confirmação */
 
 /* ── Fase 2 · Item 7: PR expandido ─────────────────────────────────────────
    null = nenhum PR aberto. String = nome do exercício com view ativa.
@@ -3804,6 +4128,13 @@ if (_todayCache) {
   sessionExStatus      = _todayCache.exStatus      || {};
   sessionExtraExercises= _todayCache.extraExercises || {};
   todaySessionDirty    = true; /* sessão restaurada — protege de re-clone */
+  /* MOD-1: restaura workoutMode se treino estava em andamento ao fechar */
+  if (_todayCache.workoutMode && _todayCache.workoutMode.active) {
+    workoutMode = _todayCache.workoutMode;
+    /* Segunda tela: ao reabrir o app com treino ativo, exibe a overlay imediatamente */
+    _wmOverlayVisible = true;
+    _wmNeedsRender    = true;
+  }
 } else {
   todaySession         = JSON.parse(JSON.stringify(blocks[todayKey] || []));
   todaySessionDirty    = false;
@@ -4383,15 +4714,30 @@ function renderBlockCard(b,dk,bi,prefix){
     /* ── Fase 3 · Item 10: botão de iniciar treino guiado ────────────────
        Só aparece na guia Hoje (não em fromSemanaCtx).
        Inicia o workoutMode lendo todaySession[bi] — não afeta blocks.
+       Conta também sessionExtraExercises para blocos _sessionOnly.
        ────────────────────────────────────────────────────────────────── */
-    if(!fromSemanaCtx && b.exercises.length > 0){
+    const _extraForBtn = sessionExtraExercises[dk+'-'+bi] || [];
+    const _totalExForBtn = b.exercises.length + _extraForBtn.length;
+    if(!fromSemanaCtx && _totalExForBtn > 0){
       const _isWmActive = workoutMode.active && workoutMode.dk === dk && workoutMode.bi === bi;
-      if(!_isWmActive){
+      if(!_isWmActive && !workoutMode.active){
         body+=`<button class="add-b" style="border-color:rgba(96,165,250,0.2);color:var(--blue)" onclick="wmStart('${dk}',${bi})">
           <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2l7 4-7 4z" fill="currentColor" stroke="none"/></svg>
           Iniciar treino guiado
         </button>`;
+      } else if(_isWmActive){
+        /* Treino deste bloco está ativo — botão para reabrir a overlay sem resetar estado */
+        body+=`<button class="add-b" style="border-color:rgba(96,165,250,0.35);color:var(--blue);background:rgba(96,165,250,0.08)" onclick="wmResume()">
+          <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2l7 4-7 4z" fill="currentColor" stroke="none"/></svg>
+          Retomar treino em andamento
+        </button>`;
       }
+    } else if(!fromSemanaCtx && _totalExForBtn === 0){
+      /* Bloco sem exercícios: botão desabilitado com dica */
+      body+=`<button class="add-b" style="opacity:0.4;cursor:default;border-color:rgba(96,165,250,0.15);color:var(--blue)" disabled>
+        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 2l7 4-7 4z" fill="currentColor" stroke="none"/></svg>
+        Iniciar treino guiado
+      </button>`;
     }
     /* Botão Journal — sempre presente quando bloco está aberto */
     const hasJournal=journalHasEntry(dk,bi,new Date().toLocaleDateString('pt-BR'));
@@ -4728,7 +5074,11 @@ function saveLog(dk,bi){
        NUNCA altera blocks nem todaySession — é append-only no histórico. */
     const exStatus = sessionExStatus[exStatusKey(dk, bi, e.name)];
     const entry = {name:e.name,sets:e.sets,reps:e.reps||0,weight:e.weight||0,time:e.time||0};
-    if (exStatus) entry.status = exStatus; /* só inclui se houver marcação explícita */
+    if (exStatus) entry.status = exStatus;
+    /* MOD-3: grava completedSets apenas se parcial (< sets); séries completas não precisam do campo */
+    if (e.completedSets !== undefined && e.completedSets !== e.sets) {
+      entry.completedSets = e.completedSets;
+    }
     return entry;
   });
   history.unshift({date:today,timestamp,duration,dayKey:dk,day:DAYFULL[DAYS.indexOf(dk)],blockLabel:b.label,blockType:b.type,exercises:exArr});
@@ -5119,7 +5469,11 @@ function renderHistorico(){
               : e.status === 'skipped'
               ? `<span class="hist-ex-status skipped">pulado</span>`
               : '';
-            body+=`<div class="h-ex-row"><span class="h-ex-name">${e.name}</span>${statusBadge}<span class="h-ex-val">${val}</span></div>`;
+            /* MOD-3: badge de séries parciais — só aparece quando completedSets < sets */
+            const partialBadge = (e.completedSets !== undefined && e.completedSets < e.sets)
+              ? `<span class="hist-ex-status partial">${e.completedSets}/${e.sets} séries</span>`
+              : '';
+            body+=`<div class="h-ex-row"><span class="h-ex-name">${e.name}</span>${statusBadge}${partialBadge}<span class="h-ex-val">${val}</span></div>`;
           });
           body+=`</div>`;
         });
@@ -6127,10 +6481,14 @@ function _timerStop(){
    Se já há um timer ativo, reinicia com o novo exercício. */
 function _timerStart(exName, seconds){
   _timerStop(); /* cleanup antes de iniciar novo */
+  _notifCancel(); /* cancela qualquer notificação pendente anterior */
   timerState.active = true;
   timerState.exName = exName;
   timerState.total = seconds || TIMER_DEFAULT_SECONDS;
   timerState.remaining = timerState.total;
+
+  /* Agenda notificação para quando o descanso terminar */
+  _notifSchedule(timerState.total, 'Descanso concluído ✓', `Hora de continuar — ${exName}`);
 
   /* Renderiza o banner imediatamente antes do primeiro tick */
   _timerRenderBanner();
@@ -6141,14 +6499,65 @@ function _timerStart(exName, seconds){
       _timerStop();
       _timerRemoveBanner();
       toast('Descanso concluído — próximo exercício!');
+      /* Re-render para re-habilitar o botão "Iniciar/Continuar" na overlay */
+      if(workoutMode.active){ _wmNeedsRender = true; render(); }
     } else {
       _timerRenderBanner();
     }
   }, 1000);
 }
 
-/* Atualiza o banner via DOM direto — sem chamar render() */
+/* Atualiza o timer via DOM direto — sem chamar render().
+   No workout mode: renderiza no #wm-timer (modal dentro da overlay).
+   Fora: renderiza no #rest-timer-banner (banner da guia Hoje). */
 function _timerRenderBanner(){
+  if(workoutMode.active){
+    _timerRenderWm();
+  } else {
+    _timerRenderOutside();
+  }
+}
+
+/* Timer dentro do workout mode — tela de descanso na overlay */
+function _timerRenderWm(){
+  const el = document.getElementById('wm-timer');
+  if(!el) return;
+  const r = timerState.remaining;
+  const mins = Math.floor(r / 60);
+  const secs = r % 60;
+  const timeStr = mins > 0
+    ? `${mins}:${String(secs).padStart(2,'0')}`
+    : `${secs}s`;
+  const pct = Math.round((timerState.remaining / timerState.total) * 100);
+  const urgent = timerState.remaining <= 10;
+
+  /* Primeira chamada: monta o HTML do banner compacto */
+  if(!el.querySelector('.wm-rest-banner')){
+    el.innerHTML = `<div class="wm-rest-banner${urgent?' urgent':''}">
+      <div class="wm-rest-banner-left">
+        <span class="wm-rest-banner-label">Descanso</span>
+        <span class="wm-rest-banner-ex">${timerState.exName}</span>
+      </div>
+      <div class="wm-rest-banner-time" id="wm-tnum">${timeStr}</div>
+      <div class="wm-rest-banner-bar"><div class="wm-rest-banner-fill" id="wm-arc" style="width:${pct}%"></div></div>
+      <button class="wm-rest-banner-skip" onclick="_timerCancel()">Pular →</button>
+    </div>`;
+    el.style.display = 'block';
+    return;
+  }
+
+  /* Ticks seguintes: atualiza cirurgicamente */
+  const numEl = document.getElementById('wm-tnum');
+  if(numEl){ numEl.textContent = timeStr; numEl.classList.toggle('urgent', urgent); }
+  const fillEl = document.getElementById('wm-arc');
+  if(fillEl) fillEl.style.width = pct + '%';
+  const bannerEl = el.querySelector('.wm-rest-banner');
+  if(bannerEl) bannerEl.classList.toggle('urgent', urgent);
+}
+
+
+/* Timer fora do workout mode — banner compacto na guia Hoje */
+function _timerRenderOutside(){
   const banner = document.getElementById('rest-timer-banner');
   if(!banner) return;
   const r = timerState.remaining;
@@ -6159,34 +6568,46 @@ function _timerRenderBanner(){
     : `${secs}s`;
   const pct = Math.round((timerState.remaining / timerState.total) * 100);
   const urgent = timerState.remaining <= 10;
-  banner.innerHTML = `
-    <div class="rtb-left">
-      <div>
-        <div class="rtb-label">Descanso</div>
-        <div class="rtb-ex">${timerState.exName}</div>
+
+  /* Primeira chamada: monta o HTML */
+  if(!banner.querySelector('.rtb-left')){
+    banner.innerHTML = `
+      <div class="rtb-left">
+        <div>
+          <div class="rtb-label">Descanso</div>
+          <div class="rtb-ex">${timerState.exName}</div>
+        </div>
       </div>
-    </div>
-    <div class="${urgent?'rtb-time urgent':'rtb-time'}">${timeStr}</div>
-    <button class="rtb-skip" onclick="_timerCancel()">Pular</button>
-    <div class="rtb-progress"><div class="rtb-progress-fill" style="width:${pct}%"></div></div>`;
-}
-
-/* Remove o banner do DOM */
-function _timerRemoveBanner(){
-  const banner = document.getElementById('rest-timer-banner');
-  if(banner) banner.innerHTML = '';
-  /* Colapsa o banner reduzindo sua presença visual */
-  if(banner){
-    banner.style.padding = '0';
-    banner.style.borderBottomWidth = '0';
-    banner.style.marginBottom = '0';
+      <div class="rtb-time" id="rtb-t">${timeStr}</div>
+      <button class="rtb-skip" onclick="_timerCancel()">Pular</button>
+      <div class="rtb-progress"><div class="rtb-progress-fill" id="rtb-bar" style="width:${pct}%"></div></div>`;
+    return;
   }
+
+  /* Ticks seguintes: atualiza só o número e a barra */
+  const tEl = document.getElementById('rtb-t');
+  if(tEl){ tEl.textContent = timeStr; tEl.className = urgent ? 'rtb-time urgent' : 'rtb-time'; }
+  const barEl = document.getElementById('rtb-bar');
+  if(barEl) barEl.style.width = pct + '%';
 }
 
-/* Cancela o timer manualmente (botão "Pular") */
+/* Remove o banner do DOM e esconde o timer da overlay */
+function _timerRemoveBanner(){
+  /* Timer compacto da overlay */
+  const wmTimer = document.getElementById('wm-timer');
+  if(wmTimer){ wmTimer.style.display = 'none'; wmTimer.innerHTML = ''; }
+  /* Banner da guia Hoje */
+  const banner = document.getElementById('rest-timer-banner');
+  if(banner){ banner.innerHTML = ''; }
+}
+
+/* Cancela o timer manualmente (botão "Pular descanso") */
 function _timerCancel(){
   _timerStop();
+  _notifCancel(); /* cancela notificação pendente pois o usuário pulou */
   _timerRemoveBanner();
+  /* No workout mode: re-render para que o botão volte a "Continuar" */
+  if(workoutMode.active){ _wmNeedsRender = true; render(); }
 }
 
 /* Gera o HTML estático do banner (montado por renderHoje).
@@ -6197,31 +6618,56 @@ function _timerBannerHTML(){
   return `<div id="rest-timer-banner" style="position:relative"></div>`;
 }
 
-/* Chamado após render(): reinjecta o conteúdo do banner se timer ativo */
+/* Chamado após render(): reinjecta o conteúdo do timer se ativo */
 function _timerReattach(){
-  if(timerState.active) _timerRenderBanner();
+  if(!timerState.active) return;
+  if(workoutMode.active){
+    const el = document.getElementById('wm-timer');
+    /* Banner compacto: display block, não flex */
+    if(el){ el.style.display = 'block'; _timerRenderWm(); }
+  } else {
+    _timerRenderOutside();
+  }
 }
 
 /* ──────────────────────────────────────────────────────────────────────────
    WORKOUT MODE
    ────────────────────────────────────────────────────────────────────────── */
 
-/* Inicia o modo treino para um bloco específico */
+/* Inicia o modo treino para um bloco específico.
+   Inicializa setsRemaining com as séries do primeiro exercício (MOD-1)
+   e restTime com o padrão (MOD-2). Persiste imediatamente via saveTodayCache(). */
 function wmStart(dk, bi){
   const block = todaySession[bi];
-  if(!block || !block.exercises.length) return;
-  /* Encontra o primeiro exercício não marcado como done */
+  if(!block) return;
   const extras = sessionExtraExercises[dk+'-'+bi] || [];
   const allEx = [...block.exercises, ...extras];
+  if(!allEx.length) return; /* sem exercícios nem extras — não inicia */
   /* Começa no primeiro exercício sem status 'done' */
-  let startEi = allEx.findIndex((e,i) => sessionExStatus[exStatusKey(dk,bi,e.name)] !== 'done');
+  let startEi = allEx.findIndex(e => sessionExStatus[exStatusKey(dk,bi,e.name)] !== 'done');
   if(startEi === -1) startEi = 0; /* todos já feitos — começa do zero */
-  workoutMode = { active: true, dk, bi, ei: startEi };
+  const startEx = allEx[startEi];
+  workoutMode = {
+    active: true,
+    dk,
+    bi,
+    ei: startEi,
+    setsRemaining: startEx ? startEx.sets : 0, /* MOD-1: séries do primeiro exercício */
+    restTime: TIMER_DEFAULT_SECONDS,            /* MOD-2: padrão de descanso */
+  };
+  _wmOverlayVisible = true;
+  _wmNeedsRender    = true;
+  saveTodayCache(); /* MOD-1: persiste estado para sobreviver a fechamento */
+  /* Pede permissão de notificação na primeira vez que o treino guiado é iniciado */
+  _notifRequestPermission();
   render();
 }
 
-/* Avança para o próximo exercício, marcando o atual como done */
-function wmNext(sets, reps, time, weight){
+/* Processa o clique em "Iniciar"/"Continuar":
+   MOD-1 — decrementa setsRemaining; só avança de exercício quando chega a 0.
+   MOD-2 — usa workoutMode.restTime (personalizável) em vez de TIMER_DEFAULT_SECONDS.
+   Persiste valores editados em todaySession a cada série. */
+function wmNext(reps, time, weight){
   const { dk, bi, ei } = workoutMode;
   const block = todaySession[bi];
   if(!block) return;
@@ -6230,45 +6676,44 @@ function wmNext(sets, reps, time, weight){
   const ex = allEx[ei];
   if(!ex) return;
 
-  /* Persiste os valores editados */
-  if(ei < block.exercises.length){
-    /* Exercício do template — atualiza todaySession */
-    const tEx = block.exercises[ei];
-    if(sets > 0)   tEx.sets   = sets;
-    if(reps > 0)   tEx.reps   = reps;
-    if(time > 0)   tEx.time   = time;
-    if(weight > 0) tEx.weight = weight;
-    todaySessionDirty = true;
-    saveTodayCache();
-  } else {
-    /* Exercício extra — atualiza sessionExtraExercises */
-    const exIdx = ei - block.exercises.length;
-    const xEx = extras[exIdx];
-    if(xEx){
-      if(sets > 0)   xEx.sets   = sets;
-      if(reps > 0)   xEx.reps   = reps;
-      if(time > 0)   xEx.time   = time;
-      if(weight > 0) xEx.weight = weight;
-      saveTodayCache();
-    }
+  /* Os valores dos inputs (reps/tempo/peso) são usados apenas para esta série.
+     NÃO são gravados em todaySession — ao próximo render os inputs voltam ao
+     valor base do exercício automaticamente. Isso permite alterar durante uma
+     série sem mudar o template base. */
+
+  /* MOD-1: decrementa série e inicia timer de descanso */
+  workoutMode.setsRemaining--;
+  saveTodayCache();
+  _wmNeedsRender = true;
+  _timerStart(ex.name, workoutMode.restTime); /* MOD-2: usa restTime personalizável */
+
+  if(workoutMode.setsRemaining > 0){
+    /* Ainda há séries — mantém no mesmo exercício, aguarda próximo clique */
+    render();
+    return;
   }
 
-  /* Marca como done e inicia timer */
+  /* Todas as séries concluídas — marca done e avança para o próximo exercício */
   const k = exStatusKey(dk, bi, ex.name);
   sessionExStatus[k] = 'done';
   saveTodayCache();
-  _timerStart(ex.name, TIMER_DEFAULT_SECONDS);
 
-  /* Avança o cursor para o próximo não-done */
   let nextEi = ei + 1;
   while(nextEi < allEx.length && sessionExStatus[exStatusKey(dk,bi,allEx[nextEi].name)] === 'done'){
     nextEi++;
   }
   workoutMode.ei = nextEi;
+  /* MOD-1: inicializa setsRemaining para o próximo exercício */
+  const nextEx = allEx[nextEi];
+  workoutMode.setsRemaining = nextEx ? nextEx.sets : 0;
+  saveTodayCache();
+  _wmNeedsRender = true;
   render();
 }
 
-/* Pula o exercício atual sem marcar como done */
+/* Pula o exercício atual sem marcar como done.
+   MOD-3: se setsRemaining > 0, grava completedSets no exercício de todaySession
+   para registrar quantas séries foram efetivamente feitas antes de pular. */
 function wmSkip(){
   const { dk, bi, ei } = workoutMode;
   const block = todaySession[bi];
@@ -6277,26 +6722,147 @@ function wmSkip(){
   const allEx = [...block.exercises, ...extras];
   const ex = allEx[ei];
   if(!ex) return;
+
+  /* MOD-3: registra séries parciais se o usuário pulou no meio */
+  const completedSets = ex.sets - workoutMode.setsRemaining;
+  if(completedSets > 0 && completedSets < ex.sets){
+    /* Grava em todaySession para que saveLog() capture no histórico */
+    if(ei < block.exercises.length){
+      block.exercises[ei].completedSets = completedSets;
+      todaySessionDirty = true;
+    } else {
+      const xEx = extras[ei - block.exercises.length];
+      if(xEx) xEx.completedSets = completedSets;
+    }
+  }
+
   const k = exStatusKey(dk, bi, ex.name);
   sessionExStatus[k] = 'skipped';
   saveTodayCache();
-  /* Avança */
-  workoutMode.ei = ei + 1;
+
+  /* Avança para o próximo e inicializa setsRemaining */
+  const nextEi = ei + 1;
+  workoutMode.ei = nextEi;
+  const nextEx = allEx[nextEi];
+  workoutMode.setsRemaining = nextEx ? nextEx.sets : 0;
+  saveTodayCache();
+  _wmNeedsRender = true;
   render();
 }
 
-/* Fecha o modo treino sem registrar */
+/* ── Controle de visibilidade da "segunda tela" ──────────────────────────────
+
+   wmShowOverlay()  — traz a overlay para o primeiro plano (remove .wm-hidden)
+   wmHideOverlay()  — manda a overlay para background SEM encerrar o treino.
+                      O pip aparece para indicar que o treino segue em andamento.
+   wmAbort()        — encerra o treino definitivamente (antigo wmClose).
+   wmClose()        — atalho mantido por compatibilidade → chama wmHideOverlay
+                      quando há treino ativo, ou wmAbort se não há.
+   ─────────────────────────────────────────────────────────────────────────── */
+
+function wmShowOverlay(){
+  if(!workoutMode.active) return;
+  _wmOverlayVisible = true;
+  const wmRoot = document.getElementById('wm-root');
+  if(wmRoot){
+    /* Se o DOM da overlay ainda não existe (boot com treino ativo), renderiza */
+    if(wmRoot.dataset.wmActive !== 'true'){
+      wmRoot.innerHTML = renderWorkoutMode();
+      wmRoot.dataset.wmActive = 'true';
+      _wmNeedsRender = false;
+    }
+    wmRoot.classList.remove('wm-hidden');
+  }
+  _wmUpdatePip();
+}
+
+function wmHideOverlay(){
+  _wmOverlayVisible = false;
+  const wmRoot = document.getElementById('wm-root');
+  if(wmRoot) wmRoot.classList.add('wm-hidden');
+  _wmUpdatePip();
+}
+
+/* Confirmação de encerramento em dois cliques — sem confirm() (bloqueado em PWA).
+   Primeiro clique: _wmAbortPending=true → re-render mostra botão "Confirmar?".
+   Segundo clique: executa wmAbort(). Qualquer outra ação cancela. */
+function wmAbortConfirm(){
+  if(_wmAbortPending){
+    wmAbort();
+  } else {
+    _wmAbortPending = true;
+    _wmNeedsRender  = true;
+    render();
+    /* Cancela automaticamente após 4s se o usuário não confirmar */
+    setTimeout(()=>{
+      if(_wmAbortPending){ _wmAbortPending=false; _wmNeedsRender=true; render(); }
+    }, 4000);
+  }
+}
+
+/* Encerra o treino definitivamente — limpa workoutMode e fecha a overlay */
+function wmAbort(){
+  _wmAbortPending   = false;
+  _timerCancel();
+  _notifCancel();
+  workoutMode    = { active: false, dk: '', bi: 0, ei: 0, setsRemaining: 0, restTime: 90 };
+  _wmOverlayVisible = false;
+  _wmNeedsRender    = false;
+  saveTodayCache();
+  const wmRoot = document.getElementById('wm-root');
+  if(wmRoot){ wmRoot.innerHTML = ''; wmRoot.dataset.wmActive = 'false'; wmRoot.classList.add('wm-hidden'); }
+  _wmUpdatePip();
+  render();
+}
+
+/* wmClose mantido para compatibilidade — agora manda para background */
 function wmClose(){
-  workoutMode = { active: false, dk: '', bi: 0, ei: 0 };
-  render();
+  if(workoutMode.active){
+    wmHideOverlay(); /* treino em andamento → segunda tela */
+  } else {
+    wmAbort();
+  }
 }
 
-/* Finaliza e registra o bloco */
+/* Fecha o modo treino sem registrar — persiste reset no cache */
 function wmFinish(){
   const { dk, bi } = workoutMode;
-  workoutMode = { active: false, dk: '', bi: 0, ei: 0 };
+  _timerCancel();
+  _notifCancel();
+  workoutMode    = { active: false, dk: '', bi: 0, ei: 0, setsRemaining: 0, restTime: 90 };
+  _wmOverlayVisible = false;
+  _wmNeedsRender    = false;
+  saveTodayCache();
+  const wmRoot = document.getElementById('wm-root');
+  if(wmRoot){ wmRoot.innerHTML = ''; wmRoot.dataset.wmActive = 'false'; wmRoot.classList.add('wm-hidden'); }
+  _wmUpdatePip();
   render();
   saveLog(dk, bi);
+}
+
+/* Pip flutuante — botão "Treino ativo" que aparece quando a overlay está em background */
+function _wmUpdatePip(){
+  /* Remove pip anterior se existir */
+  const old = document.getElementById('wm-pip');
+  if(old) old.remove();
+  /* Só exibe se há treino ativo E overlay em background */
+  if(!workoutMode.active || _wmOverlayVisible) return;
+  const { dk, bi, ei } = workoutMode;
+  const block = todaySession[bi];
+  if(!block) return;
+  const extras = sessionExtraExercises[dk+'-'+bi] || [];
+  const allEx  = [...block.exercises, ...extras];
+  const ex     = allEx[ei];
+  const exName = ex ? ex.name : 'Treino';
+  const setsLeft = workoutMode.setsRemaining;
+  const pip = document.createElement('button');
+  pip.id = 'wm-pip';
+  pip.setAttribute('onclick', 'wmShowOverlay()');
+  pip.innerHTML = `
+    <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" style="width:12px;height:12px;flex-shrink:0"><path d="M3 2l7 4-7 4z" fill="currentColor" stroke="none"/></svg>
+    <span>${exName} · ${setsLeft} série${setsLeft!==1?'s':''} restante${setsLeft!==1?'s':''}</span>
+  `;
+  document.body.appendChild(pip);
 }
 
 /* Lê input do workout mode sem expor null (fallback para valor original do exercício) */
@@ -6306,7 +6872,8 @@ function _wmReadInput(id, fallback){
   return parseFloat(el.value) || fallback;
 }
 
-/* Confirma o exercício atual lendo os inputs do workout mode */
+/* Confirma a série atual lendo os inputs do workout mode.
+   MOD-1: sets NÃO é lido — é fixo. Apenas reps/tempo/peso são editáveis. */
 function wmConfirm(){
   const { dk, bi, ei } = workoutMode;
   const block = todaySession[bi];
@@ -6316,38 +6883,96 @@ function wmConfirm(){
   const ex = allEx[ei];
   if(!ex) return;
   const hasTime = ex.time > 0 && ex.reps === 0;
-  const sets   = _wmReadInput('wm-sets',   ex.sets);
   const reps   = _wmReadInput('wm-reps',   ex.reps);
   const time   = _wmReadInput('wm-time',   ex.time);
   const weight = _wmReadInput('wm-weight', ex.weight);
-  wmNext(sets, hasTime ? 0 : reps, hasTime ? time : 0, weight);
+  wmNext(hasTime ? 0 : reps, hasTime ? time : 0, weight);
 }
 
-/* ── renderWorkoutMode(): HTML da overlay fullscreen de treino ── */
+/* wmResume(): reabre a overlay do treino em andamento SEM resetar workoutMode.
+   Chamado pelo botão "Retomar treino em andamento" na guia Hoje.
+   Garante que setsRemaining e ei são preservados exatamente como estavam. */
+function wmResume(){
+  if(!workoutMode.active) return;
+  wmShowOverlay();
+}
+
+/* MOD-2: Atualiza o tempo de descanso durante o treino.
+   Muda o PRÓXIMO timer; o atual em andamento não é afetado. */
+function wmSetRestTime(seconds){
+  workoutMode.restTime = seconds;
+  saveTodayCache();
+  _wmNeedsRender = true;
+  render();
+}
+
+/* MOD-4: Reordena exercícios na fila durante o treino.
+   Afeta apenas todaySession — NUNCA blocks. A guia Semana permanece intocada.
+   workoutMode.ei é recalculado por nome para continuar apontando ao exercício atual. */
+function wmReorderEx(fromIdx, toIdx){
+  const { dk, bi } = workoutMode;
+  const block = todaySession[bi];
+  if(!block) return;
+  const extras = sessionExtraExercises[dk+'-'+bi] || [];
+  const allEx = [...block.exercises, ...extras];
+  /* Captura o nome do exercício atual ANTES de mover */
+  const currentExName = allEx[workoutMode.ei] ? allEx[workoutMode.ei].name : null;
+  /* Só reordena dentro de block.exercises (não extras nesta versão) */
+  if(fromIdx >= block.exercises.length || toIdx >= block.exercises.length) return;
+  const moved = block.exercises.splice(fromIdx, 1)[0];
+  block.exercises.splice(toIdx, 0, moved);
+  /* Recalcula ei por nome para não perder o exercício atual */
+  if(currentExName){
+    const allExNew = [...block.exercises, ...extras];
+    workoutMode.ei = allExNew.findIndex(e => e.name === currentExName);
+    if(workoutMode.ei === -1) workoutMode.ei = 0;
+  }
+  todaySessionDirty = true;
+  saveTodayCache();
+  _wmNeedsRender = true;
+  render();
+}
 function renderWorkoutMode(){
-  const { dk, bi, ei } = workoutMode;
+  const { dk, bi, ei, setsRemaining, restTime } = workoutMode;
   const block = todaySession[bi];
   if(!block) return '';
   const extras = sessionExtraExercises[dk+'-'+bi] || [];
   const allEx  = [...block.exercises, ...extras];
   const total  = allEx.length;
 
-  /* Exercício além do fim da lista → mostra tela de conclusão */
+  /* Exercício além do fim da lista → tela de conclusão */
   const finished = ei >= total;
 
-  const closeSvg = `<svg viewBox="0 0 14 14"><path d="M2 2l10 10M12 2L2 12"/></svg>`;
+  const minSvg = `<svg viewBox="0 0 14 10" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"><path d="M2 2l5 5 5-5"/></svg>`;
+
+  /* MOD-2: controle de tempo de descanso no header */
+  const REST_STEPS = [15, 30, 45, 60, 90, 120, 180, 240, 300];
+  const curRestIdx = REST_STEPS.indexOf(restTime);
+  const canDec = curRestIdx > 0;
+  const canInc = curRestIdx < REST_STEPS.length - 1;
+  const restControl = `<div class="wm-rest-ctrl">
+    <button class="wm-rest-btn" onclick="wmSetRestTime(${canDec ? REST_STEPS[curRestIdx-1] : restTime})" ${canDec?'':'disabled'}>−</button>
+    <span class="wm-rest-val">${restTime}s</span>
+    <button class="wm-rest-btn" onclick="wmSetRestTime(${canInc ? REST_STEPS[curRestIdx+1] : restTime})" ${canInc?'':'disabled'}>+</button>
+  </div>`;
+
+  const abortBtn = _wmAbortPending
+    ? `<button class="wm-abort-btn wm-abort-pending" onclick="wmAbortConfirm()">Confirmar?</button>`
+    : `<button class="wm-abort-btn" onclick="wmAbortConfirm()">Encerrar</button>`;
 
   let header = `<div class="wm-hdr">
-    <button class="wm-close" onclick="wmClose()">${closeSvg}</button>
+    <button class="wm-close" onclick="wmHideOverlay()" title="Minimizar — treino continua em background">${minSvg}</button>
     <div class="wm-hdr-info">
       <div class="wm-hdr-title">Treino em andamento</div>
       <div class="wm-hdr-block">${block.label}</div>
     </div>
-    <div class="wm-prog-pill">${finished ? total : ei+1} / ${total}</div>
+    <div style="display:flex;align-items:center;gap:8px">
+      ${restControl}
+      <div class="wm-prog-pill">${finished ? total : ei+1} / ${total}</div>
+    </div>
   </div>`;
 
   if(finished){
-    /* Tela de conclusão */
     const doneCnt  = allEx.filter(e => sessionExStatus[exStatusKey(dk,bi,e.name)] === 'done').length;
     const skipCnt  = allEx.filter(e => sessionExStatus[exStatusKey(dk,bi,e.name)] === 'skipped').length;
     return `<div class="wm-overlay">
@@ -6358,7 +6983,7 @@ function renderWorkoutMode(){
         <div style="font-size:var(--fs-sub);color:var(--t2);margin-top:4px">${doneCnt} feito${doneCnt!==1?'s':''} · ${skipCnt} pulado${skipCnt!==1?'s':''}</div>
       </div>
       <div class="wm-footer">
-        <button class="wm-btn-skip" onclick="wmClose()">Voltar</button>
+        <button class="wm-btn-skip" onclick="wmHideOverlay()">Voltar</button>
         <button class="wm-btn-finish" onclick="wmFinish()">Registrar bloco ✓</button>
       </div>
     </div>`;
@@ -6368,26 +6993,27 @@ function renderWorkoutMode(){
   const hasTime = ex.time > 0 && ex.reps === 0;
   const lastReg = getLastRegistered(ex.name);
 
-  /* Chips de alvo */
+  /* MOD-1: chip de séries — mostra progresso acumulado (0 feitas → ex.sets feitas) */
+  const completedSetsNow = ex.sets - setsRemaining;
+  const setsLabel = `${completedSetsNow} / ${ex.sets} série${ex.sets !== 1 ? 's' : ''}`;
   const targetChips = [
-    `<span class="wm-ex-chip hl">${ex.sets} séries</span>`,
+    `<span class="wm-ex-chip hl">${setsLabel}</span>`,
     hasTime
       ? `<span class="wm-ex-chip">${ex.time}s</span>`
       : `<span class="wm-ex-chip">${ex.reps} reps</span>`,
     ex.weight ? `<span class="wm-ex-chip">${ex.weight}kg</span>` : ''
   ].join('');
 
-  /* Contexto de histórico */
   let lastHtml = '';
   if(lastReg){
     const prev = lastReg.w > 0 ? `${lastReg.w}kg` : (lastReg.t > 0 ? `${lastReg.t}s` : `${lastReg.r}rep`);
     lastHtml = `<div class="wm-last"><span class="wm-last-badge">última</span> ${prev} em ${lastReg.date}</div>`;
   }
 
-  /* Inputs de registro */
+  /* MOD-1: sets exibido como texto fixo (não input editável) */
   const inputs = `<div class="wm-inputs">
     <div class="wm-inp-g">
-      <input id="wm-sets" type="number" value="${ex.sets}" min="1" inputmode="numeric">
+      <div class="wm-sets-display">${ex.sets}</div>
       <div class="inp-lbl">séries</div>
     </div>
     ${hasTime
@@ -6400,20 +7026,34 @@ function renderWorkoutMode(){
     </div>
   </div>`;
 
-  /* Queue — lista de todos os exercícios do bloco */
+  /* MOD-1: label do botão */
+  const btnLabel = completedSetsNow === 0 ? 'Iniciar' : `Confirmar série ${completedSetsNow + 1}`;
+
+
+
+  /* MOD-4: queue com botões ↑↓ para reordenação */
   let queueItems = '';
   allEx.forEach((e, i)=>{
     const st = sessionExStatus[exStatusKey(dk, bi, e.name)];
     const isCurrent = i === ei;
     const hasT = e.time > 0 && e.reps === 0;
-    if(isCurrent) return; /* exercício atual não aparece na fila */
+    if(isCurrent) return;
     const checkSvg = `<svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6l3 3 5-5"/></svg>`;
     const fwdSvg   = `<svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 6h8M7 3l3 3-3 3"/></svg>`;
+    const upSvg    = `<svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 8l4-4 4 4"/></svg>`;
+    const downSvg  = `<svg viewBox="0 0 12 12" width="10" height="10" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M2 4l4 4 4-4"/></svg>`;
+    /* Botões ↑↓ só para exercícios de block.exercises (não extras) */
+    const canReorder = i < block.exercises.length;
+    const reorderBtns = canReorder ? `<div class="wm-qi-reorder">
+      ${i > 0 && i !== ei ? `<button class="wm-qi-arrow" onclick="wmReorderEx(${i},${i-1})">${upSvg}</button>` : `<span class="wm-qi-arrow-ph"></span>`}
+      ${i < block.exercises.length - 1 ? `<button class="wm-qi-arrow" onclick="wmReorderEx(${i},${i+1})">${downSvg}</button>` : `<span class="wm-qi-arrow-ph"></span>`}
+    </div>` : '';
     queueItems += `<div class="wm-queue-item${st?' done-item':''}">
       <div class="wm-qi-num">${i+1}</div>
       <div class="wm-qi-name">${e.name}</div>
       <span class="wm-qi-tag">${e.sets}×${hasT?e.time+'s':e.reps}</span>
       <div class="wm-qi-status ${st||''}">${st==='done'?checkSvg:st==='skipped'?fwdSvg:''}</div>
+      ${reorderBtns}
     </div>`;
   });
 
@@ -6424,6 +7064,8 @@ function renderWorkoutMode(){
 
   return `<div class="wm-overlay">
     ${header}
+    <!-- Timer de descanso compacto — aparece entre header e body quando ativo -->
+    <div id="wm-timer" style="display:${timerState.active?'block':'none'}"></div>
     <div class="wm-body">
       <div class="wm-ex-card">
         <div class="wm-ex-label">Exercício ${ei+1} de ${total}</div>
@@ -6436,7 +7078,8 @@ function renderWorkoutMode(){
     </div>
     <div class="wm-footer">
       <button class="wm-btn-skip" onclick="wmSkip()">Pular</button>
-      <button class="wm-btn-done" onclick="wmConfirm()">Feito →</button>
+      ${abortBtn}
+      <button class="wm-btn-done" onclick="wmConfirm()"${timerState.active?' disabled style="opacity:0.4"':''}>${btnLabel} →</button>
     </div>
   </div>`;
 }
@@ -6465,13 +7108,45 @@ function render(){
   const modalRoot=document.getElementById('modal-root');
   if(modalRoot)modalRoot.innerHTML=renderModal();
   /* Fase 3 · Item 10: injeta o workout mode overlay no #app (fora do scroll) */
-  let wmRoot=document.getElementById('wm-root');
+  /* ── Segunda tela: wm-root é criado UMA vez e NUNCA destruído ──────────────
+     A overlay fica sempre no DOM. Quando workoutMode.active===true:
+       · overlay: visível (remove .wm-hidden)
+       · pip: escondido (classe pip-hidden)
+     Quando o usuário fecha a overlay (wmClose/wmHideOverlay) mas está treinando:
+       · overlay: invisível (.wm-hidden) mas DOM intacto → estado preservado
+       · pip: visível para o usuário voltar ao treino
+     Quando workoutMode.active===false (treino não iniciado ou encerrado):
+       · wm-root esvaziado e escondido, pip escondido                          */
+  let wmRoot = document.getElementById('wm-root');
   if(!wmRoot){
-    wmRoot=document.createElement('div');
-    wmRoot.id='wm-root';
-    document.getElementById('app').appendChild(wmRoot);
+    wmRoot = document.createElement('div');
+    wmRoot.id = 'wm-root';
+    wmRoot.className = 'wm-hidden';
+    document.body.appendChild(wmRoot); /* body: position:fixed não sofre clip do #app */
   }
-  wmRoot.innerHTML=workoutMode.active?renderWorkoutMode():'';
+  if(workoutMode.active){
+    /* Só re-renderiza se o treino acabou de ser iniciado (wm-root vazio) ou
+       se uma ação do próprio workout mode pediu render (botão Confirmar, Pular etc).
+       O flag _wmNeedsRender evita destruir DOM + perder inputs desnecessariamente. */
+    if(wmRoot.dataset.wmActive !== 'true' || _wmNeedsRender){
+      wmRoot.innerHTML = renderWorkoutMode();
+      wmRoot.dataset.wmActive = 'true';
+      _wmNeedsRender = false;
+    }
+    /* Visibilidade controlada pelo flag _wmOverlayVisible */
+    if(_wmOverlayVisible){
+      wmRoot.classList.remove('wm-hidden');
+    } else {
+      wmRoot.classList.add('wm-hidden');
+    }
+  } else {
+    /* Nenhum treino ativo — limpa o root */
+    wmRoot.innerHTML = '';
+    wmRoot.dataset.wmActive = 'false';
+    wmRoot.classList.add('wm-hidden');
+  }
+  /* Atualiza o pip (botão flutuante de retomar treino) */
+  _wmUpdatePip();
   restoreScroll();   /* restaura scroll depois de inserir o conteúdo */
   /* Fase 3 · Item 9: re-injeta conteúdo do timer banner após rebuild do DOM */
   _timerReattach();
@@ -7504,6 +8179,17 @@ window.addEventListener('orientationchange', function(){
   setTimeout(_fixViewportHeight, 100); /* pequeno delay para o browser terminar o giro */
 });
 _fixViewportHeight(); /* executa imediatamente no load */
+
+/* ── Salva estado sempre que o app vai para background ou fecha ─────────────
+   beforeunload: garante salvamento no reload/fechamento da aba (desktop).
+   visibilitychange: captura saída para background no iOS/Android
+   (no mobile, beforeunload é pouco confiável). pagehide cobre Safari iOS.
+   Essencial para que workoutMode.setsRemaining sobreviva ao fechar o app. */
+window.addEventListener('beforeunload', function(){ saveTodayCache(); });
+window.addEventListener('pagehide',     function(){ saveTodayCache(); });
+document.addEventListener('visibilitychange', function(){
+  if(document.visibilityState === 'hidden') saveTodayCache();
+});
 </script>
 </body>
 </html>
