@@ -2983,47 +2983,76 @@ function getSkippedExercises(){
 
 /* Heatmap SVG — últimas 12 semanas, retorna string HTML */
 function renderHeatmap(){
+  /* Grade: Segunda(0)→Domingo(6), 12 semanas para trás */
   const WEEKS=12;
-  const DAY=86400000;
   const now=new Date();now.setHours(0,0,0,0);
-  const dow=now.getDay();
-  /* Vai até o último domingo */
-  const gridEnd=new Date(now);gridEnd.setDate(now.getDate()+(6-dow));
-  const gridStart=new Date(gridEnd);gridStart.setDate(gridEnd.getDate()-(WEEKS*7-1));
-
-  /* Monta set de datas com registro */
+  const todayDow=now.getDay(); /* 0=dom */
+  const daysFromMon=todayDow===0?6:todayDow-1;
+  /* gridStart = segunda-feira de 12 semanas atrás */
+  const gridStart=new Date(now);gridStart.setDate(now.getDate()-daysFromMon-(WEEKS-1)*7);
   const doneSet=new Set(history.map(h=>h.date));
 
-  const CELL=13,GAP=3,STEP=CELL+GAP;
-  const DAYS_LABEL=['D','S','T','Q','Q','S','S'];
-  const W=WEEKS*STEP+2,H=7*STEP+18;
+  /* Conta treinos por semana para intensidade */
+  const weekCount=[];
+  for(let w=0;w<WEEKS;w++){
+    let c=0;
+    for(let d=0;d<7;d++){
+      const day=new Date(gridStart);day.setDate(gridStart.getDate()+(w*7+d));
+      if(doneSet.has(day.toLocaleDateString('pt-BR')))c++;
+    }
+    weekCount.push(c);
+  }
+  const maxCount=Math.max(...weekCount,1);
 
+  const LABEL_W=16,CELL=13,GAP=3,STEP=CELL+GAP;
+  const DAYS_LABEL=['S','T','Q','Q','S','S','D']; /* seg→dom */
+  const gridW=WEEKS*STEP-GAP;
+  const W=LABEL_W+gridW+2,H=20+7*STEP+14;
+
+  /* Labels de meses no topo */
+  let monthLabels='',lastMonth=-1;
+  const MS=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+  for(let w=0;w<WEEKS;w++){
+    const day=new Date(gridStart);day.setDate(gridStart.getDate()+(w*7));
+    const m=day.getMonth();
+    if(m!==lastMonth){
+      monthLabels+=`<text x="${LABEL_W+w*STEP}" y="12" font-size="9" fill="var(--t2)">${MS[m]}</text>`;
+      lastMonth=m;
+    }
+  }
+
+  /* Células */
   let cells='';
   for(let w=0;w<WEEKS;w++){
     for(let d=0;d<7;d++){
       const day=new Date(gridStart);day.setDate(gridStart.getDate()+(w*7+d));
-      if(day>new Date())continue;
+      if(day>now)continue;
       const dateStr=day.toLocaleDateString('pt-BR');
       const done=doneSet.has(dateStr);
       const isToday=day.getTime()===now.getTime();
-      const x=w*STEP;const y=18+d*STEP;
+      const x=LABEL_W+w*STEP, y=20+d*STEP;
+      const intensity=done?(0.35+0.65*(weekCount[w]/maxCount)):1;
       const fill=done?'var(--ac)':'var(--s3)';
-      const opacity=done?1:0.8;
+      const opacity=done?intensity:0.6;
       const stroke=isToday?'var(--ac)':'none';
-      const strokeW=isToday&&!done?1:0;
-      cells+=`<rect x="${x}" y="${y}" width="${CELL}" height="${CELL}" rx="2" fill="${fill}" opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeW}"/>`;
+      const strokeW=isToday&&!done?1.5:0;
+      cells+=`<rect x="${x}" y="${y}" width="${CELL}" height="${CELL}" rx="2.5" fill="${fill}" opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeW}"/>`;
     }
   }
 
-  /* Labels dos dias (esquerda) — só seg, qua, sex */
-  let labels='';
-  [1,3,5].forEach(d=>{
-    labels+=`<text x="${WEEKS*STEP+4}" y="${18+d*STEP+CELL/2+1}" font-size="9" fill="var(--t2)" dominant-baseline="middle">${DAYS_LABEL[d]}</text>`;
+  /* Labels dos dias à ESQUERDA — todos os 7 dias */
+  let dayLabels='';
+  DAYS_LABEL.forEach((label,d)=>{
+    dayLabels+=`<text x="${LABEL_W-4}" y="${20+d*STEP+CELL/2+1}" font-size="9" fill="var(--t2)" text-anchor="end" dominant-baseline="middle">${label}</text>`;
   });
 
-  return `<svg width="100%" viewBox="0 0 ${W+20} ${H}" style="display:block">${cells}${labels}</svg>`;
-}
+  /* Legenda inferior */
+  const totalDays=history.length;
+  const legendY=20+7*STEP+10;
+  const legend=`<text x="${LABEL_W}" y="${legendY}" font-size="9" fill="var(--t2)">${totalDays} dia${totalDays!==1?'s':''} treinado${totalDays!==1?'s':''}</text>`;
 
+  return `<svg width="100%" viewBox="0 0 ${W} ${H}" style="display:block;overflow:visible">${monthLabels}${dayLabels}${cells}${legend}</svg>`;
+}
 /* Retorna [{name, vals:[{date,w,r,t}]}] dos exercícios com mais histórico de carga */
 function getTopExercisesEvolution(limit){
   const map={};
@@ -4497,144 +4526,482 @@ function isPR_before(exName,weight,beforeDate){
   return weight>Math.max(...prev.map(e=>e.weight));
 }
 
+/* ══════════════════════════════════════════════════════════
+   FASE 4 — INSIGHTS AUTOMÁTICOS
+   Analisa o histórico e retorna array de {type, icon, text, sub}
+   type: 'positive' | 'warning' | 'neutral'
+   ══════════════════════════════════════════════════════════ */
+function generateInsights(){
+  const insights=[];
+  if(history.length<3)return insights; /* mínimo para análise */
+
+  const now=new Date();
+
+  /* Helper: converte data pt-BR para Date */
+  const toDate=s=>{const[dd,mm,yy]=s.split('/');return new Date(yy,mm-1,dd);};
+
+  /* Helper: dias desde a data mais recente de um filtro */
+  const daysSince=entries=>{
+    if(!entries.length)return null;
+    const last=new Date(Math.max(...entries.map(e=>toDate(e.date))));
+    return Math.floor((now-last)/86400000);
+  };
+
+  /* ── 1. Streak em alta ── */
+  const streak=calcStreak();
+  if(streak.current>=7){
+    insights.push({type:'positive',icon:'🔥',
+      text:`${streak.current} dias consecutivos`,
+      sub:'Você está numa sequência sólida. Não quebre agora.'});
+  } else if(streak.current===0&&streak.best>=5){
+    insights.push({type:'warning',icon:'⚠️',
+      text:'Sequência zerada',
+      sub:`Seu recorde é ${streak.best} dias. Hora de reconstruir.`});
+  }
+
+  /* ── 2. Volume caindo por 2 semanas seguidas ── */
+  const v0=calcWeeklyVolume(0),v1=calcWeeklyVolume(1),v2=calcWeeklyVolume(2);
+  if(v2>0&&v1>0&&v0>0&&v1<v2&&v0<v1){
+    const queda=Math.round(((v0-v2)/v2)*100);
+    insights.push({type:'warning',icon:'📉',
+      text:`Volume caindo há 2 semanas`,
+      sub:`${queda}% abaixo de 2 semanas atrás. Vale revisar intensidade.`});
+  } else if(v1>0&&v0>v1*1.2){
+    insights.push({type:'positive',icon:'📈',
+      text:`Volume +${Math.round(((v0-v1)/v1)*100)}% vs semana passada`,
+      sub:'Semana mais intensa que a anterior.'});
+  }
+
+  /* ── 3. Blocos nunca registrados (existem no plano mas zero no histórico) ── */
+  const doneBlocks=new Set(history.map(h=>`${h.dayKey}||${h.blockLabel}`));
+  const neverDone=[];
+  DAYS.forEach(dk=>{
+    (blocks[dk]||[]).forEach(b=>{
+      if(!doneSet_insight(b,dk,doneBlocks))neverDone.push(b.label);
+    });
+  });
+  if(neverDone.length){
+    insights.push({type:'warning',icon:'👻',
+      text:`${neverDone.length} bloco${neverDone.length>1?'s':''} nunca registrado${neverDone.length>1?'s':''}`,
+      sub:neverDone.slice(0,2).join(', ')+(neverDone.length>2?` +${neverDone.length-2}`:'')});
+  }
+
+  /* ── 4. Exercício mais pulado com taxa alta ── */
+  const skipped=getSkippedExercises();
+  if(skipped.length){
+    const worst=skipped[0];
+    const pct=worst.total>0?Math.round((worst.count/worst.total)*100):0;
+    if(pct>=50){
+      insights.push({type:'warning',icon:'🚫',
+        text:`"${worst.name}" pulado ${pct}% das vezes`,
+        sub:`${worst.count} de ${worst.total} aparições ignoradas.`});
+    }
+  }
+
+  /* ── 5. Grupo muscular negligenciado (não treinado há 2+ semanas) ── */
+  const muscleFreq=calcMuscleFrequency();
+  if(muscleFreq.length){
+    const neglected=muscleFreq.filter(g=>{
+      if(!g.lastDate)return false;
+      const days=Math.floor((now-toDate(g.lastDate))/86400000);
+      return days>=14;
+    });
+    if(neglected.length){
+      const MLABELS={peito:'Peito',costas:'Costas',ombro:'Ombro',bíceps:'Bíceps',
+        tríceps:'Tríceps',perna:'Perna',glúteo:'Glúteo',posterior:'Posterior',
+        core:'Core',lombar:'Lombar',pescoço:'Pescoço',antebraço:'Antebraço',cardio:'Cardio'};
+      const g=neglected[0];
+      const days=Math.floor((now-toDate(g.lastDate))/86400000);
+      insights.push({type:'warning',icon:'💤',
+        text:`${MLABELS[g.group]||g.group} parado há ${days} dias`,
+        sub:`Último registro: ${g.lastDate}.`});
+    }
+  }
+
+  /* ── 6. PR recente (últimos 7 dias) ── */
+  const recentPRs=[];
+  const cutoff=new Date(now);cutoff.setDate(now.getDate()-7);
+  history.filter(h=>toDate(h.date)>=cutoff).forEach(h=>{
+    const exList=Array.isArray(h.exercises)?h.exercises:(h.entries||[]).flatMap(b=>b.exercises||[]);
+    exList.forEach(e=>{
+      if(e.weight>0&&isPR(e.name,e.weight))recentPRs.push(e.name);
+    });
+  });
+  if(recentPRs.length){
+    insights.push({type:'positive',icon:'🏆',
+      text:`PR${recentPRs.length>1?'s':''} esta semana`,
+      sub:recentPRs.slice(0,2).join(', ')+(recentPRs.length>2?` +${recentPRs.length-2}`:'')});
+  }
+
+  /* ── 7. Dia da semana com pior consistência ── */
+  const dowStats=calcDayOfWeekStats();
+  if(dowStats.length){
+    const worst=dowStats.reduce((a,b)=>b.rate<a.rate?b:a);
+    if(worst.rate<40&&worst.planned>2){
+      insights.push({type:'neutral',icon:'📅',
+        text:`${worst.label} é seu dia mais fraco`,
+        sub:`${worst.rate}% de conclusão — ${worst.done} de ${worst.planned} planejados.`});
+    }
+  }
+
+  /* ── 8. Consistência alta essa semana ── */
+  const weekRate=calcWeekRate();
+  if(weekRate===100){
+    insights.push({type:'positive',icon:'✅',
+      text:'Semana 100% concluída',
+      sub:'Todos os blocos desta semana foram registrados.'});
+  }
+
+  return insights;
+}
+
+/* Helper interno — verifica se bloco já foi registrado alguma vez */
+function doneSet_insight(b,dk,doneBlocks){
+  return doneBlocks.has(`${dk}||${b.label}`);
+}
+
 function renderStats(){
-  const totalRegistros = history.length;
-  const streak    = calcStreak();
-  const weekRate  = calcWeekRate();
-  const volThis   = calcWeeklyVolume(0);
-  const volPrev   = calcWeeklyVolume(1);
-  const volDiff   = volPrev > 0 ? Math.round(((volThis-volPrev)/volPrev)*100) : null;
-  const skipped   = getSkippedExercises().slice(0,5);
-  const topEx     = getTopExercisesEvolution(6);
-  const dowStats  = calcDayOfWeekStats();
-  const prs       = getAllPRs().slice(0,5);
+  const totalRegistros=history.length;
+  const streak=calcStreak();
+  const weekRate=calcWeekRate();
+  const volThis=calcWeeklyVolume(0);
+  const volPrev=calcWeeklyVolume(1);
+  const volDiff=volPrev>0?Math.round(((volThis-volPrev)/volPrev)*100):null;
+  const skipped=getSkippedExercises().slice(0,5);
+  const topEx=getTopExercisesEvolution(5);
+  const dowStats=calcDayOfWeekStats();
+  const prs=getAllPRs().slice(0,6);
+  const muscleFreq=calcMuscleFrequency();
+  const adherence=calcBlockAdherence();
+  const summary=calcWeeklySummary(1);
 
-  /* ── helpers de estilo inline reutilizáveis ── */
-  const card=(content,mb)=>`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:16px;margin-bottom:${mb||16}px">${content}</div>`;
-  const secLabel=(txt)=>`<div style="font-size:var(--fs-micro);color:var(--t2);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">${txt}</div>`;
-  const divider=`<div style="height:0.5px;background:var(--t4);margin:0 0 0"></div>`;
+  const card=(content,extra)=>`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:16px;margin-bottom:12px;${extra||''}">${content}</div>`;
+  const lbl=(txt)=>`<div style="font-size:10px;color:var(--t2);letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px;font-weight:500">${txt}</div>`;
 
-  let h = `<div class="sec">Stats</div>`;
+  let h=`<div class="sec">Stats</div>`;
 
   if(!totalRegistros){
-    h += `<div class="empty"><strong>Nenhum treino registrado</strong>Registre seu primeiro bloco para ver seus stats.</div>`;
+    h+=`<div class="empty"><strong>Nenhum treino registrado</strong>Registre seu primeiro bloco para ver seus stats.</div>`;
+    h+=`<button class="add-b" style="width:100%;justify-content:center;margin-top:8px" onclick="openModal({t:'addGoal'})">+ Nova meta</button>`;
+    h+=renderGoals();
     return h;
   }
 
-  /* ════════════════════════════════════
-     § 1 — PULSO
-     ════════════════════════════════════ */
+  /* ══════════════════════════════
+     § 1  PULSO — 3 cards topo
+     ══════════════════════════════ */
+  const rateColor=weekRate>=80?'var(--green)':weekRate>=50?'var(--yellow)':'var(--t2)';
+  const streakSub=streak.best>streak.current?`<div style="font-size:10px;color:var(--t2);margin-top:3px">recorde ${streak.best}d</div>`:'';
+  const volDiffStr=volDiff!==null
+    ?`<span style="color:${volDiff>=0?'var(--green)':'var(--red)'}">${volDiff>=0?'+':''}${volDiff}%</span>`
+    :`<span style="color:var(--t2)">—</span>`;
 
-  /* Streak + taxa da semana */
-  const streakSub = streak.best > streak.current
-    ? `<div style="font-size:var(--fs-micro);color:var(--t2);margin-top:4px">recorde ${streak.best}d</div>` : '';
-  const rateColor = weekRate>=80?'var(--green)':weekRate>=50?'var(--yellow)':'var(--t2)';
+  h+=`<div style="display:grid;grid-template-columns:1fr 1fr 1fr;gap:8px;margin-bottom:12px">`;
+  h+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:14px 12px">
+    ${lbl('Sequência')}
+    <div style="font-size:26px;font-weight:500;color:var(--tc);line-height:1">${streak.current}<span style="font-size:12px;color:var(--t2);margin-left:2px">d</span></div>
+    ${streakSub}
+  </div>`;
+  h+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:14px 12px">
+    ${lbl('Semana')}
+    <div style="font-size:26px;font-weight:500;color:${rateColor};line-height:1">${weekRate}<span style="font-size:12px;color:var(--t2);margin-left:2px">%</span></div>
+    <div style="font-size:10px;color:var(--t2);margin-top:3px">conclusão</div>
+  </div>`;
+  h+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:14px 12px">
+    ${lbl('Volume')}
+    <div style="font-size:22px;font-weight:500;color:var(--tc);line-height:1">${volThis}<span style="font-size:11px;color:var(--t2);margin-left:2px">kg</span></div>
+    <div style="font-size:10px;color:var(--t2);margin-top:3px">${volDiffStr} vs ant.</div>
+  </div>`;
+  h+=`</div>`;
 
-  h += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">`;
-  h += card(`${secLabel('Sequência')}<div style="font-size:var(--fs-display);font-weight:var(--fw-medium);color:var(--tc)">${streak.current}<span style="font-size:var(--fs-body);color:var(--t2);margin-left:3px">d</span></div>${streakSub}`,0);
-  h += card(`${secLabel('Esta semana')}<div style="font-size:var(--fs-display);font-weight:var(--fw-medium);color:${rateColor}">${weekRate}<span style="font-size:var(--fs-body);color:var(--t2);margin-left:2px">%</span></div><div style="font-size:var(--fs-micro);color:var(--t2);margin-top:4px">conclusão</div>`,0);
-  h += `</div>`;
-
-  /* Volume semanal */
-  const volDiffStr = volDiff!==null
-    ? `<span style="color:${volDiff>=0?'var(--green)':'var(--red)'}">${volDiff>=0?'+':''}${volDiff}%</span> vs semana anterior`
-    : `<span style="color:var(--t2)">sem dados da semana anterior</span>`;
-  h += card(`${secLabel('Volume desta semana')}<div style="font-size:var(--fs-display);font-weight:var(--fw-medium);color:var(--tc)">${volThis}<span style="font-size:var(--fs-body);color:var(--t2);margin-left:3px">kg</span></div><div style="font-size:var(--fs-sub);color:var(--t2);margin-top:4px">${volDiffStr}</div>`);
-
-  /* ════════════════════════════════════
-     § 2 — FREQUÊNCIA (heatmap)
-     ════════════════════════════════════ */
-  h += card(`${secLabel('Frequência — últimas 12 semanas')}${renderHeatmap()}`);
-
-  /* ════════════════════════════════════
-     § 3 — COMPORTAMENTO POR DIA
-     ════════════════════════════════════ */
-  if(dowStats.length){
-    const maxRate=Math.max(...dowStats.map(d=>d.rate),1);
-    let rows='';
-    dowStats.forEach(d=>{
-      const barW=Math.round((d.rate/maxRate)*100);
-      const barColor=d.rate>=80?'var(--green)':d.rate>=50?'var(--yellow)':'var(--red)';
-      rows+=`<div style="display:grid;grid-template-columns:28px 1fr 34px;align-items:center;gap:8px;margin-bottom:7px">
-        <div style="font-size:var(--fs-micro);color:var(--t2);letter-spacing:.5px">${d.label}</div>
-        <div style="height:5px;background:var(--s3);border-radius:3px;overflow:hidden">
-          <div style="height:100%;width:${barW}%;background:${barColor};border-radius:3px;transition:width .3s"></div>
+  /* ══════════════════════════════
+     § 1.5  INSIGHTS AUTOMÁTICOS
+     ══════════════════════════════ */
+  const insights=generateInsights();
+  if(insights.length){
+    const iconMap={positive:'var(--green)',warning:'var(--yellow)',neutral:'var(--t2)'};
+    let cards='';
+    insights.forEach(({type,icon,text,sub})=>{
+      const accent=iconMap[type]||'var(--t2)';
+      cards+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-left:2px solid ${accent};border-radius:var(--r-md);padding:10px 12px;display:flex;align-items:flex-start;gap:10px">
+        <div style="font-size:16px;flex-shrink:0;margin-top:1px">${icon}</div>
+        <div>
+          <div style="font-size:13px;color:var(--tc);font-weight:500;line-height:1.3">${text}</div>
+          <div style="font-size:11px;color:var(--t2);margin-top:2px;line-height:1.4">${sub}</div>
         </div>
-        <div style="font-size:var(--fs-micro);color:var(--t2);text-align:right">${d.rate}%</div>
       </div>`;
     });
-    h += card(`${secLabel('Consistência por dia')}${rows}`);
+    h+=`<div style="display:flex;flex-direction:column;gap:7px;margin-bottom:12px">${cards}</div>`;
   }
 
-  /* ════════════════════════════════════
-     § 4 — EVOLUÇÃO DE CARGA
-     ════════════════════════════════════ */
+  /* ══════════════════════════════
+     § 2  HEATMAP
+     ══════════════════════════════ */
+  h+=card(`${lbl('Frequência — últimas 12 semanas')}${renderHeatmap()}`);
+
+  /* ══════════════════════════════
+     § 3  DONUT de consistência + barras DOW lado a lado
+     ══════════════════════════════ */
+  if(dowStats.length){
+    /* Donut SVG */
+    const pct=weekRate;
+    const r=28,cx=38,cy=38,circ=2*Math.PI*r;
+    const arc=circ*(pct/100);
+    const arcColor=pct>=80?'var(--green)':pct>=50?'var(--yellow)':'var(--red)';
+    const donut=`<svg width="76" height="76" viewBox="0 0 76 76" style="flex-shrink:0">
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="var(--s3)" stroke-width="7"/>
+      <circle cx="${cx}" cy="${cy}" r="${r}" fill="none" stroke="${arcColor}" stroke-width="7"
+        stroke-dasharray="${arc} ${circ}" stroke-dashoffset="${circ/4}" stroke-linecap="round"/>
+      <text x="${cx}" y="${cy+1}" text-anchor="middle" dominant-baseline="middle" font-size="13" font-weight="500" fill="var(--tc)">${pct}%</text>
+    </svg>`;
+
+    /* Barras por dia */
+    const maxRate=Math.max(...dowStats.map(d=>d.rate),1);
+    let bars='<div style="flex:1;display:flex;flex-direction:column;gap:5px">';
+    dowStats.forEach(d=>{
+      const bw=Math.round((d.rate/maxRate)*100);
+      const bc=d.rate>=80?'var(--green)':d.rate>=50?'var(--yellow)':'var(--red)';
+      bars+=`<div style="display:grid;grid-template-columns:22px 1fr 30px;align-items:center;gap:6px">
+        <div style="font-size:10px;color:var(--t2)">${d.label}</div>
+        <div style="height:4px;background:var(--s3);border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:${bw}%;background:${bc};border-radius:2px"></div>
+        </div>
+        <div style="font-size:10px;color:var(--t2);text-align:right">${d.rate}%</div>
+      </div>`;
+    });
+    bars+='</div>';
+
+    h+=card(`${lbl('Consistência por dia')}<div style="display:flex;align-items:center;gap:14px">${donut}${bars}</div>`);
+  }
+
+  /* ══════════════════════════════
+     § 4  GRÁFICO DE LINHA — evolução de carga
+     ══════════════════════════════ */
   if(topEx.length){
+    /* Renderiza um gráfico de linha SVG para cada exercício */
+    const renderLineChart=(vals,useW)=>{
+      const series=vals.map(v=>useW?v.w:(v.r||v.t||0)).filter(v=>v>0);
+      if(series.length<2)return'';
+      const minV=Math.min(...series),maxV=Math.max(...series);
+      const range=Math.max(maxV-minV,1);
+      const W=120,H=36,PAD=4;
+      const pts=series.map((v,i)=>{
+        const x=PAD+((W-PAD*2)/(series.length-1))*i;
+        const y=H-PAD-((v-minV)/range)*(H-PAD*2);
+        return`${x.toFixed(1)},${y.toFixed(1)}`;
+      }).join(' ');
+      const last=series[series.length-1],first=series[0];
+      const lineColor=last>first?'var(--green)':last<first?'var(--red)':'var(--t2)';
+      /* Área preenchida */
+      const areaEnd=`${(PAD+((W-PAD*2)/(series.length-1))*(series.length-1)).toFixed(1)},${H-PAD} ${PAD},${H-PAD}`;
+      return`<svg viewBox="0 0 ${W} ${H}" style="width:${W}px;height:${H}px;flex-shrink:0">
+        <polyline points="${pts} ${areaEnd}" fill="${lineColor}" opacity=".08"/>
+        <polyline points="${pts}" fill="none" stroke="${lineColor}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+        <circle cx="${pts.split(' ').pop().split(',')[0]}" cy="${pts.split(' ').pop().split(',')[1]}" r="2.5" fill="${lineColor}"/>
+      </svg>`;
+    };
+
     let rows='';
     topEx.forEach(({name,vals})=>{
       const useW=vals.some(v=>v.w>0);
-      const series=vals.map(v=>useW?v.w:(v.r||v.t));
-      const last=series[series.length-1];
-      const first=series[0];
+      const series=vals.map(v=>useW?v.w:(v.r||v.t||0)).filter(v=>v>0);
+      if(!series.length)return;
+      const last=series[series.length-1],first=series[0];
       const unit=useW?'kg':vals[vals.length-1]?.t?'s':'rep';
       const diff=last-first;
-      const diffColor=diff>0?'var(--green)':diff<0?'var(--red)':'var(--t2)';
-      const diffStr=diff>0?`+${diff}`:diff===0?'=':`${diff}`;
-      const spark=renderSparkline(vals,useW);
-      rows+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:9px 0;border-bottom:0.5px solid var(--t4)">
-        <div style="flex:1;min-width:0;margin-right:12px">
-          <div style="font-size:var(--fs-body);color:var(--tc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
-          <div style="font-size:var(--fs-micro);color:var(--t2);margin-top:2px">${first}${unit} → <strong style="color:var(--tc)">${last}${unit}</strong> <span style="color:${diffColor}">(${diffStr}${unit})</span></div>
+      const dc=diff>0?'var(--green)':diff<0?'var(--red)':'var(--t2)';
+      const ds=diff>0?`+${diff}`:diff===0?'=':String(diff);
+      const chart=renderLineChart(vals,useW);
+      rows+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:10px 0;border-bottom:0.5px solid var(--t4)">
+        <div style="flex:1;min-width:0;margin-right:10px">
+          <div style="font-size:13px;color:var(--tc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+          <div style="font-size:10px;color:var(--t2);margin-top:2px">${first}${unit} → <strong style="color:var(--tc)">${last}${unit}</strong> <span style="color:${dc}">(${ds}${unit})</span></div>
         </div>
-        <div style="flex-shrink:0">${spark}</div>
+        ${chart}
       </div>`;
     });
-    h += card(`${secLabel('Evolução de carga')}${rows}`);
+    if(rows)h+=card(`${lbl('Evolução de carga')}${rows}`);
   }
 
-  /* ════════════════════════════════════
-     § 5 — PRs
-     ════════════════════════════════════ */
+  /* ══════════════════════════════
+     § 5  BARRAS DE VOLUME SEMANAL (últimas 8 semanas)
+     ══════════════════════════════ */
+  {
+    const NUM_WEEKS=8;
+    const weekVols=[];
+    for(let i=NUM_WEEKS-1;i>=0;i--){weekVols.push({offset:i,vol:calcWeeklyVolume(i)});}
+    const maxVol=Math.max(...weekVols.map(w=>w.vol),1);
+    if(weekVols.some(w=>w.vol>0)){
+      const BAR_W=28,GAP=6,H=60,PAD_B=16;
+      const chartW=(BAR_W+GAP)*NUM_WEEKS-GAP;
+      let bars2='';
+      weekVols.forEach(({offset,vol},i)=>{
+        const bh=Math.max(2,Math.round((vol/maxVol)*(H-PAD_B)));
+        const x=i*(BAR_W+GAP);
+        const y=H-PAD_B-bh;
+        const isThis=offset===0;
+        const fill=isThis?'var(--ac)':'var(--s3)';
+        const fillOp=isThis?1:0.7;
+        bars2+=`<rect x="${x}" y="${y}" width="${BAR_W}" height="${bh}" rx="3" fill="${fill}" opacity="${fillOp}"/>`;
+        if(isThis||i===0||i===NUM_WEEKS-1){
+          bars2+=`<text x="${x+BAR_W/2}" y="${H}" text-anchor="middle" font-size="9" fill="var(--t2)">${isThis?'agora':`-${offset}s`}</text>`;
+        }
+        if(vol>0&&isThis){
+          bars2+=`<text x="${x+BAR_W/2}" y="${y-4}" text-anchor="middle" font-size="9" fill="var(--tc)" font-weight="500">${vol}</text>`;
+        }
+      });
+      h+=card(`${lbl('Volume semanal — kg/semana')}<svg width="100%" viewBox="0 0 ${chartW} ${H+4}" style="display:block;overflow:visible">${bars2}</svg>`);
+    }
+  }
+
+  /* ══════════════════════════════
+     § 6  PRs — grid de cards
+     ══════════════════════════════ */
   if(prs.length){
-    let rows='';
+    let prCards='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
     prs.forEach(({name,weight,date})=>{
-      rows+=`<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--t4)">
-        <div style="font-size:var(--fs-body);color:var(--tc)">${name}</div>
-        <div style="display:flex;align-items:center;gap:10px">
-          <div style="font-size:var(--fs-sub);color:var(--t2)">${date}</div>
-          <div style="font-size:var(--fs-body);font-weight:var(--fw-medium);color:var(--ac)">${weight}kg</div>
-        </div>
+      prCards+=`<div style="background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-md);padding:10px 12px">
+        <div style="font-size:10px;color:var(--t2);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+        <div style="font-size:18px;font-weight:500;color:var(--ac)">${weight}<span style="font-size:11px;color:var(--t2);margin-left:2px">kg</span></div>
+        <div style="font-size:10px;color:var(--t2);margin-top:2px">${date}</div>
       </div>`;
     });
-    h += card(`${secLabel('Records pessoais')}${rows}`);
+    prCards+='</div>';
+    h+=card(`${lbl('Records pessoais')}${prCards}`);
   }
 
-  /* ════════════════════════════════════
-     § 6 — MAIS EVITADOS
-     ════════════════════════════════════ */
+  /* ══════════════════════════════
+     § 7  FREQUÊNCIA MUSCULAR — barras horizontais graduadas
+     ══════════════════════════════ */
+  if(muscleFreq.length){
+    const MLABELS={peito:'Peito',costas:'Costas',ombro:'Ombro',bíceps:'Bíceps',tríceps:'Tríceps',
+      perna:'Perna',glúteo:'Glúteo',posterior:'Post.',core:'Core',lombar:'Lombar',
+      pescoço:'Pescoço',antebraço:'Antebraço',cardio:'Cardio'};
+    const maxS=Math.max(...muscleFreq.map(g=>g.sessions),1);
+    let rows='';
+    muscleFreq.forEach(g=>{
+      const bw=Math.round((g.sessions/maxS)*100);
+      const fill=bw>=80?'var(--green)':bw>=50?'var(--ac)':'var(--t2)';
+      rows+=`<div style="display:grid;grid-template-columns:62px 1fr 28px;align-items:center;gap:8px;margin-bottom:7px">
+        <div style="font-size:11px;color:var(--t2)">${MLABELS[g.group]||g.group}</div>
+        <div style="height:6px;background:var(--s3);border-radius:3px;overflow:hidden">
+          <div style="height:100%;width:${bw}%;background:${fill};border-radius:3px;opacity:.8"></div>
+        </div>
+        <div style="font-size:10px;color:var(--t2);text-align:right">${g.sessions}×</div>
+      </div>`;
+    });
+    h+=card(`${lbl('Frequência muscular')}${rows}`);
+  }
+
+  /* ══════════════════════════════
+     § 8  EXERCÍCIOS MAIS EVITADOS
+     ══════════════════════════════ */
   if(skipped.length){
     let rows='';
     skipped.forEach(({name,count,total})=>{
       const pct=total>0?Math.round((count/total)*100):0;
-      const barW=pct;
-      rows+=`<div style="padding:9px 0;border-bottom:0.5px solid var(--t4)">
-        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:5px">
-          <div style="font-size:var(--fs-body);color:var(--tc)">${name}</div>
-          <div style="font-size:var(--fs-sub);color:var(--yellow)">pulado ${count}× <span style="color:var(--t2)">(${pct}%)</span></div>
+      rows+=`<div style="padding:8px 0;border-bottom:0.5px solid var(--t4)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div style="font-size:13px;color:var(--tc)">${name}</div>
+          <div style="font-size:10px;color:var(--yellow)">pulado ${count}× <span style="color:var(--t2)">(${pct}%)</span></div>
         </div>
         <div style="height:3px;background:var(--s3);border-radius:2px;overflow:hidden">
-          <div style="height:100%;width:${barW}%;background:var(--yellow);border-radius:2px"></div>
+          <div style="height:100%;width:${pct}%;background:var(--yellow);border-radius:2px"></div>
         </div>
       </div>`;
     });
-    h += card(`${secLabel('Mais evitados')}${rows}`);
+    h+=card(`${lbl('Mais evitados')}${rows}`);
   }
 
-  /* ── rodapé ── */
-  h += `<div style="text-align:center;padding:12px 0 4px">
-    <div style="font-size:var(--fs-sub);color:var(--t2)">${totalRegistros} registro${totalRegistros!==1?'s':''} no histórico</div>
-  </div>`;
+  /* ══════════════════════════════
+     § 9  ADERÊNCIA AO PLANO
+     ══════════════════════════════ */
+  if(adherence.length){
+    const worst=adherence.slice(0,5);
+    let rows='';
+    worst.forEach(({label,type,done,planned,rate})=>{
+      const icon=BTYPE_ICONS[type]||BTYPE_ICONS.custom;
+      const bc=rate>=80?'var(--green)':rate>=50?'var(--yellow)':'var(--red)';
+      rows+=`<div style="padding:8px 0;border-bottom:0.5px solid var(--t4)">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div style="display:flex;align-items:center;gap:6px">
+            <span style="font-size:13px">${icon}</span>
+            <span style="font-size:13px;color:var(--tc)">${label}</span>
+          </div>
+          <div style="font-size:10px;color:var(--t2)">${done}/${planned} <span style="color:${bc};font-weight:500">${rate}%</span></div>
+        </div>
+        <div style="height:3px;background:var(--s3);border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:${rate}%;background:${bc};border-radius:2px"></div>
+        </div>
+      </div>`;
+    });
+    h+=card(`${lbl('Aderência ao plano — piores blocos')}${rows}`);
+  }
 
+  /* ══════════════════════════════
+     § 10  RESUMO SEMANA PASSADA
+     ══════════════════════════════ */
+  if(summary){
+    const volC=calcWeeklySummary(0);
+    const dc=volC&&summary.vol>0?(()=>{const d=Math.round(((volC.vol-summary.vol)/summary.vol)*100);return`<span style="color:${d>=0?'var(--green)':'var(--red)'}">${d>=0?'+':''}${d}%</span>`;})():'—';
+    const prBadges=summary.prs.length?summary.prs.map(p=>`<span style="font-size:10px;background:var(--s2);border:0.5px solid var(--b1);border-radius:6px;padding:2px 8px;color:var(--ac)">${p.name} ${p.weight}kg</span>`).join(''):'';
+    const skipBadges=summary.topSkipped.length?summary.topSkipped.map(([n,c])=>`<span style="font-size:10px;background:var(--s2);border:0.5px solid var(--b1);border-radius:6px;padding:2px 8px;color:var(--yellow)">${n} (${c}×)</span>`).join(''):'';
+    h+=card(`${lbl('Semana passada — '+summary.label)}
+      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-bottom:${summary.prs.length||summary.topSkipped.length?10:0}px">
+        <div style="text-align:center;padding:0 4px"><div style="font-size:20px;font-weight:500;color:var(--tc)">${summary.days}</div><div style="font-size:10px;color:var(--t2)">dias</div></div>
+        <div style="text-align:center;padding:0 4px;border-left:0.5px solid var(--t4);border-right:0.5px solid var(--t4)"><div style="font-size:20px;font-weight:500;color:var(--tc)">${summary.blocks}</div><div style="font-size:10px;color:var(--t2)">blocos</div></div>
+        <div style="text-align:center;padding:0 4px"><div style="font-size:20px;font-weight:500;color:var(--tc)">${summary.vol}kg</div><div style="font-size:10px;color:var(--t2)">${dc} vs esta</div></div>
+      </div>
+      ${prBadges?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px">${prBadges}</div>`:''}
+      ${skipBadges?`<div style="display:flex;flex-wrap:wrap;gap:5px">${skipBadges}</div>`:''}`);
+  }
+
+  /* ══════════════════════════════
+     § 11  METAS
+     ══════════════════════════════ */
+  h+=`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px;margin-top:4px">
+    <div style="font-size:10px;color:var(--t2);letter-spacing:.8px;text-transform:uppercase;font-weight:500">Metas</div>
+    <button style="font-size:11px;color:var(--tc);background:var(--s2);border:0.5px solid var(--b2);border-radius:var(--r-sm);padding:4px 10px;cursor:pointer" onclick="openModal({t:'addGoal'})">+ nova</button>
+  </div>`;
+  h+=renderGoals();
+
+  /* rodapé */
+  h+=`<div style="text-align:center;padding:10px 0 4px"><div style="font-size:11px;color:var(--t2)">${totalRegistros} registro${totalRegistros!==1?'s':''} no histórico</div></div>`;
+  return h;
+}
+
+function renderGoals(){
+  if(!goals.length){
+    return`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:16px;margin-bottom:12px;text-align:center">
+      <div style="font-size:12px;color:var(--t2)">Nenhuma meta ainda.</div>
+    </div>`;
+  }
+  let h='';
+  goals.forEach((g,i)=>{
+    const pct=Math.max(0,Math.min(100,g.progress||0));
+    const barColor=pct>=100?'var(--green)':pct>=60?'var(--ac)':'var(--t2)';
+    h+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:8px">
+      <div style="display:flex;align-items:flex-start;justify-content:space-between;margin-bottom:8px">
+        <div>
+          <div style="font-size:14px;color:var(--tc);font-weight:500">${g.name}</div>
+          ${g.note?`<div style="font-size:11px;color:var(--t2);margin-top:2px">${g.note}</div>`:''}
+        </div>
+        <div style="display:flex;align-items:center;gap:6px">
+          <div style="font-size:13px;font-weight:500;color:${barColor}">${pct}%</div>
+          <button style="font-size:11px;color:var(--t2);background:none;border:none;cursor:pointer;padding:2px 4px" onclick="delGoal(${i})" title="Remover">✕</button>
+        </div>
+      </div>
+      <div style="height:5px;background:var(--s3);border-radius:3px;overflow:hidden;margin-bottom:8px">
+        <div style="height:100%;width:${pct}%;background:${barColor};border-radius:3px;transition:width .3s"></div>
+      </div>
+      <div style="display:flex;gap:6px">
+        <button style="flex:1;padding:5px 0;font-size:12px;background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-sm);color:var(--t2);cursor:pointer" onclick="updGoal(${i},-5)">−5%</button>
+        <button style="flex:1;padding:5px 0;font-size:12px;background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-sm);color:var(--t2);cursor:pointer" onclick="updGoal(${i},-1)">−1%</button>
+        <button style="flex:1;padding:5px 0;font-size:12px;background:var(--s2);border:0.5px solid var(--b2);border-radius:var(--r-sm);color:var(--tc);cursor:pointer" onclick="updGoal(${i},+1)">+1%</button>
+        <button style="flex:1;padding:5px 0;font-size:12px;background:var(--s2);border:0.5px solid var(--b2);border-radius:var(--r-sm);color:var(--tc);cursor:pointer" onclick="updGoal(${i},+5)">+5%</button>
+      </div>
+    </div>`;
+  });
   return h;
 }
 
