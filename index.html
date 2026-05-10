@@ -2321,15 +2321,15 @@ body{
     </svg>
     histórico
   </button>
-  <button class="nb" onclick="nav('metas')" id="nb-metas">
+  <button class="nb" onclick="nav('stats')" id="nb-stats">
     <div class="nb-dot"></div>
-    <!-- Target/goal icon -->
+    <!-- Bar chart icon -->
     <svg viewBox="0 0 20 20">
-      <circle cx="10" cy="10" r="7.5" stroke-width="1.2"/>
-      <circle cx="10" cy="10" r="4" stroke-width="1"/>
-      <circle cx="10" cy="10" r="1.5" fill="currentColor" stroke="none"/>
+      <rect x="3" y="11" width="3.5" height="6" rx="1"/>
+      <rect x="8.25" y="7" width="3.5" height="10" rx="1"/>
+      <rect x="13.5" y="4" width="3.5" height="13" rx="1"/>
     </svg>
-    metas
+    stats
   </button>
   <button class="nb" onclick="nav('journals')" id="nb-journals">
     <div class="nb-dot"></div>
@@ -2385,6 +2385,25 @@ const BTYPES={
   custom:{l:'Personalizado',d:'Bloco livre'},
 };
 
+/* ── MUSCLE_GROUPS — mapeamento de tipo de bloco para grupos musculares ──────
+   Usado pela dashboard de stats para calcular frequência por grupo muscular.
+   Cada BTYPE mapeia para um array de grupos. 'full_body' = contabilizado em todos.
+   ─────────────────────────────────────────────────────────────────────────── */
+const MUSCLE_GROUPS = {
+  academia:    ['peito','costas','ombro','bíceps','tríceps','perna','glúteo','posterior'],
+  calistenia:  ['peito','costas','ombro','core','perna'],
+  skill:       ['ombro','core','costas'],
+  core:        ['core','lombar'],
+  mobilidade:  ['full_body'],
+  neck:        ['pescoço'],
+  cardio:      ['full_body'],
+  aquecimento: ['full_body'],
+  ativacao:    ['full_body'],
+  grip:        ['antebraço','bíceps'],
+  recovery:    ['full_body'],
+  custom:      [],
+};
+
 const FONT_OPTIONS=[
   {id:'helvetica',name:'Helvetica',val:"'Helvetica Neue',Helvetica,Arial,sans-serif"},
   {id:'mono',name:'Mono',val:"'Courier New',Courier,monospace"},
@@ -2418,7 +2437,7 @@ const THEMES={
 //   Dados de primeira vez (null) recebem os defaults e vão direto pra versão atual.
 // ─────────────────────────────────────────────────────────────────────────────
 
-const DATA_VERSION = 1; // ← bumpe aqui ao mudar estrutura de dados
+const DATA_VERSION = 2; // ← bumpe aqui ao mudar estrutura de dados
 const STORE = 'bloc_data'; // chave única no localStorage
 
 const DEFAULT_BLOCKS = {
@@ -2509,8 +2528,16 @@ const MIGRATIONS = [
     });
     return store;
   },
-  // v1 → v2: (exemplo futuro) adicione aqui quando precisar
-  // (store) => { ... return store; },
+  // v1 → v2: adiciona timestamp (hora ISO) e duration ao histórico
+  (store) => {
+    (store.history || []).forEach(entry => {
+      // Entradas antigas recebem null — sem dado = sem análise,
+      // mas sem quebrar a estrutura. Novas entradas terão valores reais.
+      if (entry.timestamp === undefined) entry.timestamp = null;
+      if (entry.duration  === undefined) entry.duration  = null;
+    });
+    return store;
+  },
 ];
 
 // ── Leitura e migração ─────────────────────────────────────────────────────
@@ -2872,6 +2899,131 @@ function stepWeight(id,delta){
   setTimeout(()=>{el.style.color='';},300);
 }
 
+/* ════════════════════════════════════════════════════════════════════════════
+   ANALYTICS CORE — funções puras, sem efeito colateral, sem acesso ao DOM.
+   Entrada: history (array global). Saída: dados para renderStats().
+   ════════════════════════════════════════════════════════════════════════════ */
+
+/* Retorna {current, best} de dias consecutivos com ao menos 1 registro */
+function calcStreak(){
+  if(!history.length)return{current:0,best:0};
+  /* Coleta datas únicas em ordem decrescente */
+  const dates=[...new Set(history.map(h=>h.date))];
+  /* Converte "DD/MM/YYYY" → timestamp normalizado p/ meia-noite local */
+  function toMs(d){const[dd,mm,yy]=d.split('/');return new Date(yy,mm-1,dd).getTime();}
+  const ms=dates.map(toMs).sort((a,b)=>b-a);
+  const DAY=86400000;
+  let cur=1,best=1,run=1;
+  for(let i=1;i<ms.length;i++){
+    if(ms[i-1]-ms[i]===DAY){run++;if(run>best)best=run;}
+    else run=1;
+  }
+  /* Streak atual: começa em 1 se hoje ou ontem tem registro, senão 0 */
+  const now=Date.now();
+  const firstGap=now-ms[0];
+  cur=(firstGap<DAY*2)?run:0;
+  /* best considera a sequência mais longa completa */
+  if(cur>best)best=cur;
+  return{current:cur,best};
+}
+
+/* Taxa de conclusão da semana atual (dom→sab) em % */
+function calcWeekRate(){
+  const now=new Date();
+  const dow=now.getDay(); /* 0=dom */
+  const weekStart=new Date(now);weekStart.setDate(now.getDate()-dow);weekStart.setHours(0,0,0,0);
+  const weekDates=[];
+  for(let i=0;i<=dow;i++){
+    const d=new Date(weekStart);d.setDate(weekStart.getDate()+i);
+    weekDates.push(d.toLocaleDateString('pt-BR'));
+  }
+  /* Dias da semana que têm blocos planejados */
+  const plannedDays=weekDates.filter(d=>{
+    const[dd,mm,yy]=d.split('/');
+    const dayIdx=new Date(yy,mm-1,dd).getDay();
+    const dk=DAYS[dayIdx];
+    return blocks[dk]&&blocks[dk].length>0;
+  });
+  if(!plannedDays.length)return 0;
+  const doneSet=new Set(history.map(h=>h.date));
+  const doneDays=plannedDays.filter(d=>doneSet.has(d));
+  return Math.round((doneDays.length/plannedDays.length)*100);
+}
+
+/* Volume total (kg) de uma semana relativa. weekOffset=0=esta semana, 1=anterior */
+function calcWeeklyVolume(weekOffset){
+  const now=new Date();
+  const dow=now.getDay();
+  const start=new Date(now);start.setDate(now.getDate()-dow-(weekOffset*7));start.setHours(0,0,0,0);
+  const end=new Date(start);end.setDate(start.getDate()+7);
+  return history.reduce((total,entry)=>{
+    const[dd,mm,yy]=entry.date.split('/');
+    const d=new Date(yy,mm-1,dd);
+    if(d>=start&&d<end){
+      const exList=Array.isArray(entry.exercises)?entry.exercises:(entry.entries||[]).flatMap(b=>b.exercises||[]);
+      total+=exList.reduce((s,e)=>s+(e.sets*(e.weight||0)),0);
+    }
+    return total;
+  },0);
+}
+
+/* Exercícios mais pulados: retorna [{name, count, total}] ordenado por count desc */
+function getSkippedExercises(){
+  const map={};
+  history.forEach(entry=>{
+    const exList=Array.isArray(entry.exercises)?entry.exercises:(entry.entries||[]).flatMap(b=>b.exercises||[]);
+    exList.forEach(e=>{
+      if(!map[e.name])map[e.name]={name:e.name,count:0,total:0};
+      map[e.name].total++;
+      if(e.status==='skipped')map[e.name].count++;
+    });
+  });
+  return Object.values(map).filter(x=>x.count>0).sort((a,b)=>b.count-a.count);
+}
+
+/* Heatmap SVG — últimas 12 semanas, retorna string HTML */
+function renderHeatmap(){
+  const WEEKS=12;
+  const DAY=86400000;
+  const now=new Date();now.setHours(0,0,0,0);
+  const dow=now.getDay();
+  /* Vai até o último domingo */
+  const gridEnd=new Date(now);gridEnd.setDate(now.getDate()+(6-dow));
+  const gridStart=new Date(gridEnd);gridStart.setDate(gridEnd.getDate()-(WEEKS*7-1));
+
+  /* Monta set de datas com registro */
+  const doneSet=new Set(history.map(h=>h.date));
+
+  const CELL=13,GAP=3,STEP=CELL+GAP;
+  const DAYS_LABEL=['D','S','T','Q','Q','S','S'];
+  const W=WEEKS*STEP+2,H=7*STEP+18;
+
+  let cells='';
+  for(let w=0;w<WEEKS;w++){
+    for(let d=0;d<7;d++){
+      const day=new Date(gridStart);day.setDate(gridStart.getDate()+(w*7+d));
+      if(day>new Date())continue;
+      const dateStr=day.toLocaleDateString('pt-BR');
+      const done=doneSet.has(dateStr);
+      const isToday=day.getTime()===now.getTime();
+      const x=w*STEP;const y=18+d*STEP;
+      const fill=done?'var(--ac)':'var(--s3)';
+      const opacity=done?1:0.8;
+      const stroke=isToday?'var(--ac)':'none';
+      const strokeW=isToday&&!done?1:0;
+      cells+=`<rect x="${x}" y="${y}" width="${CELL}" height="${CELL}" rx="2" fill="${fill}" opacity="${opacity}" stroke="${stroke}" stroke-width="${strokeW}"/>`;
+    }
+  }
+
+  /* Labels dos dias (esquerda) — só seg, qua, sex */
+  let labels='';
+  [1,3,5].forEach(d=>{
+    labels+=`<text x="${WEEKS*STEP+4}" y="${18+d*STEP+CELL/2+1}" font-size="9" fill="var(--t2)" dominant-baseline="middle">${DAYS_LABEL[d]}</text>`;
+  });
+
+  return `<svg width="100%" viewBox="0 0 ${W+20} ${H}" style="display:block">${cells}${labels}</svg>`;
+}
+
 /* FASE 2 — PR detection: verifica se novo peso bate recorde */
 function isPR(exName, newWeight){
   if(!newWeight||newWeight<=0)return false;
@@ -3011,7 +3163,14 @@ function getExHistory(exName){
 
 /* -------- MEDIA -------- */
 function saveLog(dk,bi){
-  const today=new Date().toLocaleDateString('pt-BR');
+  const now=new Date();
+  const today=now.toLocaleDateString('pt-BR');
+  const timestamp=now.toISOString(); /* hora exata do registro — fundação de analytics */
+  /* Calcula duration se há sessionStart gravado para este bloco */
+  const startKey=`bloc_start_${dk}${bi}`;
+  const startTs=sessionStorage.getItem(startKey);
+  const duration=startTs?Math.round((now-new Date(startTs))/1000):null; /* segundos */
+  sessionStorage.removeItem(startKey);
   /* MUDANÇA 4 — lê de todaySession, sem fallback em blocks */
   const b=todaySession[bi];
   if(!b)return;
@@ -3032,7 +3191,7 @@ function saveLog(dk,bi){
     if (exStatus) entry.status = exStatus; /* só inclui se houver marcação explícita */
     return entry;
   });
-  history.unshift({date:today,dayKey:dk,day:DAYFULL[DAYS.indexOf(dk)],blockLabel:b.label,blockType:b.type,exercises:exArr});
+  history.unshift({date:today,timestamp,duration,dayKey:dk,day:DAYFULL[DAYS.indexOf(dk)],blockLabel:b.label,blockType:b.type,exercises:exArr});
   if(history.length>180)history=history.slice(0,180);
   sv('bv2_history',history);
   /* Limpa extras da sessão — todaySession permanece (pode registrar outro bloco hoje) */
@@ -3278,7 +3437,18 @@ function renderBlockCard(b,dk,bi,prefix){
 
 /* -------- TOGGLE HELPERS -------- */
 function toggleEx(k){openEx[k]=!openEx[k];render()}
-function toggleBlk(k){openBlk[k]=!openBlk[k];persistOpenBlk();render()}
+function toggleBlk(k){
+  openBlk[k]=!openBlk[k];
+  persistOpenBlk();
+  /* Grava hora de abertura do bloco para calcular duration em saveLog().
+     Só grava na abertura (isOpen false → true) e se ainda não há start gravado. */
+  if(openBlk[k]){
+    /* k = dk+bi (ex: "SEG0"). Extrai partes para chave do sessionStorage */
+    const startKey=`bloc_start_${k}`;
+    if(!sessionStorage.getItem(startKey))sessionStorage.setItem(startKey,new Date().toISOString());
+  }
+  render();
+}
 function toggleHist(k){openHist[k]=!openHist[k];render()}
 function toggleExSem(k,dk){openEx[k]=!openEx[k];if(window._lastDayDetail)openDayDetail(window._lastDayDetail)}
 function toggleBlkSem(k,dk){openBlk[k]=!openBlk[k];persistOpenBlk();openDayDetail(dk)}
@@ -4110,33 +4280,94 @@ function renderHistorico(){
   return h;
 }
 
-function renderMetas(){
-  let h=`<div class="sec">Metas</div>`;
-  goals.forEach((g,i)=>{
-    h+=`<div class="goal-c">
-      <div class="goal-h">
-        <div>
-          <div class="goal-n">${g.name}</div>
-          ${g.note?`<div style="font-size:var(--fs-sub);color:var(--t2);margin-top:3px">${g.note}</div>`:''}
-        </div>
-        <div class="goal-pct">${g.progress}%</div>
-      </div>
-      <div class="goal-bar-bg"><div class="goal-bar-f" style="width:${g.progress}%"></div></div>
-      <div class="goal-btns">
-        <button class="goal-btn" onclick="updGoal(${i},-10)">−10</button>
-        <button class="goal-btn" onclick="updGoal(${i},-5)">−5</button>
-        <button class="goal-btn" onclick="updGoal(${i},5)">+5</button>
-        <button class="goal-btn" onclick="updGoal(${i},10)">+10</button>
-        <button class="goal-btn" style="color:var(--red);border-color:rgba(239,68,68,.15)" onclick="delGoal(${i})">×</button>
-      </div>
-    </div>`;
-  });
-  h+=`<button class="add-b" onclick="openModal({t:'addGoal'})">
-    <svg viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke-width="2" stroke-linecap="round"/></svg>
-    Nova meta
-  </button>`;
+function renderStats(){
+  /* ── Fase 1: analytics core ─────────────────────────────────────────────
+     Esta função será construída em fases. Por ora exibe os dados fundacionais
+     já disponíveis no histórico e prepara o terreno para os cards de analytics.
+     ─────────────────────────────────────────────────────────────────────── */
+  const totalRegistros = history.length;
+
+  /* Streak — dias consecutivos com ao menos 1 registro */
+  const streak = calcStreak();
+
+  /* Taxa de conclusão da semana atual */
+  const weekRate = calcWeekRate();
+
+  /* Volume desta semana vs semana anterior */
+  const volThis = calcWeeklyVolume(0);
+  const volPrev = calcWeeklyVolume(1);
+  const volDiff = volPrev > 0 ? Math.round(((volThis - volPrev) / volPrev) * 100) : null;
+
+  /* Exercícios mais pulados */
+  const skipped = getSkippedExercises().slice(0, 3);
+
+  let h = `<div class="sec">Stats</div>`;
+
+  if (!totalRegistros) {
+    h += `<div class="empty"><strong>Nenhum treino registrado</strong>Registre seu primeiro bloco para ver seus stats.</div>`;
+    return h;
+  }
+
+  /* ── Cards de pulso ─────────────────────────────────────────────────── */
+  h += `<div style="display:grid;grid-template-columns:1fr 1fr;gap:10px;margin-bottom:16px">`;
+
+  /* Streak */
+  const streakBest = streak.best > streak.current ? `<div style="font-size:var(--fs-micro);color:var(--t2);margin-top:4px;letter-spacing:.5px">recorde ${streak.best}d</div>` : '';
+  h += `<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:16px">
+    <div style="font-size:var(--fs-micro);color:var(--t2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Sequência</div>
+    <div style="font-size:var(--fs-display);font-weight:var(--fw-medium);color:var(--tc)">${streak.current}<span style="font-size:var(--fs-body);color:var(--t2);margin-left:3px">d</span></div>
+    ${streakBest}
+  </div>`;
+
+  /* Taxa da semana */
+  const rateColor = weekRate >= 80 ? 'var(--green)' : weekRate >= 50 ? 'var(--yellow)' : 'var(--t2)';
+  h += `<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:16px">
+    <div style="font-size:var(--fs-micro);color:var(--t2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Esta semana</div>
+    <div style="font-size:var(--fs-display);font-weight:var(--fw-medium);color:${rateColor}">${weekRate}<span style="font-size:var(--fs-body);color:var(--t2);margin-left:2px">%</span></div>
+    <div style="font-size:var(--fs-micro);color:var(--t2);margin-top:4px;letter-spacing:.5px">conclusão</div>
+  </div>`;
+
+  h += `</div>`;
+
+  /* Volume */
+  const volDiffStr = volDiff !== null
+    ? `<span style="color:${volDiff>=0?'var(--green)':'var(--red)'}"> ${volDiff>=0?'+':''}${volDiff}%</span> vs semana anterior`
+    : 'sem dados da semana anterior';
+  h += `<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:16px;margin-bottom:16px">
+    <div style="font-size:var(--fs-micro);color:var(--t2);letter-spacing:1px;text-transform:uppercase;margin-bottom:8px">Volume desta semana</div>
+    <div style="font-size:var(--fs-display);font-weight:var(--fw-medium);color:var(--tc)">${volThis}<span style="font-size:var(--fs-body);color:var(--t2);margin-left:3px">kg</span></div>
+    <div style="font-size:var(--fs-sub);color:var(--t2);margin-top:4px">${volDiffStr}</div>
+  </div>`;
+
+  /* ── Heatmap de frequência ───────────────────────────────────────────── */
+  h += `<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:16px;margin-bottom:16px">`;
+  h += `<div style="font-size:var(--fs-micro);color:var(--t2);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">Frequência — últimas 12 semanas</div>`;
+  h += renderHeatmap();
+  h += `</div>`;
+
+  /* ── Exercícios mais pulados ─────────────────────────────────────────── */
+  if (skipped.length) {
+    h += `<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:16px;margin-bottom:16px">`;
+    h += `<div style="font-size:var(--fs-micro);color:var(--t2);letter-spacing:1px;text-transform:uppercase;margin-bottom:12px">Mais evitados</div>`;
+    skipped.forEach(({name, count, total}) => {
+      const pct = total > 0 ? Math.round((count/total)*100) : 0;
+      h += `<div style="display:flex;align-items:center;justify-content:space-between;padding:8px 0;border-bottom:0.5px solid var(--t4)">
+        <div style="font-size:var(--fs-body);color:var(--tc)">${name}</div>
+        <div style="font-size:var(--fs-sub);color:var(--yellow)">pulado ${count}×<span style="color:var(--t2);margin-left:4px">(${pct}%)</span></div>
+      </div>`;
+    });
+    h += `</div>`;
+  }
+
+  /* ── Total geral ─────────────────────────────────────────────────────── */
+  h += `<div style="text-align:center;padding:16px 0 8px">
+    <div style="font-size:var(--fs-sub);color:var(--t2)">${totalRegistros} treino${totalRegistros!==1?'s':''} registrado${totalRegistros!==1?'s':''}</div>
+  </div>`;
+
   return h;
 }
+
+
 
 /* -------- CONFIG -------- */
 function renderConfig(){
@@ -4445,7 +4676,7 @@ function render(){
   else if(page==='hoje')h=renderHoje();
   else if(page==='semana')h=renderSemana();
   else if(page==='historico')h=renderHistorico();
-  else if(page==='metas')h=renderMetas();
+  else if(page==='stats')h=renderStats();
   else if(page==='journals')h=renderJournals();
   const content=document.getElementById('content');
   content.innerHTML=`<div class="page-anim">${h}</div>`;
