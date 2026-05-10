@@ -2716,6 +2716,20 @@ let _templateUnlocked=false;
 /* Estado de UI — busca no journal */
 let _journalSearch='';
 
+/* ── Fase 2 · Item 5: filtro de período nos Stats ───────────────────────────
+   Valores: '7d' | '30d' | '90d' | 'all'
+   Invalidação: qualquer mudança neste valor deve invalidar _statsCache.
+   A cache key de renderStats() inclui statsPeriod para garantir isso.
+   ─────────────────────────────────────────────────────────────────────────── */
+let statsPeriod='30d';
+
+/* ── Fase 2 · Item 7: PR expandido ─────────────────────────────────────────
+   null = nenhum PR aberto. String = nome do exercício com view ativa.
+   A cache key de renderStats() inclui openPR para garantir que o cache
+   invalida ao abrir/fechar a view de PR.
+   ─────────────────────────────────────────────────────────────────────────── */
+let openPR=null;
+
 /* R8: journals inicializado aqui em §3 STATE (junto com todos os estados de localStorage).
    As funções de journal continuam em §11 por coesão — só a inicialização foi movida.
    Isso garante que journalHasEntry() em §7/§9 nunca acessa a variável antes dela existir,
@@ -2882,6 +2896,22 @@ function _buildHistoryIndex(){
 
 /* Constrói o índice na inicialização (history já foi carregado de loadStore()) */
 _buildHistoryIndex();
+
+/* ── Item 3 · Fase 1: Top exercícios mais treinados ──────────────────────────
+   Usa _historyIndex (já O(1)) para contar aparições de cada exercício.
+   Retorna array de {name, count, lastDate} ordenado por count desc.
+   Pertence à camada STATS — leitura pura, sem efeitos colaterais.
+   ──────────────────────────────────────────────────────────────────────────── */
+function getTopExercisesByCount(n){
+  return Object.entries(_historyIndex)
+    .map(([name, entries])=>({
+      name,
+      count: entries.length,
+      lastDate: entries[0]?.date || '—'   /* _historyIndex é mais-recente-primeiro */
+    }))
+    .sort((a,b)=>b.count-a.count)
+    .slice(0,n);
+}
 function calcStreak(){
   if(!history.length)return{current:0,best:0};
   /* Coleta datas únicas em ordem decrescente */
@@ -2948,10 +2978,48 @@ function calcWeeklyVolume(weekOffset){
   },0);
 }
 
-/* Exercícios mais pulados: retorna [{name, count, total}] ordenado por count desc */
-function getSkippedExercises(){
+/* ── Fase 2 · Item 5: helper de filtro por período ──────────────────────────
+   Retorna o subconjunto de history[] dentro do período selecionado em statsPeriod.
+   Centraliza a lógica de filtro para não duplicar em cada cálculo.
+   'all' retorna history[] inteiro (sem cópia desnecessária — só referência).
+   ─────────────────────────────────────────────────────────────────────────── */
+function _filterByPeriod(entries, period){
+  if(!period||period==='all') return entries;
+  const days=period==='7d'?7:period==='30d'?30:90;
+  const cutoff=new Date();cutoff.setDate(cutoff.getDate()-days);cutoff.setHours(0,0,0,0);
+  return entries.filter(e=>{
+    const[dd,mm,yy]=e.date.split('/');
+    return new Date(yy,mm-1,dd)>=cutoff;
+  });
+}
+
+/* ── Fase 2 · Item 6: volume mensal ─────────────────────────────────────────
+   Espelha calcWeeklyVolume(). monthOffset=0=este mês, 1=anterior, etc.
+   Retorna volume total (kg) de um mês relativo ao mês atual.
+   ─────────────────────────────────────────────────────────────────────────── */
+function calcMonthlyVolume(monthOffset){
+  const now=new Date();
+  const y=now.getFullYear();
+  const m=now.getMonth()-monthOffset;
+  /* Normaliza: JS ajusta automaticamente quando m<0 (ano anterior) */
+  const start=new Date(y,m,1);start.setHours(0,0,0,0);
+  const end=new Date(y,m+1,1);end.setHours(0,0,0,0);
+  return history.reduce((total,entry)=>{
+    const[dd,mm2,yy]=entry.date.split('/');
+    const d=new Date(yy,mm2-1,dd);
+    if(d>=start&&d<end){
+      const exList=Array.isArray(entry.exercises)?entry.exercises:(entry.entries||[]).flatMap(b=>b.exercises||[]);
+      total+=exList.reduce((s,e)=>s+(e.sets*(e.weight||0)),0);
+    }
+    return total;
+  },0);
+}
+/* Aceita entries opcional para filtro de período (Fase 2 · Item 5).
+   Chamadas sem argumento continuam funcionando com history[] completo. */
+function getSkippedExercises(entries){
+  const src=entries||history;
   const map={};
-  history.forEach(entry=>{
+  src.forEach(entry=>{
     const exList=Array.isArray(entry.exercises)?entry.exercises:(entry.entries||[]).flatMap(b=>b.exercises||[]);
     exList.forEach(e=>{
       if(!map[e.name])map[e.name]={name:e.name,count:0,total:0};
@@ -3086,9 +3154,11 @@ function calcDayOfWeekStats(){
 }
 
 /* PR por exercício: retorna [{name, weight, date}] dos melhores pesos */
-function getAllPRs(){
+/* Aceita entries opcional para filtro de período (Fase 2 · Item 5). */
+function getAllPRs(entries){
+  const src=entries||history;
   const map={};
-  history.forEach(entry=>{
+  src.forEach(entry=>{
     const exList=Array.isArray(entry.exercises)?entry.exercises:(entry.entries||[]).flatMap(b=>b.exercises||[]);
     exList.forEach(e=>{
       if(!e.weight||e.weight<=0)return;
@@ -3825,6 +3895,20 @@ function openModal(m){
 }
 function closeModal(){modal=null;render()}
 
+/* ── Fase 2 · Item 5: troca o período de stats e invalida o cache ── */
+function _setStatsPeriod(p){
+  statsPeriod=p;
+  _statsCache={key:null,html:''};
+  render();
+}
+
+/* ── Fase 2 · Item 7: abre/fecha view expandida de PR ── */
+function _togglePR(name){
+  openPR=(openPR===name)?null:name;
+  _statsCache={key:null,html:''};
+  render();
+}
+
 function renderModal(){
   if(!modal)return'';
   const m=modal;
@@ -4217,7 +4301,88 @@ function renderHoje(){
      Isso garante que edições na guia Hoje não mutam o template permanente. */
   const db=todaySession;
   let h=`<div class="sec">${DAYFULL[todayI]}</div>`;
+
+  /* ── Item 4 · Fase 1: Banner de resumo do dia ────────────────────────────
+     Lê todaySession (dados do dia) + history (para calcWeekRate).
+     Render puro: sem novo estado, sem efeitos colaterais.
+     Só aparece quando há blocos no dia. Métricas:
+     · Blocos concluídos (via history de hoje) / total em todaySession
+     · Volume estimado (sets × weight dos exercícios da sessão)
+     · % da semana atual (calcWeekRate já existente)
+     ─────────────────────────────────────────────────────────────────────── */
+  if(db.length){
+    const _todayStr=new Date().toLocaleDateString('pt-BR');
+    const _doneTodayCount=history.filter(h=>h.date===_todayStr).length;
+    const _totalBlocks=db.length;
+    const _allDone=_doneTodayCount>=_totalBlocks;
+
+    /* Volume estimado da sessão de hoje (sets × weight de cada exercício) */
+    const _estVol=db.reduce((sum,b)=>{
+      const exList=b.exercises||[];
+      return sum+exList.reduce((s,e)=>s+(e.sets*(e.weight||0)),0);
+    },0);
+
+    /* % da semana */
+    const _wr=calcWeekRate();
+    const _wrColor=_wr>=80?'var(--green)':_wr>=50?'var(--yellow)':'var(--t2)';
+
+    /* Cor do indicador de blocos do dia */
+    const _doneColor=_allDone?'var(--green)':_doneTodayCount>0?'var(--yellow)':'var(--t2)';
+
+    h+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:14px 16px;margin-bottom:16px;display:grid;grid-template-columns:1fr 1fr 1fr;gap:0">
+      <div style="text-align:center;padding:0 4px">
+        <div style="font-size:20px;font-weight:500;color:${_doneColor};line-height:1">${_doneTodayCount}<span style="font-size:12px;color:var(--t2)">/${_totalBlocks}</span></div>
+        <div style="font-size:9px;color:var(--t2);margin-top:4px;letter-spacing:.5px;text-transform:uppercase">blocos</div>
+      </div>
+      <div style="text-align:center;padding:0 4px;border-left:0.5px solid var(--t4)">
+        <div style="font-size:20px;font-weight:500;color:var(--tc);line-height:1">${_estVol}<span style="font-size:11px;color:var(--t2);margin-left:1px">kg</span></div>
+        <div style="font-size:9px;color:var(--t2);margin-top:4px;letter-spacing:.5px;text-transform:uppercase">vol. est.</div>
+      </div>
+      <div style="text-align:center;padding:0 4px;border-left:0.5px solid var(--t4)">
+        <div style="font-size:20px;font-weight:500;color:${_wrColor};line-height:1">${_wr}<span style="font-size:11px;color:var(--t2);margin-left:1px">%</span></div>
+        <div style="font-size:9px;color:var(--t2);margin-top:4px;letter-spacing:.5px;text-transform:uppercase">semana</div>
+      </div>
+    </div>`;
+  }
+
   if(!db.length)h+=`<div class="empty"><strong>Sem blocos hoje</strong>Vá em Semana para montar o dia.</div>`;
+
+  /* ── Fase 2 · Item 8: card compacto de metas ativas ─────────────────────
+     Aparece entre o banner e os blocos, quando há metas incompletas.
+     Render puro: lê goals[] (global) sem efeito colateral.
+     Só exibe metas com progress < 100 para não poluir quando tudo concluído.
+     ─────────────────────────────────────────────────────────────────────── */
+  const _activeGoals=(goals||[]).filter(g=>(g.progress||0)<100);
+  if(_activeGoals.length){
+    let _goalsHtml='';
+    _activeGoals.slice(0,3).forEach((g,i)=>{
+      const _gi=goals.indexOf(g); /* índice real para updGoal/delGoal */
+      const _pct=Math.max(0,Math.min(100,g.progress||0));
+      const _bc=_pct>=80?'var(--green)':_pct>=50?'var(--ac)':'var(--t2)';
+      _goalsHtml+=`<div style="margin-bottom:${i<Math.min(_activeGoals.length,3)-1?8:0}px">
+        <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:4px">
+          <div style="font-size:12px;color:var(--tc);font-weight:500;flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap">${g.name}</div>
+          <div style="display:flex;align-items:center;gap:8px;flex-shrink:0;margin-left:8px">
+            <div style="font-size:11px;font-weight:500;color:${_bc}">${_pct}%</div>
+            <button onclick="updGoal(${_gi},+10)" style="font-size:10px;color:var(--t2);background:var(--s3);border:0.5px solid var(--b1);border-radius:var(--r-sm);padding:2px 7px;cursor:pointer;font-family:inherit">+10</button>
+          </div>
+        </div>
+        <div style="height:3px;background:var(--s3);border-radius:2px;overflow:hidden">
+          <div style="height:100%;width:${_pct}%;background:${_bc};border-radius:2px;transition:width .3s"></div>
+        </div>
+      </div>`;
+    });
+    const _moreCount=_activeGoals.length>3?_activeGoals.length-3:0;
+    h+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:12px 14px;margin-bottom:16px">
+      <div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div style="font-size:10px;color:var(--t2);letter-spacing:.8px;text-transform:uppercase;font-weight:500">Metas ativas</div>
+        <button onclick="page='stats';render()" style="font-size:10px;color:var(--t2);background:none;border:none;cursor:pointer;padding:0;font-family:inherit;letter-spacing:.3px">ver todas →</button>
+      </div>
+      ${_goalsHtml}
+      ${_moreCount?`<div style="font-size:10px;color:var(--t2);margin-top:6px">+${_moreCount} outras metas</div>`:''}
+    </div>`;
+  }
+
   db.forEach((b,i)=>h+=renderBlockCard(b,todayKey,i,'hoje'));
   h+=`<button class="add-b" onclick="openModal({t:'addBlockToday',dk:'${todayKey}'})">
     <svg viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke-width="2" stroke-linecap="round"/></svg>
@@ -4441,24 +4606,27 @@ function renderHistorico(){
 
 function renderStats(){
   /* P-02: memoização — stats envolve 12+ iterações sobre history.
-     Se history não mudou desde o último render, retorna o HTML cacheado.
-     Invalidação: qualquer chamada a _buildHistoryIndex() (saveLog, import, danger)
-     também reseta _statsCache, garantindo que dados novos sempre aparecem. */
-  const statsCacheKey = history.length + '|' + (history[0]?.timestamp ?? '');
+     Cache key inclui statsPeriod e openPR (Fase 2): trocar filtro ou
+     abrir/fechar um PR invalida o cache automaticamente. */
+  const statsCacheKey = history.length + '|' + (history[0]?.timestamp ?? '') + '|' + statsPeriod + '|' + (openPR||'');
   if(_statsCache.key === statsCacheKey && _statsCache.html){
     return _statsCache.html;
   }
 
-  const totalRegistros=history.length;
-  const streak=calcStreak();
-  const weekRate=calcWeekRate();
+  /* ── Período filtrado — todos os cálculos de stats usam esta fatia ── */
+  const hFiltered = _filterByPeriod(history, statsPeriod);
+
+  const totalRegistros=hFiltered.length;
+  const streak=calcStreak(); /* streak não filtra por período — é sempre global */
+  const weekRate=calcWeekRate(); /* sempre semana atual */
   const volThis=calcWeeklyVolume(0);
   const volPrev=calcWeeklyVolume(1);
   const volDiff=volPrev>0?Math.round(((volThis-volPrev)/volPrev)*100):null;
-  const skipped=getSkippedExercises().slice(0,5);
+  const skipped=getSkippedExercises(hFiltered).slice(0,5);
   const topEx=getTopExercisesEvolution(5);
+  const topExCount=getTopExercisesByCount(8);  /* Item 3 · Fase 1 */
   const dowStats=calcDayOfWeekStats();
-  const prs=getAllPRs().slice(0,6);
+  const prs=getAllPRs(hFiltered).slice(0,6);
   const muscleFreq=calcMuscleFrequency();
   const adherence=calcBlockAdherence();
   const summary=calcWeeklySummary(1);
@@ -4467,6 +4635,19 @@ function renderStats(){
   const lbl=(txt)=>`<div style="font-size:10px;color:var(--t2);letter-spacing:.8px;text-transform:uppercase;margin-bottom:10px;font-weight:500">${txt}</div>`;
 
   let h=`<div class="sec">Stats</div>`;
+
+  /* ── Fase 2 · Item 5: Seletor de período ────────────────────────────────
+     Botões 7d / 30d / 90d / Tudo. Muda statsPeriod + invalida _statsCache.
+     Posicionado antes de tudo — afeta todos os cards abaixo.
+     ─────────────────────────────────────────────────────────────────────── */
+  const _periods=[{k:'7d',l:'7d'},{k:'30d',l:'30d'},{k:'90d',l:'90d'},{k:'all',l:'Tudo'}];
+  let _periodBtns='<div style="display:flex;gap:6px;margin-bottom:14px">';
+  _periods.forEach(({k,l})=>{
+    const _active=statsPeriod===k;
+    _periodBtns+=`<button onclick="_setStatsPeriod('${k}')" style="flex:1;padding:6px 0;font-size:11px;font-weight:500;font-family:inherit;letter-spacing:.5px;border-radius:var(--r-sm);cursor:pointer;transition:all var(--dur-fast);background:${_active?'var(--s3)':'transparent'};border:0.5px solid ${_active?'var(--b2)':'var(--b1)'};color:${_active?'var(--tc)':'var(--t2)'}">${l}</button>`;
+  });
+  _periodBtns+='</div>';
+  h+=_periodBtns;
 
   if(!totalRegistros){
     h+=`<div class="empty"><strong>Nenhum treino registrado</strong>Registre seu primeiro bloco para ver seus stats.</div>`;
@@ -4490,10 +4671,38 @@ function renderStats(){
     <div style="font-size:26px;font-weight:500;color:var(--tc);line-height:1">${streak.current}<span style="font-size:12px;color:var(--t2);margin-left:2px">d</span></div>
     ${streakSub}
   </div>`;
+  /* Item 2 — Fase 1: bolinhas de dias da semana no lugar do % seco.
+     Lógica: percorre Dom→Sab, marca dia como "planejado" se há blocos
+     naquele dia, e como "feito" se há registro em history para aquela data.
+     Dias sem blocos planejados ficam apagados (ghost). */
+  const _now2=new Date();
+  const _dow2=_now2.getDay();
+  const _wkStart2=new Date(_now2);_wkStart2.setDate(_now2.getDate()-_dow2);_wkStart2.setHours(0,0,0,0);
+  const _doneSet2=new Set(history.map(h=>h.date));
+  const _DLABELS=['D','S','T','Q','Q','S','S'];
+  let _weekDots='<div style="display:flex;gap:3px;margin-top:6px">';
+  for(let i=0;i<=6;i++){
+    const _d=new Date(_wkStart2);_d.setDate(_wkStart2.getDate()+i);
+    const _dk=DAYS[i];
+    const _hasBlocks=blocks[_dk]&&blocks[_dk].length>0;
+    const _dateStr=_d.toLocaleDateString('pt-BR');
+    const _isDone=_doneSet2.has(_dateStr);
+    const _isFuture=i>_dow2;
+    let _dotColor,_dotBorder;
+    if(!_hasBlocks){_dotColor='transparent';_dotBorder='var(--t4)';}
+    else if(_isDone){_dotColor='var(--green)';_dotBorder='var(--green)';}
+    else if(_isFuture){_dotColor='transparent';_dotBorder='var(--t2)';}
+    else{_dotColor='var(--red)';_dotBorder='var(--red)';}
+    _weekDots+=`<div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+      <div style="width:8px;height:8px;border-radius:50%;background:${_dotColor};border:1px solid ${_dotBorder};opacity:${_hasBlocks?1:0.25}"></div>
+      <div style="font-size:8px;color:${_hasBlocks?'var(--t2)':'var(--t3)'};line-height:1">${_DLABELS[i]}</div>
+    </div>`;
+  }
+  _weekDots+='</div>';
   h+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:14px 12px">
     ${lbl('Semana')}
-    <div style="font-size:26px;font-weight:500;color:${rateColor};line-height:1">${weekRate}<span style="font-size:12px;color:var(--t2);margin-left:2px">%</span></div>
-    <div style="font-size:10px;color:var(--t2);margin-top:3px">conclusão</div>
+    <div style="font-size:22px;font-weight:500;color:${rateColor};line-height:1">${weekRate}<span style="font-size:12px;color:var(--t2);margin-left:2px">%</span></div>
+    ${_weekDots}
   </div>`;
   h+=`<div style="background:var(--s1);border:0.5px solid var(--b1);border-radius:var(--r-lg);padding:14px 12px">
     ${lbl('Volume')}
@@ -4503,7 +4712,96 @@ function renderStats(){
   h+=`</div>`;
 
   /* ══════════════════════════════
-     § 1.5  INSIGHTS AUTOMÁTICOS
+     § 1.5  SEMANA PASSADA — Item 1 · Fase 1
+     Card de destaque reposicionado: logo após o pulso, antes dos insights.
+     Usa calcWeeklySummary(1) já calculado acima. Bolinhas de dias mostram
+     quais dias da semana passada tinham blocos e quais foram concluídos.
+     ══════════════════════════════ */
+  if(summary){
+    /* Bolinhas de dias da semana passada */
+    const _prevWkStart=new Date();
+    const _pdow=_prevWkStart.getDay();
+    _prevWkStart.setDate(_prevWkStart.getDate()-_pdow-7);
+    _prevWkStart.setHours(0,0,0,0);
+    const _prevDoneSet=new Set(history.map(h=>h.date));
+    const _DLABELS2=['D','S','T','Q','Q','S','S'];
+    let _prevDots='<div style="display:flex;gap:3px;margin-bottom:12px">';
+    for(let i=0;i<=6;i++){
+      const _pd=new Date(_prevWkStart);_pd.setDate(_prevWkStart.getDate()+i);
+      const _pdk=DAYS[i];
+      const _pHasBlocks=blocks[_pdk]&&blocks[_pdk].length>0;
+      const _pDateStr=_pd.toLocaleDateString('pt-BR');
+      const _pDone=_prevDoneSet.has(_pDateStr);
+      let _pdotColor,_pdotBorder;
+      if(!_pHasBlocks){_pdotColor='transparent';_pdotBorder='var(--t4)';}
+      else if(_pDone){_pdotColor='var(--green)';_pdotBorder='var(--green)';}
+      else{_pdotColor='var(--red)';_pdotBorder='var(--red)';}
+      _prevDots+=`<div style="display:flex;flex-direction:column;align-items:center;gap:2px">
+        <div style="width:8px;height:8px;border-radius:50%;background:${_pdotColor};border:1px solid ${_pdotBorder};opacity:${_pHasBlocks?1:0.3}"></div>
+        <div style="font-size:8px;color:${_pHasBlocks?'var(--t2)':'var(--t3)'};line-height:1">${_DLABELS2[i]}</div>
+      </div>`;
+    }
+    _prevDots+='</div>';
+
+    const _volC=calcWeeklySummary(0);
+    const _dc=_volC&&summary.vol>0?(()=>{const d=Math.round(((_volC.vol-summary.vol)/summary.vol)*100);return`<span style="color:${d>=0?'var(--green)':'var(--red)'};font-weight:500">${d>=0?'+':''}${d}%</span>`;})():'—';
+    const _prBadges=summary.prs.length?summary.prs.map(p=>`<span style="font-size:10px;background:rgba(255,255,255,0.04);border:0.5px solid var(--b2);border-radius:6px;padding:2px 8px;color:var(--ac)">${p.name} ${p.weight}kg</span>`).join(''):'';
+    const _skipBadges=summary.topSkipped.length?summary.topSkipped.map(([n,c])=>`<span style="font-size:10px;background:rgba(245,158,11,0.06);border:0.5px solid rgba(245,158,11,0.25);border-radius:6px;padding:2px 8px;color:var(--yellow)">${n} (${c}×)</span>`).join(''):'';
+
+    h+=card(`${lbl('Semana passada — '+summary.label)}
+      ${_prevDots}
+      <div style="display:grid;grid-template-columns:repeat(4,1fr);gap:0;border-top:0.5px solid var(--t4);padding-top:10px;margin-bottom:${summary.prs.length||summary.topSkipped.length?10:0}px">
+        <div style="text-align:center;padding:0 4px">
+          <div style="font-size:20px;font-weight:500;color:var(--tc);line-height:1">${summary.days}</div>
+          <div style="font-size:9px;color:var(--t2);margin-top:3px;letter-spacing:.5px;text-transform:uppercase">dias</div>
+        </div>
+        <div style="text-align:center;padding:0 4px;border-left:0.5px solid var(--t4)">
+          <div style="font-size:20px;font-weight:500;color:var(--tc);line-height:1">${summary.blocks}</div>
+          <div style="font-size:9px;color:var(--t2);margin-top:3px;letter-spacing:.5px;text-transform:uppercase">blocos</div>
+        </div>
+        <div style="text-align:center;padding:0 4px;border-left:0.5px solid var(--t4)">
+          <div style="font-size:20px;font-weight:500;color:var(--tc);line-height:1">${summary.exercises}</div>
+          <div style="font-size:9px;color:var(--t2);margin-top:3px;letter-spacing:.5px;text-transform:uppercase">exerc.</div>
+        </div>
+        <div style="text-align:center;padding:0 4px;border-left:0.5px solid var(--t4)">
+          <div style="font-size:16px;font-weight:500;color:var(--tc);line-height:1;margin-top:2px">${summary.vol}<span style="font-size:10px;color:var(--t2);margin-left:1px">kg</span></div>
+          <div style="font-size:9px;color:var(--t2);margin-top:3px;letter-spacing:.5px">${_dc} vs esta</div>
+        </div>
+      </div>
+      ${_prBadges?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px">${_prBadges}</div>`:''}
+      ${_skipBadges?`<div style="display:flex;flex-wrap:wrap;gap:5px">${_skipBadges}</div>`:''}`);
+  }
+
+  /* ══════════════════════════════
+     § 1.7  TOP EXERCÍCIOS — Item 3 · Fase 1
+     Lista dos exercícios com mais aparições no histórico.
+     Usa getTopExercisesByCount() que lê _historyIndex em O(1).
+     Exibe: nome, contagem de sessões, última data treinado.
+     ══════════════════════════════ */
+  if(topExCount.length){
+    let _topRows='';
+    const _maxCount=topExCount[0].count;
+    topExCount.forEach(({name,count,lastDate},_ti)=>{
+      const _bw=Math.round((count/_maxCount)*100);
+      const _fill=_ti===0?'var(--ac)':_bw>=70?'var(--t2)':'var(--t3)';
+      _topRows+=`<div style="display:grid;grid-template-columns:1fr auto;align-items:center;gap:8px;margin-bottom:8px">
+        <div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-bottom:3px">
+            <div style="font-size:12px;color:var(--tc);white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:180px">${name}</div>
+            <div style="font-size:10px;color:var(--t2);flex-shrink:0;margin-left:8px">${lastDate}</div>
+          </div>
+          <div style="height:3px;background:var(--s3);border-radius:2px;overflow:hidden">
+            <div style="height:100%;width:${_bw}%;background:${_fill};border-radius:2px;opacity:${_ti===0?1:0.7}"></div>
+          </div>
+        </div>
+        <div style="font-size:11px;font-weight:500;color:var(--t2);text-align:right;flex-shrink:0;min-width:28px">${count}×</div>
+      </div>`;
+    });
+    h+=card(`${lbl('Mais treinados — total de sessões')}${_topRows}`);
+  }
+
+  /* ══════════════════════════════
+     § 1.8  INSIGHTS AUTOMÁTICOS
      ══════════════════════════════ */
   const insights=generateInsights();
   if(insights.length){
@@ -4643,19 +4941,140 @@ function renderStats(){
   }
 
   /* ══════════════════════════════
-     § 6  PRs — grid de cards
+     § 5.5  COMPARATIVO MÊS A MÊS — Fase 2 · Item 6
+     Gráfico de barras dos últimos 6 meses usando calcMonthlyVolume().
+     Perspectiva de longo prazo complementar ao volume semanal.
+     ══════════════════════════════ */
+  {
+    const NUM_MONTHS=6;
+    const _monthNames=['Jan','Fev','Mar','Abr','Mai','Jun','Jul','Ago','Set','Out','Nov','Dez'];
+    const _now6=new Date();
+    const _monthVols=[];
+    for(let i=NUM_MONTHS-1;i>=0;i--){
+      const _d=new Date(_now6.getFullYear(),_now6.getMonth()-i,1);
+      _monthVols.push({
+        offset:i,
+        vol:calcMonthlyVolume(i),
+        label:_monthNames[_d.getMonth()]
+      });
+    }
+    const _maxMonthVol=Math.max(..._monthVols.map(m=>m.vol),1);
+    if(_monthVols.some(m=>m.vol>0)){
+      const _MB_W=36,_MB_GAP=6,_MH=60,_MPAD_B=16;
+      const _mChartW=(_MB_W+_MB_GAP)*NUM_MONTHS-_MB_GAP;
+      let _mBars='';
+      _monthVols.forEach(({offset,vol,label},i)=>{
+        const _bh=Math.max(2,Math.round((vol/_maxMonthVol)*(_MH-_MPAD_B)));
+        const _x=i*(_MB_W+_MB_GAP);
+        const _y=_MH-_MPAD_B-_bh;
+        const _isCurrent=offset===0;
+        const _fill=_isCurrent?'var(--ac)':'var(--s3)';
+        _mBars+=`<rect x="${_x}" y="${_y}" width="${_MB_W}" height="${_bh}" rx="3" fill="${_fill}" opacity="${_isCurrent?1:0.7}"/>`;
+        _mBars+=`<text x="${_x+_MB_W/2}" y="${_MH}" text-anchor="middle" font-size="9" fill="var(--t2)">${label}</text>`;
+        if(vol>0&&_isCurrent){
+          _mBars+=`<text x="${_x+_MB_W/2}" y="${_y-4}" text-anchor="middle" font-size="9" fill="var(--tc)" font-weight="500">${vol}</text>`;
+        }
+      });
+      h+=card(`${lbl('Volume mensal — últimos 6 meses')}<svg width="100%" viewBox="0 0 ${_mChartW} ${_MH+4}" style="display:block;overflow:visible">${_mBars}</svg>`);
+    }
+  }
+
+  /* ══════════════════════════════
+     § 6  PRs — grid de cards clicáveis + view expandida
+     Fase 2 · Item 7: ao tocar num PR, abre view com linha do
+     tempo completa + gráfico de linha usando _historyIndex.
+     Estado: openPR (string com nome do exercício | null).
      ══════════════════════════════ */
   if(prs.length){
-    let prCards='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
-    prs.forEach(({name,weight,date})=>{
-      prCards+=`<div style="background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-md);padding:10px 12px">
-        <div style="font-size:10px;color:var(--t2);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
-        <div style="font-size:18px;font-weight:500;color:var(--ac)">${weight}<span style="font-size:11px;color:var(--t2);margin-left:2px">kg</span></div>
-        <div style="font-size:10px;color:var(--t2);margin-top:2px">${date}</div>
-      </div>`;
-    });
-    prCards+='</div>';
-    h+=card(`${lbl('Records pessoais')}${prCards}`);
+    /* Se há um PR aberto, renderiza a view expandida no lugar do grid */
+    if(openPR && _historyIndex[openPR]){
+      const _prEntries=_historyIndex[openPR].filter(e=>e.w>0).slice().reverse(); /* ordem cronológica */
+      const _prName=openPR;
+      const _prBest=Math.max(..._prEntries.map(e=>e.w));
+
+      /* Gráfico de linha SVG */
+      let _prChart='';
+      if(_prEntries.length>=2){
+        const _W=280,_H=60,_PAD=8;
+        const _vals=_prEntries.map(e=>e.w);
+        const _mn=Math.min(..._vals),_mx=Math.max(..._vals);
+        const _range=Math.max(_mx-_mn,1);
+        const _pts=_vals.map((v,i)=>{
+          const _x=_PAD+((_W-_PAD*2)/(_vals.length-1))*i;
+          const _y=_H-_PAD-(v-_mn)/_range*(_H-_PAD*2);
+          return`${_x.toFixed(1)},${_y.toFixed(1)}`;
+        });
+        /* Área preenchida */
+        const _lastX=_PAD+((_W-_PAD*2)/(_vals.length-1))*(_vals.length-1);
+        const _areaPath=`M${_pts[0]} L${_pts.join(' L')} L${_lastX},${_H-_PAD} L${_PAD},${_H-_PAD} Z`;
+        const _linePath=`M${_pts.join(' L')}`;
+        const _lastVal=_vals[_vals.length-1];
+        const _firstVal=_vals[0];
+        const _lc=_lastVal>_firstVal?'var(--green)':_lastVal<_firstVal?'var(--red)':'var(--t2)';
+        _prChart=`<svg viewBox="0 0 ${_W} ${_H+4}" width="100%" style="display:block;margin-bottom:12px;overflow:visible">
+          <path d="${_areaPath}" fill="${_lc}" opacity="0.06"/>
+          <path d="${_linePath}" fill="none" stroke="${_lc}" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
+          <circle cx="${_pts[_pts.length-1].split(',')[0]}" cy="${_pts[_pts.length-1].split(',')[1]}" r="3" fill="${_lc}"/>
+        </svg>`;
+      }
+
+      /* Linha do tempo */
+      let _timeline='';
+      const _tl=[..._prEntries].reverse(); /* mais recente primeiro para display */
+      _tl.forEach((e,ti)=>{
+        const _isPR2=e.w===_prBest;
+        _timeline+=`<div style="display:flex;align-items:center;gap:10px;padding:7px 0;border-bottom:0.5px solid var(--t4)${ti===_tl.length-1?';border-bottom:none':''}">
+          <div style="font-size:10px;color:var(--t2);min-width:52px;flex-shrink:0">${e.date}</div>
+          <div style="flex:1;height:3px;background:var(--s3);border-radius:2px;overflow:hidden">
+            <div style="height:100%;width:${Math.round((e.w/_prBest)*100)}%;background:${_isPR2?'var(--green)':'var(--t2)'};border-radius:2px;opacity:${_isPR2?1:0.5}"></div>
+          </div>
+          <div style="font-size:12px;font-weight:500;color:${_isPR2?'var(--green)':'var(--tc)'};min-width:48px;text-align:right;flex-shrink:0">${e.w}kg${_isPR2?' 🏆':''}</div>
+        </div>`;
+      });
+
+      h+=card(`<div style="display:flex;align-items:center;justify-content:space-between;margin-bottom:10px">
+        <div>
+          <div style="font-size:10px;color:var(--t2);letter-spacing:.8px;text-transform:uppercase;font-weight:500">Record pessoal</div>
+          <div style="font-size:15px;color:var(--tc);font-weight:500;margin-top:2px">${_prName}</div>
+        </div>
+        <button onclick="_togglePR(null)" style="font-size:11px;color:var(--t2);background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-sm);padding:4px 10px;cursor:pointer;font-family:inherit">← voltar</button>
+      </div>
+      <div style="display:flex;align-items:center;gap:16px;margin-bottom:14px;padding:10px 12px;background:var(--s2);border-radius:var(--r-md);border:0.5px solid var(--b1)">
+        <div style="text-align:center">
+          <div style="font-size:26px;font-weight:500;color:var(--green);line-height:1">${_prBest}<span style="font-size:13px;color:var(--t2);margin-left:2px">kg</span></div>
+          <div style="font-size:9px;color:var(--t2);margin-top:2px;text-transform:uppercase;letter-spacing:.5px">máximo</div>
+        </div>
+        <div style="width:0.5px;background:var(--t4);align-self:stretch"></div>
+        <div style="text-align:center">
+          <div style="font-size:22px;font-weight:500;color:var(--tc);line-height:1">${_prEntries.length}</div>
+          <div style="font-size:9px;color:var(--t2);margin-top:2px;text-transform:uppercase;letter-spacing:.5px">sessões</div>
+        </div>
+        <div style="width:0.5px;background:var(--t4);align-self:stretch"></div>
+        <div style="text-align:center">
+          <div style="font-size:14px;font-weight:500;color:var(--tc);line-height:1;margin-top:4px">${_prEntries[_prEntries.length-1]?.date||'—'}</div>
+          <div style="font-size:9px;color:var(--t2);margin-top:2px;text-transform:uppercase;letter-spacing:.5px">início</div>
+        </div>
+      </div>
+      ${_prChart}
+      ${lbl('Histórico de cargas')}
+      ${_timeline}`);
+    } else {
+      /* Grid padrão de PRs — clicável para abrir a view */
+      let prCards='<div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">';
+      prs.forEach(({name,weight,date})=>{
+        const _hasHistory=(_historyIndex[name]||[]).filter(e=>e.w>0).length>=2;
+        prCards+=`<div onclick="${_hasHistory?`_togglePR('${name.replace(/'/g,"\\'")}')`:''}" style="background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-md);padding:10px 12px;${_hasHistory?'cursor:pointer;':''}transition:border-color var(--dur-fast)">
+          <div style="font-size:10px;color:var(--t2);margin-bottom:4px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis">${name}</div>
+          <div style="font-size:18px;font-weight:500;color:var(--ac)">${weight}<span style="font-size:11px;color:var(--t2);margin-left:2px">kg</span></div>
+          <div style="display:flex;justify-content:space-between;align-items:center;margin-top:2px">
+            <div style="font-size:10px;color:var(--t2)">${date}</div>
+            ${_hasHistory?`<div style="font-size:9px;color:var(--t3);letter-spacing:.3px">ver →</div>`:''}
+          </div>
+        </div>`;
+      });
+      prCards+='</div>';
+      h+=card(`${lbl('Records pessoais')}${prCards}`);
+    }
   }
 
   /* ══════════════════════════════
@@ -4726,23 +5145,7 @@ function renderStats(){
     h+=card(`${lbl('Aderência ao plano — piores blocos')}${rows}`);
   }
 
-  /* ══════════════════════════════
-     § 10  RESUMO SEMANA PASSADA
-     ══════════════════════════════ */
-  if(summary){
-    const volC=calcWeeklySummary(0);
-    const dc=volC&&summary.vol>0?(()=>{const d=Math.round(((volC.vol-summary.vol)/summary.vol)*100);return`<span style="color:${d>=0?'var(--green)':'var(--red)'}">${d>=0?'+':''}${d}%</span>`;})():'—';
-    const prBadges=summary.prs.length?summary.prs.map(p=>`<span style="font-size:10px;background:var(--s2);border:0.5px solid var(--b1);border-radius:6px;padding:2px 8px;color:var(--ac)">${p.name} ${p.weight}kg</span>`).join(''):'';
-    const skipBadges=summary.topSkipped.length?summary.topSkipped.map(([n,c])=>`<span style="font-size:10px;background:var(--s2);border:0.5px solid var(--b1);border-radius:6px;padding:2px 8px;color:var(--yellow)">${n} (${c}×)</span>`).join(''):'';
-    h+=card(`${lbl('Semana passada — '+summary.label)}
-      <div style="display:grid;grid-template-columns:repeat(3,1fr);gap:0;margin-bottom:${summary.prs.length||summary.topSkipped.length?10:0}px">
-        <div style="text-align:center;padding:0 4px"><div style="font-size:20px;font-weight:500;color:var(--tc)">${summary.days}</div><div style="font-size:10px;color:var(--t2)">dias</div></div>
-        <div style="text-align:center;padding:0 4px;border-left:0.5px solid var(--t4);border-right:0.5px solid var(--t4)"><div style="font-size:20px;font-weight:500;color:var(--tc)">${summary.blocks}</div><div style="font-size:10px;color:var(--t2)">blocos</div></div>
-        <div style="text-align:center;padding:0 4px"><div style="font-size:20px;font-weight:500;color:var(--tc)">${summary.vol}kg</div><div style="font-size:10px;color:var(--t2)">${dc} vs esta</div></div>
-      </div>
-      ${prBadges?`<div style="display:flex;flex-wrap:wrap;gap:5px;margin-bottom:6px">${prBadges}</div>`:''}
-      ${skipBadges?`<div style="display:flex;flex-wrap:wrap;gap:5px">${skipBadges}</div>`:''}`);
-  }
+  /* § 10  RESUMO SEMANA PASSADA — movido para logo após §1 (ver abaixo) */
 
   /* ══════════════════════════════
      § 11  METAS
