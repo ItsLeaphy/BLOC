@@ -17,7 +17,7 @@ const link=document.createElement('link');link.rel='manifest';link.href=URL.crea
 <body>
 <style>
 /* ============================================================
-   BLOC — DESIGN SYSTEM v2.1
+   BLOC — DESIGN SYSTEM v2.2
    Status: ESTABILIZADO
    ────────────────────────────────────────────────────────────
    Fase 1: Tokens + Tipografia          ✓ completo
@@ -2771,15 +2771,12 @@ let journalOpen=false; /* flag: tela de edição de journal ativa */
 /* Estado do modo de reorganização de blocos (declarado aqui, engine mais abaixo) */
 let reorderState={active:false,dk:null};
 
-/* ── Sessão de treino — estado temporário (nunca salvo em localStorage) ──────
-   sessionDraft: sobrescritas de sets/reps/weight/time para a guia Hoje.
-   Estrutura: { "SEG-0-Supino reto": { sets, reps, weight, time } }
 
+
+/* ── Sessão de treino — estado temporário ──────────────────────────────────
    sessionExtraExercises: exercícios adicionados só para o treino de hoje.
    Estrutura: { "SEG-0": [ {name,sets,reps,weight,time,media} ] }
-   Ambos são zerados ao recarregar — comportamento intencional.
    ─────────────────────────────────────────────────────────────────────────── */
-let sessionDraft = {};
 
 /* ── sessionExtraExercises e sessionExStatus são inicializados abaixo,
    após todaySession, porque dependem do cache carregado. ── */
@@ -2819,27 +2816,6 @@ function toggleExStatus(dk, bi, exName, newStatus) {
       setTimeout(() => btn.classList.remove('pop'), 400);
     }
   }, 20);
-}
-
-function draftKey(dk, bi, exName) {
-  return `${dk}-${bi}-${exName}`;
-}
-function getDraftVal(dk, bi, exName, field, fallback) {
-  const k = draftKey(dk, bi, exName);
-  return (sessionDraft[k] && sessionDraft[k][field] != null)
-    ? sessionDraft[k][field]
-    : fallback;
-}
-function setDraftVal(dk, bi, exName, field, val) {
-  const k = draftKey(dk, bi, exName);
-  if (!sessionDraft[k]) sessionDraft[k] = {};
-  sessionDraft[k][field] = parseFloat(val) || 0;
-}
-
-/* Escreve só no sessionDraft — nunca toca blocks */
-function updExDraft(dk, bi, exName, field, val) {
-  setDraftVal(dk, bi, exName, field, val);
-  /* Não chama sv(), não modifica blocks */
 }
 
 /* Atualiza todaySession diretamente, sem tocar blocks nem o store principal.
@@ -3308,7 +3284,10 @@ function toggleExSem(k,dk){openEx[k]=!openEx[k];if(window._lastDayDetail)openDay
 function toggleBlkSem(k,dk){openBlk[k]=!openBlk[k];persistOpenBlk();openDayDetail(dk)}
 
 /* -------- MODAL -------- */
-function openModal(m){modal=m;render()}
+function openModal(m){
+  modal=m;render();
+  if(m.t==='reorderEx')setTimeout(()=>attachExReorderListeners(),30);
+}
 function closeModal(){modal=null;render()}
 
 function renderModal(){
@@ -3361,6 +3340,7 @@ function renderModal(){
     const iconBtns=Object.entries(BTYPE_ICONS).map(([k,svg])=>
       `<div class="blk-icon-opt${b.type===k?' selected':''}" onclick="setBlockType('${m.dk}',${m.bi},'${k}')" title="${BTYPES[k]?.l||k}">${svg}</div>`
     ).join('');
+    const hasMultipleEx = b.exercises.length > 1;
     return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
       <h3>Editar bloco</h3>
       <input type="text" id="m-bl" value="${b.label}" placeholder="Nome do bloco">
@@ -3372,9 +3352,33 @@ function renderModal(){
       <div class="sep"></div>
       <div style="font-size:9px;color:var(--t2);letter-spacing:2px;text-transform:uppercase;margin-bottom:8px;font-weight:500">Exercícios</div>
       ${b.exercises.map((e,ei)=>`<div class="cfg-row"><div><div class="cfg-row-label">${e.name}</div><div class="cfg-row-sub">${e.sets}× ${e.time>0&&e.reps===0?e.time+'s':e.reps+' reps'}${e.weight?' · '+e.weight+'kg':''}</div></div><button class="cfg-del" onclick="delEx('${m.dk}',${m.bi},${ei})">remover</button></div>`).join('')}
+      ${hasMultipleEx?`<button class="reorder-btn" style="width:100%;margin-top:8px" onclick="openModal({t:'reorderEx',dk:'${m.dk}',bi:${m.bi}})">
+        <svg viewBox="0 0 16 16" style="stroke:currentColor;fill:none;stroke-width:1.5;stroke-linecap:round"><path d="M2 5h12M2 8h12M2 11h12"/></svg>
+        Reorganizar exercícios
+      </button>`:''}
       <div class="sep"></div>
       <button class="cfg-del" style="width:100%;margin-bottom:12px;font-family:inherit;padding:10px;border-radius:var(--r-md);text-align:center" onclick="delBlock('${m.dk}',${m.bi})">Excluir bloco</button>
       <div class="m-btns"><button class="m-cancel" onclick="closeModal()">Fechar</button><button class="m-ok btn-ripple" onclick="confEditBlock()">Salvar</button></div>
+    </div></div>`;
+  }
+
+  if(m.t==='reorderEx'){
+    const b=blocks[m.dk][m.bi];
+    const gripSvg=`<svg viewBox="0 0 10 16" width="10" height="16"><circle cx="3" cy="3" r="1.4" fill="currentColor"/><circle cx="7" cy="3" r="1.4" fill="currentColor"/><circle cx="3" cy="8" r="1.4" fill="currentColor"/><circle cx="7" cy="8" r="1.4" fill="currentColor"/><circle cx="3" cy="13" r="1.4" fill="currentColor"/><circle cx="7" cy="13" r="1.4" fill="currentColor"/></svg>`;
+    const items=b.exercises.map((e,ei)=>
+      `<div class="ex-reorder-item" data-ei="${ei}" style="display:flex;align-items:center;gap:10px;padding:10px 12px;background:var(--s2);border:0.5px solid var(--b1);border-radius:var(--r-md);margin-bottom:6px;cursor:grab;user-select:none;touch-action:none">
+        <div style="color:var(--t3);display:flex;align-items:center;flex-shrink:0">${gripSvg}</div>
+        <div style="flex:1;min-width:0">
+          <div style="font-size:var(--fs-body);color:var(--tc);font-weight:var(--fw-normal)">${e.name}</div>
+          <div style="font-size:var(--fs-sub);color:var(--t2);margin-top:2px">${e.sets}× ${e.time>0&&e.reps===0?e.time+'s':e.reps+' reps'}${e.weight?' · '+e.weight+'kg':''}</div>
+        </div>
+      </div>`
+    ).join('');
+    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
+      <h3>Reorganizar exercícios</h3>
+      <div style="font-size:11px;color:var(--t2);margin-bottom:12px;letter-spacing:0.2px">Segure e arraste para reordenar</div>
+      <div id="ex-reorder-list">${items}</div>
+      <div class="m-btns" style="margin-top:12px"><button class="m-cancel" onclick="openModal({t:'editBlock',dk:'${m.dk}',bi:${m.bi}})">← Voltar</button></div>
     </div></div>`;
   }
 
@@ -3453,6 +3457,7 @@ function confEditBlock(){
 function setBlockColor(dk,bi,color){
   blocks[dk][bi].accentColor=color;sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();
   modal={t:'editBlock',dk,bi};render();
+  if(window._lastDayDetail)setTimeout(()=>openDayDetail(window._lastDayDetail),0);
 }
 function setBlockType(dk,bi,type){
   blocks[dk][bi].type=type;sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();
@@ -3474,6 +3479,7 @@ function openLightbox(url){
 /* -------- CRUD -------- */
 function delEx(dk,bi,ei){blocks[dk][bi].exercises.splice(ei,1);sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();render()}
 function delBlock(dk,bi){blocks[dk].splice(bi,1);sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();closeModal();toast('Bloco removido')}
+
 function confAddGoal(){
   const n=document.getElementById('m-gn').value.trim();if(!n)return;
   const s=document.getElementById('m-gs').value.trim();
@@ -3558,6 +3564,7 @@ function openDayDetail(dk){
       /* Modo normal: comportamento original preservado */
       const key='sem'+dk+bi;
       const isOpen=openBlk[key];
+      const colorAttr=b.accentColor?` data-color="${b.accentColor}"`:'';
       let body='';
       if(isOpen){
         b.exercises.forEach((e,ei)=>{body+=renderExRow(e,dk,bi,ei,true);});
@@ -3568,7 +3575,7 @@ function openDayDetail(dk){
         body+=`<button class="sreg" onclick="openModal({t:'editBlock',dk:'${dk}',bi:${bi}})">Editar bloco</button>`;
       }
       const chevSvg=`<svg viewBox="0 0 14 14"><path d="M3 5L7 9L11 5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
-      h+=`<div class="bc">
+      h+=`<div class="bc${isOpen?' open':''}${colorAttr}">
         <div class="bh" onclick="toggleBlkSem('${key}','${dk}')">
           <div class="bl-icon">${blockIcon(b)}</div>
           <div class="bh-info"><div class="bn">${b.label}</div><div class="bs">${b.exercises.length} exercício${b.exercises.length!==1?'s':''}</div></div>
@@ -3692,7 +3699,124 @@ function exitReorderMode(){
   toast('Ordem salva');
 }
 
-/* ── Anexa listeners ao container renderizado ── */
+/* ═══════════════════════════════════════════════════════════════════
+   EXERCISE REORDER ENGINE — drag-and-drop dentro do modal reorderEx
+   Mesmo padrão do block reorder, adaptado para exercícios inline no modal.
+   Salva imediatamente em blocks ao soltar; modal re-renderiza automaticamente.
+   ═══════════════════════════════════════════════════════════════════ */
+const _exDrag = {
+  active:false, el:null, ghost:null, placeholder:null,
+  fromIndex:-1, toIndex:-1, offsetX:0, offsetY:0,
+  dk:null, bi:-1, scrollEl:null, scrollRaf:null, clientY:0,
+};
+
+function attachExReorderListeners(){
+  const list=document.getElementById('ex-reorder-list');
+  if(!list)return;
+  list.querySelectorAll('.ex-reorder-item').forEach(item=>{
+    item.addEventListener('mousedown',_exOnStart,{passive:false});
+    item.addEventListener('touchstart',_exOnStart,{passive:false});
+  });
+}
+
+function _exOnStart(e){
+  e.preventDefault();
+  const el=e.currentTarget;
+  const isTouchEvt=e.type==='touchstart';
+  const pt=isTouchEvt?e.touches[0]:e;
+  const rect=el.getBoundingClientRect();
+
+  const ph=document.createElement('div');
+  ph.className='bc-placeholder';ph.style.height=rect.height+'px';ph.style.borderRadius='var(--r-md)';
+  el.parentNode.insertBefore(ph,el.nextSibling);
+
+  const ghost=el.cloneNode(true);
+  ghost.style.cssText=`position:fixed;top:0;left:0;z-index:9999;pointer-events:none;will-change:transform;width:${rect.width}px;border-radius:var(--r-md);background:var(--s3);border:1px solid var(--b2);box-shadow:0 12px 32px rgba(0,0,0,0.45);opacity:0.97;transform:translate(${rect.left}px,${rect.top}px)`;
+  document.getElementById('app').appendChild(ghost);
+
+  el.style.opacity='0';el.style.pointerEvents='none';
+
+  const m=modal;
+  _exDrag.active=true;_exDrag.el=el;_exDrag.ghost=ghost;_exDrag.placeholder=ph;
+  _exDrag.fromIndex=parseInt(el.dataset.ei);_exDrag.toIndex=_exDrag.fromIndex;
+  _exDrag.offsetX=pt.clientX-rect.left;_exDrag.offsetY=pt.clientY-rect.top;
+  _exDrag.dk=m.dk;_exDrag.bi=m.bi;
+  _exDrag.scrollEl=document.querySelector('.modal-ov .modal');
+  _exDrag.clientY=pt.clientY;
+
+  if(isTouchEvt){
+    document.addEventListener('touchmove',_exOnMove,{passive:false});
+    document.addEventListener('touchend',_exOnEnd,{passive:false});
+    document.addEventListener('touchcancel',_exDragCancel,{passive:false});
+  } else {
+    document.addEventListener('mousemove',_exOnMove);
+    document.addEventListener('mouseup',_exOnEnd);
+  }
+}
+
+function _exOnMove(e){
+  if(!_exDrag.active)return;e.preventDefault();
+  const pt=e.type==='touchmove'?e.touches[0]:e;
+  const cx=pt.clientX;const cy=pt.clientY;_exDrag.clientY=cy;
+  if(_exDrag.ghost){_exDrag.ghost.style.transition='none';_exDrag.ghost.style.transform=`translate(${cx-_exDrag.offsetX}px,${cy-_exDrag.offsetY}px)`;}
+  _exCalcDropIndex(cy);
+}
+
+function _exOnEnd(e){
+  if(!_exDrag.active)return;e.preventDefault();
+  _exDrag.active=false;
+  document.removeEventListener('touchmove',_exOnMove);document.removeEventListener('touchend',_exOnEnd);
+  document.removeEventListener('touchcancel',_exDragCancel);document.removeEventListener('mousemove',_exOnMove);document.removeEventListener('mouseup',_exOnEnd);
+  const from=_exDrag.fromIndex;const to=_exDrag.toIndex;
+  if(from!==to&&blocks[_exDrag.dk]&&blocks[_exDrag.dk][_exDrag.bi]){
+    const arr=blocks[_exDrag.dk][_exDrag.bi].exercises;
+    const item=arr.splice(from,1)[0];arr.splice(to,0,item);
+    sv('bv2_blocks',blocks);
+    if(_exDrag.dk===todayKey)resetTodaySession();
+  }
+  if(_exDrag.ghost){_exDrag.ghost.remove();_exDrag.ghost=null;}
+  if(_exDrag.placeholder){_exDrag.placeholder.remove();_exDrag.placeholder=null;}
+  /* Re-abre o modal reorderEx para refletir nova ordem */
+  openModal({t:'reorderEx',dk:_exDrag.dk,bi:_exDrag.bi});
+  setTimeout(()=>attachExReorderListeners(),30);
+}
+
+function _exDragCancel(){
+  if(!_exDrag.active)return;_exDrag.active=false;
+  document.removeEventListener('touchmove',_exOnMove);document.removeEventListener('touchend',_exOnEnd);
+  document.removeEventListener('touchcancel',_exDragCancel);document.removeEventListener('mousemove',_exOnMove);document.removeEventListener('mouseup',_exOnEnd);
+  if(_exDrag.ghost){_exDrag.ghost.remove();_exDrag.ghost=null;}
+  if(_exDrag.placeholder){_exDrag.placeholder.remove();_exDrag.placeholder=null;}
+  if(_exDrag.el){_exDrag.el.style.opacity='';_exDrag.el.style.pointerEvents='';}
+  openModal({t:'reorderEx',dk:_exDrag.dk,bi:_exDrag.bi});
+  setTimeout(()=>attachExReorderListeners(),30);
+}
+
+function _exCalcDropIndex(clientY){
+  const list=document.getElementById('ex-reorder-list');
+  if(!list||!_exDrag.placeholder)return;
+  const items=[...list.querySelectorAll('.ex-reorder-item')].filter(el=>el.style.opacity!=='0');
+  if(!items.length)return;
+  let newTo=_exDrag.fromIndex;let insertBefore=null;let placed=false;
+  for(let i=0;i<items.length;i++){
+    const r=items[i].getBoundingClientRect();
+    if(clientY<r.top+r.height*0.5){
+      newTo=parseInt(items[i].dataset.ei);
+      if(newTo>_exDrag.fromIndex)newTo=newTo-1;
+      insertBefore=items[i];placed=true;break;
+    }
+  }
+  if(!placed){
+    const last=items[items.length-1];
+    newTo=parseInt(last.dataset.ei);
+    if(newTo<_exDrag.fromIndex)newTo=newTo+1;
+    insertBefore=last.nextSibling;
+  }
+  if(newTo!==_exDrag.toIndex)_exDrag.toIndex=newTo;
+  list.insertBefore(_exDrag.placeholder,insertBefore||null);
+}
+
+
 function attachReorderListeners(dk){
   const list=document.getElementById('reorder-list-'+dk);
   if(!list)return;
