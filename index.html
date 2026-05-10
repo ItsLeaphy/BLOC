@@ -2728,6 +2728,38 @@ function saveStore() {
   localStorage.setItem(STORE, JSON.stringify(store));
 }
 
+/* ── saveTodayCache — persiste a sessão atual do dia ──────────────────────────
+   Salva todaySession, sessionExStatus e sessionExtraExercises em localStorage
+   com a data de hoje como chave de validade.
+   Chamada após qualquer mutação de estado da sessão:
+   updExToday, toggleExStatus, confAddEx (Hoje), saveLog.
+   NÃO faz parte do store principal — chave separada para não inflar o payload.
+   ─────────────────────────────────────────────────────────────────────────── */
+const TODAY_CACHE_STORE = 'bloc_today_cache';
+function saveTodayCache() {
+  const today = new Date().toLocaleDateString('pt-BR');
+  const cache = {
+    date: today,
+    session: todaySession,
+    exStatus: sessionExStatus,
+    extraExercises: sessionExtraExercises,
+  };
+  try { localStorage.setItem(TODAY_CACHE_STORE, JSON.stringify(cache)); } catch(e) {}
+}
+
+/* ── loadTodayCache — reidrata a sessão se a data bater ──────────────────────
+   Retorna o cache se a data for hoje, null caso contrário (Opção A: troca de dia).
+   ─────────────────────────────────────────────────────────────────────────── */
+function loadTodayCache() {
+  try {
+    const raw = JSON.parse(localStorage.getItem(TODAY_CACHE_STORE));
+    if (!raw || !raw.date) return null;
+    const today = new Date().toLocaleDateString('pt-BR');
+    if (raw.date !== today) return null; /* dia diferente → descarta (Opção A) */
+    return raw;
+  } catch { return null; }
+}
+
 // sv() — wrapper de persistência. Sempre salva o store completo.
 // Chamada após toda mutação de blocks, history ou goals.
 // NÃO chamar para todaySession — ela nunca vai para localStorage.
@@ -2759,32 +2791,14 @@ let reorderState={active:false,dk:null};
    Ambos são zerados ao recarregar — comportamento intencional.
    ─────────────────────────────────────────────────────────────────────────── */
 let sessionDraft = {};
+
+/* ── sessionExtraExercises e sessionExStatus são inicializados abaixo,
+   após todaySession, porque dependem do cache carregado. ── */
 let sessionExtraExercises = {};
 
 /* ── sessionExStatus — SISTEMA DE STATUS INDIVIDUAL POR EXERCÍCIO ─────────────
-   Armazena o estado visual de cada exercício durante a sessão atual.
-
    ESTRUTURA: { "SEG-0-Supino reto": "done" | "skipped" }
-   Chave: `${dk}-${bi}-${exName}` (mesmo padrão do draftKey)
-
-   REGRAS ARQUITETURAIS (CRÍTICO — não violar):
-   ❌  Nunca persistido em localStorage — pertence SOMENTE à sessão.
-   ❌  Nunca referenciado por código da guia Semana/Config.
-   ❌  Nunca muta blocks (o template permanente).
-   ✅  Lido por renderExRow() (fromSemana=false) para aplicar classes visuais.
-   ✅  Lido por saveLog() para incluir o campo 'status' no snapshot do histórico.
-   ✅  Zerado automaticamente ao recarregar a página (é var em memória).
-
-   VALORES:
-   - "done"    → exercício marcado como concluído (feedback visual verde)
-   - "skipped" → exercício explicitamente pulado (feedback visual amarelo/opaco)
-   - ausente   → status neutro (aparência padrão, sem marcação)
-
-   OBJETIVO FUTURO:
-   O campo 'status' nos snapshots do histórico permite analytics como:
-   - exercícios frequentemente pulados
-   - taxa de adesão por bloco/exercício
-   - padrões de skip (ex: "você pula posterior de coxa há 3 semanas")
+   Persistido via saveTodayCache() com validade de 1 dia.
    ─────────────────────────────────────────────────────────────────────────── */
 let sessionExStatus = {};
 
@@ -2802,6 +2816,7 @@ function toggleExStatus(dk, bi, exName, newStatus) {
   } else {
     sessionExStatus[k] = newStatus;
   }
+  saveTodayCache(); /* persiste status imediatamente */
   render();
   /* Micro-animação no botão clicado — dispara após render */
   setTimeout(() => {
@@ -2838,16 +2853,16 @@ function updExDraft(dk, bi, exName, field, val) {
   /* Não chama sv(), não modifica blocks */
 }
 
-/* MUDANÇA 3 — Atualiza todaySession diretamente, sem tocar blocks nem localStorage.
+/* Atualiza todaySession diretamente, sem tocar blocks nem o store principal.
    Chamada exclusivamente pelos inputs da guia Hoje.
-   Marca todaySessionDirty=true para proteger o clone de um reset acidental. */
+   Persiste via saveTodayCache() para sobreviver ao fechamento do app. */
 function updExToday(dk, bi, exName, field, val) {
   const ex = todaySession[bi]?.exercises.find(e => e.name === exName);
   if (ex) {
     ex[field] = parseFloat(val) || 0;
     todaySessionDirty = true;
+    saveTodayCache(); /* persiste a sessão imediatamente */
   }
-  /* NÃO chama sv() — todaySession nunca vai para localStorage */
 }
 
 /* Preserva estado de blocos abertos entre navegações (QUICK WIN #1) */
@@ -2906,19 +2921,23 @@ function isPR(exName, newWeight){
 const todayI=new Date().getDay();
 const todayKey=DAYS[todayI];
 
-/* ── todaySession — MUDANÇA 1 ────────────────────────────────────────────────
-   Cópia profunda e independente de blocks[todayKey] para uso exclusivo na
-   guia Hoje. Alterações neste objeto NUNCA tocam blocks (o template permanente).
-
-   Regras:
-   - todaySession é inicializado uma vez ao carregar o app.
-   - Se o usuário editar o template via guia Semana/Config, chamar
-     resetTodaySession() para re-sincronizar — mas somente se nenhuma
-     edição de sessão foi feita ainda (flag todaySessionDirty).
-   - todaySession NUNCA é salvo em localStorage.
+/* ── todaySession — reidratação com cache diário ─────────────────────────────
+   Se o cache do dia existir (mesma data), restaura a sessão persistida.
+   Caso contrário (primeiro acesso do dia ou app novo), clona o template.
+   todaySessionDirty começa true quando vem do cache — protege de reset acidental.
    ─────────────────────────────────────────────────────────────────────────── */
-let todaySession = JSON.parse(JSON.stringify(blocks[todayKey] || []));
-let todaySessionDirty = false; /* true após qualquer edição via guia Hoje */
+const _todayCache = loadTodayCache();
+let todaySession;
+let todaySessionDirty;
+if (_todayCache) {
+  todaySession         = _todayCache.session;
+  sessionExStatus      = _todayCache.exStatus      || {};
+  sessionExtraExercises= _todayCache.extraExercises || {};
+  todaySessionDirty    = true; /* sessão restaurada — protege de re-clone */
+} else {
+  todaySession         = JSON.parse(JSON.stringify(blocks[todayKey] || []));
+  todaySessionDirty    = false;
+}
 
 /* Re-clona a partir do template quando o template muda E a sessão ainda não
    foi editada pelo usuário. Chamar após qualquer mutação em blocks[todayKey]. */
@@ -3053,6 +3072,7 @@ function saveLog(dk,bi){
   sv('bv2_history',history);
   /* Limpa extras da sessão — todaySession permanece (pode registrar outro bloco hoje) */
   delete sessionExtraExercises[dk+'-'+bi];
+  saveTodayCache(); /* persiste estado pós-registro */
   /* Feedback contextual rico */
   const totalVol=exArr.reduce((acc,e)=>acc+(e.sets*(e.weight||0)),0);
   if(prs.length>0){
@@ -3218,7 +3238,8 @@ function renderBlockCard(b,dk,bi,prefix){
   const today=new Date().toLocaleDateString('pt-BR');
   const hasDone=history.some(h=>h.dayKey===dk&&h.date===today&&h.blockLabel===b.label);
   const colorAttr=b.accentColor?` data-color="${b.accentColor}"`:'';
-  const addExFn=prefix
+  const fromSemanaCtx = (prefix === 'sem');
+  const addExFn=fromSemanaCtx
     ?`openModal({t:'addEx',dk:'${dk}',bi:${bi},fromSemana:true});setTimeout(()=>reopenDay('${dk}'),10)`
     :`openModal({t:'addEx',dk:'${dk}',bi:${bi},fromSemana:false})`;
 
@@ -3226,7 +3247,7 @@ function renderBlockCard(b,dk,bi,prefix){
   if(isOpen){
     b.exercises.forEach((e,ei)=>{body+=renderExRow(e,dk,bi,ei,prefix==='sem');});
     /* Exercícios extras adicionados só para a sessão de hoje */
-    if(!prefix){
+    if(prefix !== 'sem'){
       const extraEx=sessionExtraExercises[dk+'-'+bi]||[];
       extraEx.forEach((e,ei)=>{body+=renderExRow(e,dk,bi,b.exercises.length+ei,false);});
     }
@@ -3253,6 +3274,13 @@ function renderBlockCard(b,dk,bi,prefix){
       <svg viewBox="0 0 16 16"><path d="M3 13V4.5L7 2l4 2.5V13" stroke-width="1.3" stroke-linejoin="round"/><path d="M7 2v11" stroke-width="1.3"/><path d="M3 8h4M11 8h2" stroke-width="1.2" stroke-linecap="round"/></svg>
       ${hasJournal?'Ver journal de hoje':'Escrever no journal'}
     </button>`;
+    /* Botão "Promover para Semana" — só aparece em blocos criados apenas para hoje */
+    if(b._sessionOnly){
+      body+=`<button class="add-b" style="border-style:solid;color:var(--blue);border-color:rgba(96,165,250,0.25)" onclick="promoteBlockToWeek(${bi})">
+        <svg viewBox="0 0 12 12" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><path d="M6 9V1M2 4l4-4 4 4"/></svg>
+        Salvar na Semana também
+      </button>`;
+    }
   }
 
   const chevSvg=`<svg viewBox="0 0 14 14"><path d="M3 5L7 9L11 5" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`;
@@ -3306,6 +3334,19 @@ function renderModal(){
       <input type="number" id="m-es" placeholder="Séries" value="3" min="1">
       <input type="number" id="m-ev" placeholder="Reps / Segundos" value="10" min="1">
       <div class="m-btns"><button class="m-cancel" onclick="closeModal()">Cancelar</button><button class="m-ok btn-ripple" onclick="confAddEx()">Adicionar</button></div>
+    </div></div>`;
+  }
+
+  if(m.t==='addBlockToday'){
+    const opts=Object.entries(BTYPES).map(([k,v])=>`<div class="blk-opt" onclick="confAddBlockToday('${m.dk}','${k}')">
+      <div class="blk-opt-icon">${BTYPE_ICONS[k]}</div>
+      <div><div class="blk-opt-name">${v.l}</div><div class="blk-opt-desc">${v.d}</div></div>
+    </div>`).join('');
+    return`<div class="modal-ov" onclick="if(event.target===this)closeModal()"><div class="modal">
+      <h3>Novo bloco — só hoje</h3>
+      <div style="font-size:11px;color:var(--t2);margin-bottom:12px;letter-spacing:0.2px;line-height:1.6">O bloco será adicionado apenas à sessão de hoje. Você pode promovê-lo para a Semana depois.</div>
+      ${opts}
+      <div class="m-btns" style="margin-top:8px"><button class="m-cancel" onclick="closeModal()">Cancelar</button></div>
     </div></div>`;
   }
 
@@ -3377,6 +3418,7 @@ function confAddEx(){
     const k=modal.dk+'-'+modal.bi;
     if(!sessionExtraExercises[k])sessionExtraExercises[k]=[];
     sessionExtraExercises[k].push(ex);
+    saveTodayCache(); /* persiste exercícios extras da sessão */
   }
   closeModal();
 }
@@ -3385,6 +3427,33 @@ function confAddBlock(dk,type){
   if(!blocks[dk])blocks[dk]=[];
   blocks[dk].push({type,label:bt.l,notes:'',exercises:[]});
   sv('bv2_blocks',blocks);if(dk===todayKey)resetTodaySession();closeModal();toast('Bloco criado');
+}
+
+/* Adiciona bloco SOMENTE à sessão de hoje — não toca blocks/template */
+function confAddBlockToday(dk,type){
+  const bt=BTYPES[type];
+  const newBlock={type,label:bt.l,notes:'',exercises:[],_sessionOnly:true};
+  todaySession.push(newBlock);
+  todaySessionDirty=true;
+  saveTodayCache();
+  closeModal();
+  toast('Bloco adicionado para hoje');
+}
+
+/* Promove um bloco de todaySession para o template da Semana */
+function promoteBlockToWeek(bi){
+  const b=todaySession[bi];
+  if(!b)return;
+  const clone=JSON.parse(JSON.stringify(b));
+  delete clone._sessionOnly;
+  if(!blocks[todayKey])blocks[todayKey]=[];
+  blocks[todayKey].push(clone);
+  sv('bv2_blocks',blocks);
+  /* Marca como promovido na sessão (remove flag) */
+  delete todaySession[bi]._sessionOnly;
+  saveTodayCache();
+  toast('Bloco salvo na Semana');
+  render();
 }
 function confEditBlock(){
   const b=blocks[modal.dk][modal.bi];
@@ -3454,7 +3523,7 @@ function renderHoje(){
   let h=`<div class="sec">${DAYFULL[todayI]}</div>`;
   if(!db.length)h+=`<div class="empty"><strong>Sem blocos hoje</strong>Vá em Semana para montar o dia.</div>`;
   db.forEach((b,i)=>h+=renderBlockCard(b,todayKey,i,'hoje'));
-  h+=`<button class="add-b" onclick="openModal({t:'addBlock',dk:'${todayKey}'})">
+  h+=`<button class="add-b" onclick="openModal({t:'addBlockToday',dk:'${todayKey}'})">
     <svg viewBox="0 0 12 12"><path d="M6 1v10M1 6h10" stroke-width="2" stroke-linecap="round"/></svg>
     Novo bloco
   </button>`;
@@ -4222,6 +4291,7 @@ function importData(input){
       // Atualiza todas as variáveis globais — incluindo appearance
       blocks=s.blocks;history=s.history;goals=s.goals;appearance=s.appearance;
       saveStore();
+      localStorage.removeItem(TODAY_CACHE_STORE); /* reseta cache de sessão */
       applyAppearance();
       toast('Dados importados');render();
     }catch(err){toast('Erro ao importar — arquivo inválido');}
@@ -4249,7 +4319,7 @@ function confirmDanger(action){
   if(action==='reset'&&val!=='RESETAR'){toast('Digite RESETAR para confirmar');return;}
   delete dangerConfirmStep[action];
   if(action==='history'){history=[];saveStore();toast('Histórico apagado');render();}
-  if(action==='reset'){const emptyStore={version:DATA_VERSION,blocks:{},history:[],goals:[],appearance:JSON.parse(JSON.stringify(DEFAULT_APPEARANCE))};localStorage.setItem(STORE,JSON.stringify(emptyStore));localStorage.removeItem(JOURNAL_STORE);location.reload();}
+  if(action==='reset'){const emptyStore={version:DATA_VERSION,blocks:{},history:[],goals:[],appearance:JSON.parse(JSON.stringify(DEFAULT_APPEARANCE))};localStorage.setItem(STORE,JSON.stringify(emptyStore));localStorage.removeItem(JOURNAL_STORE);localStorage.removeItem(TODAY_CACHE_STORE);location.reload();}
 }
 
 /* -------- MAIN RENDER -------- */
